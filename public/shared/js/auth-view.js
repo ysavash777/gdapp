@@ -8,9 +8,16 @@ import { icon } from './icons.js';
 import { avatar, AVATAR_IDS } from './avatars.js';
 import { login, register } from './session.js';
 
+const ERROR_MESSAGES = {
+  INVALID_CREDENTIALS: 'Usuario o contraseña incorrectos.',
+  USERNAME_TAKEN: 'Ese nombre de usuario ya existe.',
+  MISSING_FIELDS: 'Completa usuario y contraseña.',
+};
+
 export function renderAuth(container, onSuccess) {
   let mode = 'login'; // 'login' | 'register'
   let selectedAvatar = 1;
+  let error = null;
 
   function draw() {
     const isLogin = mode === 'login';
@@ -22,6 +29,8 @@ export function renderAuth(container, onSuccess) {
             <h1>GDapp</h1>
             <p class="small muted">${isLogin ? 'Inicia sesión para continuar' : 'Crea tu cuenta'}</p>
           </div>
+
+          ${error ? `<p class="form-error">${error}</p>` : ''}
 
           ${isLogin ? '' : `
           <div class="field">
@@ -77,7 +86,12 @@ export function renderAuth(container, onSuccess) {
       const data = isLogin
         ? await login(username, password)
         : await register(username, password, selectedAvatar);
-      if (data.ok) onSuccess(data.user);
+      if (data.ok) {
+        onSuccess(data.user);
+        return;
+      }
+      error = ERROR_MESSAGES[data.error] || 'Ocurrió un error. Intenta de nuevo.';
+      draw();
     });
   }
 

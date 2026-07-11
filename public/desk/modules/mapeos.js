@@ -20,12 +20,6 @@ export function render(outlet) {
       </div>
     </div>
 
-    <div class="stat-grid">
-      <div class="stat"><div class="st-value">—</div><div class="st-label">Mapeos totales</div></div>
-      <div class="stat"><div class="st-value">—</div><div class="st-label">Esta semana</div></div>
-      <div class="stat"><div class="st-value">—</div><div class="st-label">Pendientes</div></div>
-    </div>
-
     <div class="card">
       <div class="empty-state">
         <div class="es-icon">${icon('map', 26)}</div>

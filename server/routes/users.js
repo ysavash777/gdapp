@@ -1,24 +1,67 @@
-// API de gestión de usuarios (STUB — sin persistencia real todavía).
-// Modificar usuario, contraseña, eliminar y permisos.
+/* ============================================================
+   API de gestión de usuarios.
+   Delega toda la persistencia en store/users.store — este archivo
+   solo valida entrada y traduce a códigos HTTP.
+   ============================================================ */
 
 const express = require('express');
 const router = express.Router();
+const store = require('../store/users.store');
+const { CATALOG } = require('../permissions');
 
-const DEMO_USERS = [
-  { id: 1, username: 'admin', role: 'admin', avatar: 1, permissions: ['usuarios', 'mapeos', 'basesdatos'] },
-  { id: 2, username: 'operador', role: 'user', avatar: 3, permissions: ['mapeos'] },
-];
+// GET /api/users?q=&page=&pageSize=
+router.get('/', (req, res) => {
+  const { q, page, pageSize } = req.query;
+  const data = store.list({
+    q: q || '',
+    page: Number(page) || 1,
+    pageSize: Number(pageSize) || 20,
+  });
+  res.json({ ok: true, ...data });
+});
 
-// GET /api/users
-router.get('/', (_req, res) => res.json({ ok: true, stub: true, users: DEMO_USERS }));
+// GET /api/users/permissions-catalog
+router.get('/permissions-catalog', (_req, res) => {
+  res.json({ ok: true, catalog: CATALOG });
+});
 
-// PATCH /api/users/:id       (modificar usuario / permisos)
-router.patch('/:id', (req, res) => res.json({ ok: true, stub: true, id: Number(req.params.id), changes: req.body }));
+// POST /api/users  { username, password, role, avatar, permissions }
+router.post('/', (req, res) => {
+  try {
+    const user = store.create(req.body || {});
+    res.status(201).json({ ok: true, user });
+  } catch (e) {
+    res.status(409).json({ ok: false, error: e.message });
+  }
+});
 
-// PATCH /api/users/:id/password
-router.patch('/:id/password', (req, res) => res.json({ ok: true, stub: true, id: Number(req.params.id) }));
+// PATCH /api/users/:id  { username?, role?, avatar?, permissions? }
+router.patch('/:id', (req, res) => {
+  try {
+    const user = store.update(Number(req.params.id), req.body || {});
+    if (!user) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    res.json({ ok: true, user });
+  } catch (e) {
+    res.status(409).json({ ok: false, error: e.message });
+  }
+});
+
+// PATCH /api/users/:id/password  { password }
+router.patch('/:id/password', (req, res) => {
+  const { password } = req.body || {};
+  if (!password || password.length < 4) {
+    return res.status(400).json({ ok: false, error: 'INVALID_PASSWORD' });
+  }
+  const done = store.updatePassword(Number(req.params.id), password);
+  if (!done) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+  res.json({ ok: true });
+});
 
 // DELETE /api/users/:id
-router.delete('/:id', (req, res) => res.json({ ok: true, stub: true, id: Number(req.params.id) }));
+router.delete('/:id', (req, res) => {
+  const done = store.remove(Number(req.params.id));
+  if (!done) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+  res.json({ ok: true });
+});
 
 module.exports = router;

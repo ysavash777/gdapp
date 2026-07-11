@@ -10,8 +10,12 @@ server/
   index.js                 Bootstrap Express: monta middleware, rutas y estáticos. No contiene lógica.
   config.js                Puerto y constantes de entorno.
   middleware/device.js     Detección de dispositivo por User-Agent (redirect / → /desk | /app).
-  routes/auth.js           API stub: login / registro / logout (usuario + contraseña).
-  routes/users.js          API stub: CRUD de usuarios y permisos.
+  permissions.js           Catálogo de módulos asignables como permiso. ÚNICO lugar para añadir uno nuevo.
+  store/users.store.js     Repositorio de usuarios (hoy en memoria). Login, alta, edición, permisos y borrado
+                           pasan por aquí — cuando exista base de datos, solo se reemplaza el cuerpo de este
+                           archivo; routes/ y el frontend no cambian.
+  routes/auth.js           API: login / registro / logout. Usa store/users.store.js.
+  routes/users.js          API: listar (con búsqueda+paginación), crear, editar, cambiar contraseña, eliminar.
 
 public/
   shared/                  Todo lo compartido entre desk y app.
@@ -20,8 +24,9 @@ public/
     styles/components.css  Botones, inputs, cards, badges, tablas, modales.
     js/icons.js            Set de iconos SVG (estilo Lucide). Añadir iconos SOLO aquí.
     js/avatars.js          5 avatares claymorphism en SVG.
-    js/session.js          Sesión stub (localStorage): login, logout, usuario actual.
+    js/session.js          Sesión (localStorage) + llamadas reales a /api/auth.
     js/auth-view.js        Pantalla de login/registro reutilizada por desk y app.
+    js/api.js              Cliente fetch mínimo (JSON + manejo de error) usado por los módulos.
 
   desk/                    WEB de escritorio.
     index.html             Shell HTML (sidebar + outlet).
@@ -50,4 +55,8 @@ public/
 2. **El tema vive en `tokens.css`.** Ningún color/tipografía hardcodeado fuera de ahí.
 3. **Iconos solo desde `icons.js`** (SVG inline, nunca emojis).
 4. **`shared/` no importa nada de `desk/` ni `app/`.** La dependencia va en una sola dirección.
-5. **API**: los stubs viven en `server/routes/`. Cuando haya backend real, solo se tocan esos archivos.
+5. **API**: la lógica HTTP vive en `server/routes/`; la persistencia vive en `server/store/`. Cuando llegue la
+   base de datos real, solo se reescribe `store/users.store.js` (misma forma: list/findById/create/update/...).
+6. **Usuarios de prueba** (sembrados en memoria, se pierden al reiniciar el servidor):
+   `admin / admin1234` (admin, todos los permisos) · `operador / operador1234` (mapeos) ·
+   `consulta / consulta1234` (basesdatos).
