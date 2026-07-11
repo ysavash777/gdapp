@@ -1,0 +1,103 @@
+/* ============================================================
+   GDapp · App — layout móvil (header + outlet + tab bar iOS)
+   ============================================================ */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+/* --- Header --- */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: calc(env(safe-area-inset-top) + 14px) var(--sp-4) 12px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--line-soft);
+}
+.app-header h1 {
+  font-size: var(--text-lg);
+  letter-spacing: -0.025em;
+}
+.app-header .avatar { width: 34px; height: 34px; }
+
+/* --- Contenido --- */
+.app-content {
+  flex: 1;
+  padding: var(--sp-4) var(--sp-4) calc(env(safe-area-inset-bottom) + 96px);
+  max-width: 560px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* --- Tab bar --- */
+.tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 8px 10px calc(env(safe-area-inset-bottom) + 10px);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid var(--line-soft);
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 7px 4px 5px;
+  border: none;
+  background: none;
+  border-radius: var(--r-md);
+  color: var(--ink-3);
+  font-size: 10.5px;
+  font-weight: 550;
+  letter-spacing: 0.01em;
+  transition: color var(--t-fast), transform var(--t-fast);
+}
+.tab:active { transform: scale(0.94); }
+.tab.active { color: var(--accent-600); }
+
+/* --- Buscador móvil --- */
+.searchbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 11px 14px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--shadow-1);
+  color: var(--ink-3);
+  margin-bottom: var(--sp-4);
+}
+.searchbar input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+}
+.searchbar input::placeholder { color: var(--ink-3); }
+
+/* --- Botón de acción principal flotante dentro de módulo --- */
+.action-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.action-hero .btn { padding: 14px 18px; border-radius: var(--r-lg); font-size: var(--text-md); }
