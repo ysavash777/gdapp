@@ -221,12 +221,20 @@ async function mount(root) {
 
   function permissionsHTML(selected) {
     if (!state.catalog.length) return '<p class="small muted">Sin módulos disponibles.</p>';
-    return state.catalog.map((c) => `
-      <label class="checkbox-row">
-        <input type="checkbox" name="perm" value="${c.key}" ${selected.includes(c.key) ? 'checked' : ''} />
-        ${c.label}
-      </label>
-    `).join('');
+    const group = (scope, label) => {
+      const items = state.catalog.filter((c) => c.scope === scope);
+      if (!items.length) return '';
+      return `
+        <p class="small muted" style="margin-top:6px;">${label}</p>
+        ${items.map((c) => `
+          <label class="checkbox-row">
+            <input type="checkbox" name="perm" value="${c.key}" ${selected.includes(c.key) ? 'checked' : ''} />
+            ${c.label}
+          </label>
+        `).join('')}
+      `;
+    };
+    return group('web', 'Web (/desk)') + group('app', 'App (/app)');
   }
 
   function readPermissions(form) {

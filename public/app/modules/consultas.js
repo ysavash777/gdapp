@@ -6,6 +6,7 @@
 import { icon } from '/shared/js/icons.js';
 
 export const title = 'Consultas';
+export const description = 'Busca en las bases de datos disponibles';
 
 export function render(outlet) {
   outlet.innerHTML = `

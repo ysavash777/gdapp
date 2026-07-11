@@ -1,5 +1,7 @@
 /* ============================================================
-   GDapp · App — layout móvil (header + outlet + tab bar iOS)
+   GDapp · App — layout móvil (header + outlet)
+   Sin barra de tabs: la navegación es inicio (grid de herramientas)
+   → herramienta, con botón de volver en el header.
    ============================================================ */
 
 .app-shell {
@@ -23,54 +25,71 @@
   backdrop-filter: blur(18px);
   border-bottom: 1px solid var(--line-soft);
 }
+.hd-left { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
 .app-header h1 {
   font-size: var(--text-lg);
   letter-spacing: -0.025em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .app-header .avatar { width: 34px; height: 34px; }
+.hd-spacer { width: 38px; height: 38px; flex-shrink: 0; }
 
 /* --- Contenido --- */
 .app-content {
   flex: 1;
-  padding: var(--sp-4) var(--sp-4) calc(env(safe-area-inset-bottom) + 96px);
+  padding: var(--sp-4) var(--sp-4) calc(env(safe-area-inset-bottom) + var(--sp-5));
   max-width: 560px;
   width: 100%;
   margin: 0 auto;
 }
 
-/* --- Tab bar --- */
-.tabbar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 10;
+/* --- Saludo de inicio --- */
+.home-greeting { margin-bottom: var(--sp-5); }
+.home-greeting h2 { font-size: var(--text-xl); letter-spacing: -0.03em; }
+.home-greeting p { margin-top: 2px; }
+
+/* --- Grid de herramientas (recuadros grandes) --- */
+.tool-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  padding: 8px 10px calc(env(safe-area-inset-bottom) + 10px);
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
-  border-top: 1px solid var(--line-soft);
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4);
 }
 
-.tab {
+.tool-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 7px 4px 5px;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-5) var(--sp-4);
+  min-height: 152px;
   border: none;
-  background: none;
-  border-radius: var(--r-md);
-  color: var(--ink-3);
-  font-size: 10.5px;
-  font-weight: 550;
-  letter-spacing: 0.01em;
-  transition: color var(--t-fast), transform var(--t-fast);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  text-align: left;
+  transition: transform var(--t-fast), box-shadow var(--t-fast);
 }
-.tab:active { transform: scale(0.94); }
-.tab.active { color: var(--accent-600); }
+.tool-card:active { transform: scale(0.97); box-shadow: var(--shadow-1); }
+
+.tc-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-lg);
+  color: #fff;
+  box-shadow: var(--shadow-2);
+}
+.tool-card.tone-terra .tc-icon { background: linear-gradient(145deg, var(--tone-terra-1), var(--tone-terra-2)); }
+.tool-card.tone-menta .tc-icon { background: linear-gradient(145deg, var(--tone-menta-1), var(--tone-menta-2)); }
+.tool-card.tone-lavanda .tc-icon { background: linear-gradient(145deg, var(--tone-lavanda-1), var(--tone-lavanda-2)); }
+.tool-card.tone-ambar .tc-icon { background: linear-gradient(145deg, var(--tone-ambar-1), var(--tone-ambar-2)); }
+
+.tc-body { flex: 1; }
+.tc-body h3 { font-size: var(--text-md); letter-spacing: -0.01em; }
+.tc-body p { margin-top: 3px; font-size: var(--text-sm); color: var(--ink-2); line-height: 1.35; }
 
 /* --- Buscador móvil --- */
 .searchbar {
@@ -94,7 +113,7 @@
 }
 .searchbar input::placeholder { color: var(--ink-3); }
 
-/* --- Botón de acción principal flotante dentro de módulo --- */
+/* --- Botón de acción principal dentro de una herramienta --- */
 .action-hero {
   display: flex;
   flex-direction: column;

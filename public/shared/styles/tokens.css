@@ -72,6 +72,13 @@
                  inset 6px 8px 14px rgba(255, 255, 255, 0.55),
                  0 10px 22px rgba(23, 21, 18, 0.14);
 
+  /* --- Tonos de herramientas (tarjetas grandes en /app, mismas
+     familias de color que los avatares clay para dar coherencia) --- */
+  --tone-terra-1: #e8927c; --tone-terra-2: #c96a55;
+  --tone-menta-1: #7fb89a; --tone-menta-2: #578f72;
+  --tone-lavanda-1: #8f9fd1; --tone-lavanda-2: #6577ad;
+  --tone-ambar-1: #e3b263; --tone-ambar-2: #bc8a3c;
+
   /* --- Ritmo --- */
   --sp-1: 4px;
   --sp-2: 8px;

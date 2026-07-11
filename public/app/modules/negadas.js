@@ -6,6 +6,7 @@
 import { icon } from '/shared/js/icons.js';
 
 export const title = 'Negadas';
+export const description = 'Marca direcciones que niegan el acceso';
 
 export function render(outlet) {
   outlet.innerHTML = `

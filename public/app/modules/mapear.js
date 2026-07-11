@@ -6,15 +6,11 @@
 import { icon } from '/shared/js/icons.js';
 
 export const title = 'Mapear';
+export const description = 'Registra nuevas direcciones mapeadas';
 
 export function render(outlet) {
   outlet.innerHTML = `
     <div class="action-hero">
-      <div class="stat-grid" style="grid-template-columns: 1fr 1fr;">
-        <div class="stat"><div class="st-value">—</div><div class="st-label">Mapeadas hoy</div></div>
-        <div class="stat"><div class="st-value">—</div><div class="st-label">Total semana</div></div>
-      </div>
-
       <button class="btn btn-primary btn-block">${icon('pin', 20)} Nuevo mapeo</button>
 
       <div class="card">

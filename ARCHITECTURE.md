@@ -10,7 +10,8 @@ server/
   index.js                 Bootstrap Express: monta middleware, rutas y estáticos. No contiene lógica.
   config.js                Puerto y constantes de entorno.
   middleware/device.js     Detección de dispositivo por User-Agent (redirect / → /desk | /app).
-  permissions.js           Catálogo de módulos asignables como permiso. ÚNICO lugar para añadir uno nuevo.
+  permissions.js           Catálogo de módulos asignables como permiso, con scope 'web' o 'app'.
+                           ÚNICO lugar para añadir uno nuevo (aparece solo en el modal de Usuarios).
   store/users.store.js     Repositorio de usuarios (hoy en memoria). Login, alta, edición, permisos y borrado
                            pasan por aquí — cuando exista base de datos, solo se reemplaza el cuerpo de este
                            archivo; routes/ y el frontend no cambian.
@@ -37,16 +38,17 @@ public/
     modules/basesdatos.js  Bases de datos.
 
   app/                     PWA móvil.
-    index.html             Shell HTML (header + outlet + tab bar).
-    app.css                Layout propio de la app (tab bar, safe areas iOS).
-    app.js                 Router hash + montaje de módulos.
+    index.html             Shell HTML (header + outlet).
+    app.css                Layout propio de la app (grid de herramientas, safe areas iOS).
+    app.js                 Inicio = grid de herramientas filtrado por user.permissions;
+                           tocar una entra a su vista con botón de volver. Sin tab bar fija.
     manifest.webmanifest   Manifiesto PWA (start_url /app).
     sw.js                  Service worker (cache básico app-shell).
     icons/icon.svg         Icono de la app.
-    modules/mapear.js      Mapear.
-    modules/negadas.js     Negadas.
-    modules/vacios.js      Vacíos.
-    modules/consultas.js   Consultas.
+    modules/mapear.js      Herramienta Mapear (exporta title, description, render).
+    modules/negadas.js     Herramienta Negadas.
+    modules/vacios.js      Herramienta Vacíos.
+    modules/consultas.js   Herramienta Consultas.
 ```
 
 ## Reglas
@@ -57,6 +59,9 @@ public/
 4. **`shared/` no importa nada de `desk/` ni `app/`.** La dependencia va en una sola dirección.
 5. **API**: la lógica HTTP vive en `server/routes/`; la persistencia vive en `server/store/`. Cuando llegue la
    base de datos real, solo se reescribe `store/users.store.js` (misma forma: list/findById/create/update/...).
-6. **Usuarios de prueba** (sembrados en memoria, se pierden al reiniciar el servidor):
-   `admin / admin1234` (admin, todos los permisos) · `operador / operador1234` (mapeos) ·
-   `consulta / consulta1234` (basesdatos).
+6. **Herramientas de la app son permisos, no pestañas fijas.** El grid de inicio de `/app` muestra solo las
+   que el usuario tiene en `permissions` (mismo array que asigna Gestión de usuarios). Un usuario sin
+   herramientas asignadas ve un estado vacío pidiendo que un admin le dé acceso.
+7. **Usuarios de prueba** (sembrados en memoria, se pierden al reiniciar el servidor):
+   `admin / admin1234` (todos los permisos) · `operador / operador1234` (mapeos, mapear, negadas, vacíos) ·
+   `consulta / consulta1234` (basesdatos, consultas).

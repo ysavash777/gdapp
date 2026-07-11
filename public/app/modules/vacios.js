@@ -6,6 +6,7 @@
 import { icon } from '/shared/js/icons.js';
 
 export const title = 'Vacíos';
+export const description = 'Registra viviendas o unidades vacías';
 
 export function render(outlet) {
   outlet.innerHTML = `

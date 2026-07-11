@@ -33,9 +33,9 @@ function seed(username, password, role, avatar, permissions) {
   return user;
 }
 
-seed('admin', 'admin1234', 'admin', 1, ['usuarios', 'mapeos', 'basesdatos']);
-seed('operador', 'operador1234', 'user', 3, ['mapeos']);
-seed('consulta', 'consulta1234', 'user', 5, ['basesdatos']);
+seed('admin', 'admin1234', 'admin', 1, ['usuarios', 'mapeos', 'basesdatos', 'mapear', 'negadas', 'vacios', 'consultas']);
+seed('operador', 'operador1234', 'user', 3, ['mapeos', 'mapear', 'negadas', 'vacios']);
+seed('consulta', 'consulta1234', 'user', 5, ['basesdatos', 'consultas']);
 
 function toPublic(user) {
   const { passwordHash, ...pub } = user;
