@@ -153,6 +153,11 @@ function renderShellStructure() {
 }
 
 function renderRoute() {
+  // El login se ve a pantalla completa, sin el padding que sí necesitan
+  // el inicio y las herramientas — se restablece por defecto en cada
+  // render y solo renderLogin() lo vuelve a activar.
+  document.getElementById('outlet').classList.remove('outlet-fullbleed');
+
   const hash = location.hash.replace('#/', '');
   if (hash === 'login') { renderLogin(); return; }
 
@@ -264,16 +269,21 @@ function renderTool(key) {
   renderSubpage(tool.title, (body) => tool.render(body));
 }
 
+// El login va a pantalla completa (sin el padding de .subpage), así
+// que no reutiliza renderSubpage().
 function renderLogin() {
-  renderSubpage(null, (body) => {
-    renderAuth(body, (loggedInUser) => {
-      user = loggedInUser;
-      // Reemplaza la entrada del login en vez de apilar una nueva: así,
-      // al volver atrás desde el inicio ya logueado, no se resurfacea
-      // el panel de login.
-      history.replaceState(null, '', hashUrl(''));
-      renderRoute();
-    });
+  lastRoute = 'subpage';
+  setHeader('');
+  const outlet = document.getElementById('outlet');
+  outlet.classList.add('outlet-fullbleed');
+  outlet.innerHTML = '';
+  renderAuth(outlet, (loggedInUser) => {
+    user = loggedInUser;
+    // Reemplaza la entrada del login en vez de apilar una nueva: así,
+    // al volver atrás desde el inicio ya logueado, no se resurfacea
+    // el panel de login.
+    history.replaceState(null, '', hashUrl(''));
+    renderRoute();
   });
 }
 

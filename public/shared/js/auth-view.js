@@ -1,7 +1,7 @@
 /* ============================================================
    GDapp · Vista de autenticación (solo login — sin registro).
    Compartida por /desk y /app. Ventana partida en dos: arriba una
-   animación minimalista (Kaizen), abajo los campos.
+   imagen con degradado hacia negro, abajo los campos.
    Uso:  renderAuth(container, onSuccess)
    ============================================================ */
 
@@ -23,13 +23,8 @@ export function renderAuth(container, onSuccess) {
       <div class="auth-wrap">
         <div class="auth-card">
           <div class="auth-top">
-            <div class="kaizen-anim" aria-hidden="true">
-              <span class="kz-step kz-step-1"></span>
-              <span class="kz-step kz-step-2"></span>
-              <span class="kz-step kz-step-3"></span>
-              <span class="kz-step kz-step-4"></span>
-              <span class="kz-dot"></span>
-            </div>
+            <div class="auth-image" style="background-image:url('/shared/images/login-bg.svg')"></div>
+            <div class="auth-gradient"></div>
           </div>
 
           <div class="auth-bottom">

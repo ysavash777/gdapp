@@ -148,6 +148,16 @@ html, body {
 .app-header:not([hidden]) + .app-content {
   padding-top: 0;
 }
+/* Login a pantalla completa: sin el padding/ancho máximo del resto
+   de las vistas, para que la imagen y los campos lleguen al borde.
+   (Selector repetido con [hidden] para empatar la especificidad de
+   las reglas de arriba y así poder ganarlas por orden de aparición.) */
+.app-content.outlet-fullbleed,
+.app-header[hidden] + .app-content.outlet-fullbleed,
+.app-header:not([hidden]) + .app-content.outlet-fullbleed {
+  padding: 0;
+  max-width: none;
+}
 
 /* --- Inicio: se ajusta a la altura disponible, nunca hace scroll --- */
 .home-layout {
@@ -273,11 +283,20 @@ html, body {
 }
 .subpage-body { flex: 1; min-height: 0; overflow-y: auto; }
 
-/* --- Login embebido a pantalla completa, sin la tarjeta de escritorio --- */
-.auth-wrap { min-height: auto; height: 100%; padding: 0; background: none; }
+/* --- Login embebido a pantalla completa, sin la tarjeta de escritorio.
+   El wrap/card llegan a los bordes reales de la pantalla — el propio
+   .app-content ya quedó sin padding (.outlet-fullbleed) para esto. --- */
+.auth-wrap { min-height: 100%; height: 100%; padding: 0; background: none; }
 .auth-card { max-width: none; height: 100%; border-radius: 0; box-shadow: none; }
 .auth-top { background: none; }
-.auth-bottom-inner { padding: 0; }
+.auth-bottom-inner {
+  padding: var(--sp-5) var(--sp-5) calc(env(safe-area-inset-bottom) + var(--sp-5));
+}
+
+/* Botón de login en lila sólido (en el resto de la app, ese color
+   queda solo para los iconos — aquí es la excepción). */
+#authForm .btn-primary { background: var(--accent-500); color: #121212; }
+#authForm .btn-primary:hover { background: var(--accent-600); }
 
 /* --- Buscador móvil --- */
 .searchbar {

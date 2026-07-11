@@ -1,7 +1,7 @@
 /* ============================================================
    GDapp · Pantalla de login (compartida desk/app) — sin registro.
-   Ventana partida en dos: arriba una animación minimalista (Kaizen,
-   mejora continua paso a paso), abajo los campos.
+   Ventana partida en dos: arriba una imagen con degradado a negro,
+   abajo los campos.
    ============================================================ */
 
 .auth-wrap {
@@ -31,10 +31,23 @@
 .auth-top {
   flex: 1;
   min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative;
+  overflow: hidden;
   background: var(--surface-2);
+}
+.auth-image {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+/* Degradado a negro: separa la imagen del panel de campos, fundiéndose
+   con el color de fondo para que no se note el corte. */
+.auth-gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.55) 65%, var(--bg) 100%);
 }
 
 .auth-bottom {
@@ -71,45 +84,3 @@
   border-radius: var(--r-sm);
 }
 .pw-toggle:hover { color: var(--ink-2); }
-
-/* --- Animación Kaizen: mejora continua, paso a paso --- */
-.kaizen-anim {
-  position: relative;
-  width: 140px;
-  height: 90px;
-}
-.kz-step {
-  position: absolute;
-  bottom: 0;
-  width: 26px;
-  border-radius: 4px 4px 0 0;
-  background: var(--line);
-}
-.kz-step-1 { left: 0;   height: 22px; }
-.kz-step-2 { left: 38px; height: 42px; }
-.kz-step-3 { left: 76px; height: 62px; }
-.kz-step-4 { left: 114px; height: 82px; }
-
-.kz-dot {
-  position: absolute;
-  left: 8px;
-  bottom: 22px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--accent-500);
-  animation: kaizen-climb 3.6s infinite;
-}
-
-@keyframes kaizen-climb {
-  0%   { transform: translate(0, 0);        opacity: 0; }
-  4%   { opacity: 1; }
-  20%  { transform: translate(0, 0); }
-  25%  { transform: translate(38px, -20px); }
-  45%  { transform: translate(38px, -20px); }
-  50%  { transform: translate(76px, -40px); }
-  70%  { transform: translate(76px, -40px); }
-  75%  { transform: translate(114px, -60px); }
-  95%  { transform: translate(114px, -60px); opacity: 1; }
-  100% { transform: translate(114px, -60px); opacity: 0; }
-}
