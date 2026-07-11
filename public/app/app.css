@@ -1,7 +1,9 @@
 /* ============================================================
-   GDapp · App — layout móvil (header + outlet)
-   Sin barra de tabs: la navegación es inicio (grid de herramientas)
-   → herramienta, con botón de volver en el header.
+   GDapp · App — layout móvil
+   Sin cabecera mientras no hay sesión: el inicio empieza directo
+   con la lista de herramientas. Con sesión, la cabecera es una sola
+   fila (saludo + avatar). Las vistas de herramienta/login no llevan
+   cabecera, solo un enlace de volver arriba del contenido.
    ============================================================ */
 
 .app-shell {
@@ -10,7 +12,7 @@
   min-height: 100dvh;
 }
 
-/* --- Header --- */
+/* --- Header (solo inicio, con sesión) --- */
 .app-header {
   position: sticky;
   top: 0;
@@ -25,7 +27,7 @@
   backdrop-filter: blur(18px);
   border-bottom: 1px solid var(--line-soft);
 }
-.hd-left { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.app-header[hidden] { display: none; }
 .app-header h1 {
   font-size: var(--text-lg);
   letter-spacing: -0.025em;
@@ -34,18 +36,34 @@
   text-overflow: ellipsis;
 }
 .app-header .avatar { width: 34px; height: 34px; }
-.hd-spacer { width: 38px; height: 38px; flex-shrink: 0; }
 
 /* --- Contenido --- */
 .app-content {
   flex: 1;
-  padding: var(--sp-4) var(--sp-4) calc(env(safe-area-inset-bottom) + var(--sp-5));
+  padding: calc(env(safe-area-inset-top) + var(--sp-5)) var(--sp-4) calc(env(safe-area-inset-bottom) + var(--sp-5));
   max-width: 560px;
   width: 100%;
   margin: 0 auto;
 }
+.app-header:not([hidden]) + .app-content { padding-top: var(--sp-4); }
 
-/* --- Lista de herramientas: una columna, ancho completo --- */
+/* --- Enlace de volver (vistas de herramienta / login) --- */
+.subpage-head { margin-bottom: var(--sp-4); }
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 550;
+  padding: 4px 2px;
+  margin-bottom: var(--sp-2);
+}
+.subpage-head h2 { font-size: var(--text-lg); letter-spacing: -0.025em; }
+
+/* --- Lista de herramientas: una columna, ancho completo, alto uniforme --- */
 .tool-grid {
   display: flex;
   flex-direction: column;
@@ -57,7 +75,8 @@
   align-items: center;
   gap: var(--sp-4);
   width: 100%;
-  padding: var(--sp-4);
+  min-height: 130px;
+  padding: var(--sp-4) var(--sp-5);
   border: none;
   border-radius: var(--r-lg);
   background: var(--surface);
@@ -65,11 +84,11 @@
   text-align: left;
   transition: transform var(--t-fast), box-shadow var(--t-fast);
 }
-.tool-card:active { transform: scale(0.98); box-shadow: none; }
+.tool-card:not(.is-locked):active { transform: scale(0.98); box-shadow: none; }
 
 .tc-icon {
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   flex-shrink: 0;
   display: grid;
   place-items: center;
@@ -85,28 +104,38 @@
 .tc-body { flex: 1; min-width: 0; }
 .tc-body h3 { font-size: var(--text-md); letter-spacing: -0.01em; }
 .tc-body p {
-  margin-top: 2px;
+  margin-top: 3px;
   font-size: var(--text-sm);
   color: var(--ink-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
 }
 .tc-chevron { color: var(--ink-3); flex-shrink: 0; }
 
-/* --- Login embebido (dentro del header + outlet, no a pantalla completa).
-   El header ya dice "Iniciar sesión", así que se oculta el título
-   duplicado del formulario y solo se deja el logo. --- */
+/* --- Herramientas sin permiso: mismo tamaño, en BW, sin interacción --- */
+.tool-locked-hint {
+  margin: var(--sp-4) 0 var(--sp-3);
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+.tool-card.is-locked {
+  cursor: default;
+  filter: grayscale(1);
+  opacity: 0.55;
+  box-shadow: none;
+}
+.tool-card.is-locked .tc-icon { background: var(--n-400) !important; }
+
+/* --- Botón de iniciar sesión (solo sin sesión) --- */
+.login-cta { margin-top: var(--sp-5); }
+
+/* --- Login embebido bajo el enlace de volver, sin duplicar título --- */
 .app-content .auth-wrap {
   min-height: auto;
-  padding: var(--sp-5) 0;
+  padding: 0;
   background: none;
 }
-.app-content .auth-brand h1,
-.app-content .auth-brand p {
-  display: none;
-}
-.app-content .auth-logo { margin-bottom: 0; }
+.app-content .auth-brand { display: none; }
+.app-content .auth-card { padding: 0; box-shadow: none; }
 
 /* --- Buscador móvil --- */
 .searchbar {

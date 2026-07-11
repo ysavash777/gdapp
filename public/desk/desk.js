@@ -58,7 +58,7 @@ function renderShell() {
         </nav>
 
         <div class="sb-user">
-          <div class="avatar">${avatar(user.avatar)}</div>
+          <div class="avatar">${avatar(user.avatar, user.username)}</div>
           <div class="u-meta">
             <div class="u-name">${user.username}</div>
             <div class="u-role">${user.role === 'admin' ? 'Administrador' : 'Usuario'}</div>

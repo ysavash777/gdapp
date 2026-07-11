@@ -1,11 +1,18 @@
 /* ============================================================
-   GDapp · App — inicio con herramientas + navegación entrar/volver
-   Cada módulo vive en /app/modules/*.js y exporta { title, description, render }.
+   GDapp · App
 
    "Consultas" es de acceso libre (el equipo operativo la usa sin
-   cuenta); el resto exige sesión y el permiso correspondiente. El
-   login no se muestra de entrada — se llega a él desde el botón de
-   la cabecera, solo si el equipo de inventario necesita loguearse.
+   cuenta); el resto exige sesión y el permiso correspondiente.
+
+   Sin sesión no hay cabecera: el inicio muestra Consultas activa
+   arriba, el resto de herramientas en blanco y negro (sin permiso)
+   debajo, y un botón de ancho completo al final para loguearse.
+
+   Con sesión aparece una cabecera simple (saludo + avatar) y el
+   mismo formato: habilitadas en color arriba, sin permiso en BW
+   debajo — todo ordenado alfabéticamente.
+
+   Cada módulo vive en /app/modules/*.js y exporta { title, description, render }.
    ============================================================ */
 
 import { icon } from '/shared/js/icons.js';
@@ -30,55 +37,46 @@ const PUBLIC_TOOLS = ['consultas'];
 const root = document.getElementById('root');
 let user = null;
 
-function availableTools() {
-  const perms = user ? user.permissions || [] : [];
-  return Object.entries(TOOLS).filter(([key]) => PUBLIC_TOOLS.includes(key) || perms.includes(key));
+function isEnabled([key]) {
+  if (PUBLIC_TOOLS.includes(key)) return true;
+  return user ? (user.permissions || []).includes(key) : false;
+}
+
+function sortedByTitle(entries) {
+  return [...entries].sort((a, b) => a[1].title.localeCompare(b[1].title, 'es'));
+}
+
+function enabledTools() {
+  return sortedByTitle(Object.entries(TOOLS).filter(isEnabled));
+}
+
+function disabledTools() {
+  return sortedByTitle(Object.entries(TOOLS).filter((e) => !isEnabled(e)));
 }
 
 function currentToolKey() {
   const key = location.hash.replace('#/', '');
-  return availableTools().some(([k]) => k === key) ? key : null;
+  return enabledTools().some(([k]) => k === key) ? key : null;
 }
 
-function renderShell() {
+function setHeader(html) {
+  const header = document.getElementById('appHeader');
+  if (!html) {
+    header.hidden = true;
+    header.innerHTML = '';
+    return;
+  }
+  header.hidden = false;
+  header.innerHTML = html;
+}
+
+function renderShellStructure() {
   root.innerHTML = `
     <div class="app-shell">
-      <header class="app-header" id="appHeader"></header>
+      <header class="app-header" id="appHeader" hidden></header>
       <main class="app-content" id="outlet"></main>
     </div>
   `;
-  renderRoute();
-}
-
-function renderHeader({ back, title, showLogin }) {
-  const header = document.getElementById('appHeader');
-
-  if (back) {
-    header.innerHTML = `
-      <div class="hd-left">
-        <button class="btn-icon" id="backBtn">${icon('arrowLeft', 22)}</button>
-        <h1>${title}</h1>
-      </div>
-      <span class="hd-spacer"></span>
-    `;
-    header.querySelector('#backBtn').addEventListener('click', () => { location.hash = ''; });
-    return;
-  }
-
-  header.innerHTML = `
-    <h1>${title}</h1>
-    ${showLogin
-      ? `<button class="btn-icon" id="loginBtn" title="Iniciar sesión">${icon('user', 20)}</button>`
-      : `<button class="btn-icon" id="profileBtn" title="Cerrar sesión"><span class="avatar">${avatar(user.avatar)}</span></button>`}
-  `;
-
-  if (showLogin) {
-    header.querySelector('#loginBtn').addEventListener('click', () => { location.hash = '#/login'; });
-  } else {
-    header.querySelector('#profileBtn').addEventListener('click', () => {
-      if (confirm('¿Cerrar sesión?')) logout();
-    });
-  }
 }
 
 function renderRoute() {
@@ -91,26 +89,29 @@ function renderRoute() {
 }
 
 function renderHome() {
-  renderHeader({ back: false, title: 'GDapp', showLogin: !user });
-  const outlet = document.getElementById('outlet');
-  const tools = availableTools();
-
-  if (!tools.length) {
-    outlet.innerHTML = `
-      <div class="empty-state">
-        <div class="es-icon">${icon('shield', 26)}</div>
-        <h3>Sin herramientas asignadas</h3>
-        <p>Pide a un administrador que te asigne acceso desde Gestión de usuarios.</p>
-      </div>
-    `;
-    return;
+  if (user) {
+    setHeader(`
+      <h1>Hola, ${user.username}</h1>
+      <button class="btn-icon" id="profileBtn" title="Cerrar sesión">
+        <span class="avatar">${avatar(user.avatar, user.username)}</span>
+      </button>
+    `);
+    document.getElementById('profileBtn').addEventListener('click', () => {
+      if (confirm('¿Cerrar sesión?')) logout();
+    });
+  } else {
+    setHeader('');
   }
+
+  const enabled = enabledTools();
+  const disabled = disabledTools();
+  const outlet = document.getElementById('outlet');
 
   outlet.innerHTML = `
     <div class="tool-grid">
-      ${tools.map(([key, t]) => `
+      ${enabled.map(([key, t]) => `
         <button class="tool-card tone-${t.tone}" data-key="${key}">
-          <div class="tc-icon">${icon(t.icon, 24)}</div>
+          <div class="tc-icon">${icon(t.icon, 26)}</div>
           <div class="tc-body">
             <h3>${t.title}</h3>
             <p>${t.description || ''}</p>
@@ -119,30 +120,67 @@ function renderHome() {
         </button>
       `).join('')}
     </div>
+
+    ${disabled.length ? `
+      <p class="tool-locked-hint">${user ? 'Sin permiso — pide acceso a un administrador' : 'Inicia sesión para acceder'}</p>
+      <div class="tool-grid">
+        ${disabled.map(([, t]) => `
+          <div class="tool-card is-locked">
+            <div class="tc-icon">${icon(t.icon, 26)}</div>
+            <div class="tc-body">
+              <h3>${t.title}</h3>
+              <p>${t.description || ''}</p>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+
+    ${!user ? `<button class="btn btn-primary btn-block login-cta" id="loginCta">Iniciar sesión</button>` : ''}
   `;
 
-  outlet.querySelectorAll('.tool-card').forEach((btn) => {
+  outlet.querySelectorAll('.tool-card[data-key]').forEach((btn) => {
     btn.addEventListener('click', () => { location.hash = `#/${btn.dataset.key}`; });
   });
+
+  const cta = outlet.querySelector('#loginCta');
+  if (cta) cta.addEventListener('click', () => { location.hash = '#/login'; });
+}
+
+// Herramientas y login comparten esta plantilla: sin cabecera fija,
+// solo un enlace de volver arriba del contenido.
+function renderSubpage(title, fillContent) {
+  setHeader('');
+  const outlet = document.getElementById('outlet');
+  outlet.innerHTML = `
+    <div class="subpage-head">
+      <button class="back-link" id="backBtn">${icon('arrowLeft', 18)} Volver</button>
+      ${title ? `<h2>${title}</h2>` : ''}
+    </div>
+    <div id="subpageBody"></div>
+  `;
+  outlet.querySelector('#backBtn').addEventListener('click', () => { location.hash = ''; });
+  fillContent(outlet.querySelector('#subpageBody'));
 }
 
 function renderTool(key) {
   const tool = TOOLS[key];
-  renderHeader({ back: true, title: tool.title });
-  tool.render(document.getElementById('outlet'));
+  renderSubpage(tool.title, (body) => tool.render(body));
 }
 
 function renderLogin() {
-  renderHeader({ back: true, title: 'Iniciar sesión' });
-  renderAuth(document.getElementById('outlet'), (loggedInUser) => {
-    user = loggedInUser;
-    location.hash = '';
+  renderSubpage('Iniciar sesión', (body) => {
+    renderAuth(body, (loggedInUser) => {
+      user = loggedInUser;
+      location.hash = '';
+    });
   });
 }
 
 async function boot() {
   user = currentUser();
-  renderShell();
+  renderShellStructure();
+  renderRoute();
 
   if (!user) return;
 

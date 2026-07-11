@@ -154,7 +154,7 @@ async function mount(root) {
       <tr data-id="${u.id}">
         <td>
           <div class="row">
-            <div class="avatar" style="width:32px;height:32px;">${avatar(u.avatar)}</div>
+            <div class="avatar" style="width:32px;height:32px;">${avatar(u.avatar, u.username)}</div>
             <strong>${u.username}</strong>
           </div>
         </td>

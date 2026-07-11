@@ -166,7 +166,18 @@
   overflow: hidden;
   flex-shrink: 0;
 }
-.avatar svg { width: 100%; height: 100%; flex-shrink: 0; }
+.avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.avatar-fallback {
+  width: 100%;
+  height: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: var(--n-200);
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
 .avatar-lg { width: 72px; height: 72px; }
 .avatar-xl { width: 96px; height: 96px; }
 
