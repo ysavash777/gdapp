@@ -34,12 +34,12 @@ export function renderAuth(container, onSuccess) {
               <form id="authForm" autocomplete="off">
                 <div class="field">
                   <label for="username">Usuario</label>
-                  <input id="username" name="username" required minlength="3" placeholder="tu.usuario" value="${pendingUsername}" />
+                  <input id="username" name="username" required minlength="3" placeholder="Ingresa tu usuario" value="${pendingUsername}" />
                 </div>
                 <div class="field">
                   <label for="password">Contraseña</label>
                   <div class="password-wrap">
-                    <input id="password" name="password" type="password" required minlength="4" placeholder="••••••••" value="${pendingPassword}" />
+                    <input id="password" name="password" type="password" required minlength="4" placeholder="Ingresa tu contraseña" value="${pendingPassword}" />
                     <button type="button" class="pw-toggle" id="pwToggle" aria-label="Mostrar contraseña">${icon('eye', 18)}</button>
                   </div>
                 </div>

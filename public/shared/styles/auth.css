@@ -5,6 +5,7 @@
    ============================================================ */
 
 .auth-wrap {
+  min-height: 100vh;
   min-height: 100dvh;
   display: grid;
   place-items: center;
@@ -19,6 +20,7 @@
   width: 100%;
   max-width: 380px;
   height: 560px;
+  max-height: 86vh;
   max-height: 86dvh;
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-3);
@@ -71,7 +73,7 @@
 
 /* --- Campo de contraseña con ojito --- */
 .password-wrap { position: relative; }
-.password-wrap input { padding-right: 44px; }
+.password-wrap input { width: 100%; padding-right: 44px; }
 .pw-toggle {
   position: absolute;
   right: 6px;
