@@ -23,7 +23,7 @@ export function renderAuth(container, onSuccess) {
       <div class="auth-wrap">
         <div class="auth-card">
           <div class="auth-top">
-            <div class="auth-image" style="background-image:url('/shared/images/login-bg.svg')"></div>
+            <div class="auth-image" style="background-image:url('/shared/images/login-bg.png')"></div>
             <div class="auth-gradient"></div>
           </div>
 
