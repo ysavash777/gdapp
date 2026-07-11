@@ -71,10 +71,14 @@ html, body {
   flex-shrink: 0;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
   padding: calc(env(safe-area-inset-top) + var(--sp-4)) var(--sp-4) var(--sp-4);
   background: var(--bg);
 }
 .app-header[hidden] { display: none; }
+
+.hd-left { position: relative; min-width: 0; }
 
 .hd-user {
   display: flex;
@@ -94,6 +98,36 @@ html, body {
   text-overflow: ellipsis;
 }
 .app-header .avatar { width: 38px; height: 38px; }
+
+/* --- Menú desplegable del avatar --- */
+.user-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  min-width: 190px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 6px;
+  z-index: 20;
+  animation: menu-in 120ms ease;
+}
+.user-menu[hidden] { display: none; }
+.user-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  color: var(--ink);
+  border-radius: var(--r-sm);
+  font-size: var(--text-sm);
+  font-weight: 550;
+  text-align: left;
+}
+.user-menu-item:active { background: var(--surface-2); }
 
 /* --- Contenido --- */
 .app-content {
@@ -217,29 +251,33 @@ html, body {
   from { opacity: 0; transform: translateX(-50%) translateY(6px); }
   to { opacity: 1; transform: translateX(-50%); }
 }
-
-/* --- Vistas de herramienta / login: enlace de volver, sin cabecera --- */
-.subpage { height: 100%; display: flex; flex-direction: column; }
-.subpage-head { flex-shrink: 0; padding-top: env(safe-area-inset-top); margin-bottom: var(--sp-4); }
-.subpage-body { flex: 1; min-height: 0; overflow-y: auto; }
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: none;
-  background: none;
-  color: var(--ink-2);
-  font-size: var(--text-sm);
-  font-weight: 550;
-  padding: 4px 2px;
-  margin-bottom: var(--sp-2);
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
 }
-.subpage-head h2 { font-size: var(--text-lg); font-weight: 700; letter-spacing: -0.025em; }
 
-/* --- Login embebido bajo el enlace de volver, sin duplicar título --- */
-.auth-wrap { min-height: auto; padding: 0; background: none; }
-.auth-brand { display: none; }
-.auth-card { padding: 0; }
+/* --- Vistas de herramienta / login: sin cabecera ni botón de volver
+   (la navegación hacia atrás la resuelve el gesto del dispositivo) --- */
+.subpage {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+}
+.subpage-title {
+  flex-shrink: 0;
+  margin-bottom: var(--sp-4);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+.subpage-body { flex: 1; min-height: 0; overflow-y: auto; }
+
+/* --- Login embebido a pantalla completa, sin la tarjeta de escritorio --- */
+.auth-wrap { min-height: auto; height: 100%; padding: 0; background: none; }
+.auth-card { max-width: none; height: 100%; border-radius: 0; box-shadow: none; }
+.auth-top { background: none; }
+.auth-bottom-inner { padding: 0; }
 
 /* --- Buscador móvil --- */
 .searchbar {

@@ -1,5 +1,7 @@
 /* ============================================================
-   GDapp · Pantalla de autenticación (compartida desk/app)
+   GDapp · Pantalla de login (compartida desk/app) — sin registro.
+   Ventana partida en dos: arriba una animación minimalista (Kaizen,
+   mejora continua paso a paso), abajo los campos.
    ============================================================ */
 
 .auth-wrap {
@@ -16,36 +18,98 @@
 .auth-card {
   width: 100%;
   max-width: 380px;
-  padding: var(--sp-6);
+  height: 560px;
+  max-height: 86dvh;
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-3);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-5);
+  background: var(--surface);
 }
 
-.auth-brand { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.auth-top {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+}
 
-.auth-logo {
-  width: 54px;
-  height: 54px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-lg);
-  color: #fff;
-  background: linear-gradient(145deg, var(--accent-500), var(--accent-700));
-  box-shadow: var(--clay-shadow);
-  margin-bottom: var(--sp-2);
+.auth-bottom {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* El padding va en un contenedor interno, no en el ítem flex: con
+   min-height:0, algunos navegadores igual reservan el padding del
+   propio ítem al repartir el alto, rompiendo el 50/50. */
+.auth-bottom-inner {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sp-4);
+  padding: var(--sp-6);
 }
 
 #authForm { display: flex; flex-direction: column; gap: var(--sp-4); }
 
-.auth-switch {
-  background: none;
+/* --- Campo de contraseña con ojito --- */
+.password-wrap { position: relative; }
+.password-wrap input { padding-right: 44px; }
+.pw-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
   border: none;
-  color: var(--ink-2);
-  font-size: var(--text-sm);
-  padding: 4px;
+  background: none;
+  color: var(--ink-3);
+  padding: 8px;
+  border-radius: var(--r-sm);
 }
-.auth-switch strong { color: var(--accent-600); }
-.auth-switch:hover strong { text-decoration: underline; }
+.pw-toggle:hover { color: var(--ink-2); }
+
+/* --- Animación Kaizen: mejora continua, paso a paso --- */
+.kaizen-anim {
+  position: relative;
+  width: 140px;
+  height: 90px;
+}
+.kz-step {
+  position: absolute;
+  bottom: 0;
+  width: 26px;
+  border-radius: 4px 4px 0 0;
+  background: var(--line);
+}
+.kz-step-1 { left: 0;   height: 22px; }
+.kz-step-2 { left: 38px; height: 42px; }
+.kz-step-3 { left: 76px; height: 62px; }
+.kz-step-4 { left: 114px; height: 82px; }
+
+.kz-dot {
+  position: absolute;
+  left: 8px;
+  bottom: 22px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent-500);
+  animation: kaizen-climb 3.6s infinite;
+}
+
+@keyframes kaizen-climb {
+  0%   { transform: translate(0, 0);        opacity: 0; }
+  4%   { opacity: 1; }
+  20%  { transform: translate(0, 0); }
+  25%  { transform: translate(38px, -20px); }
+  45%  { transform: translate(38px, -20px); }
+  50%  { transform: translate(76px, -40px); }
+  70%  { transform: translate(76px, -40px); }
+  75%  { transform: translate(114px, -60px); }
+  95%  { transform: translate(114px, -60px); opacity: 1; }
+  100% { transform: translate(114px, -60px); opacity: 0; }
+}

@@ -37,6 +37,7 @@ const PATHS = {
   arrowLeft: '<path d="M19 12H5"/><path d="m11 6-6 6 6 6"/>',
   scan: '<path d="M4 9V6.5A2.5 2.5 0 0 1 6.5 4H9"/><path d="M15 4h2.5A2.5 2.5 0 0 1 20 6.5V9"/><path d="M20 15v2.5a2.5 2.5 0 0 1-2.5 2.5H15"/><path d="M9 20H6.5A2.5 2.5 0 0 1 4 17.5V15"/><path d="M4 12h16"/>',
   package: '<path d="M12 3 4 7.5v9L12 21l8-4.5v-9L12 3Z"/><path d="M4 7.5 12 12l8-4.5"/><path d="M12 12v9"/>',
+  bell: '<path d="M6 9a6 6 0 1 1 12 0c0 3.2 1 5.1 2 6.5H4c1-1.4 2-3.3 2-6.5Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/>',
 };
 
 export function icon(name, size = 20, strokeWidth = 1.7) {

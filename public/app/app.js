@@ -98,6 +98,18 @@ window.addEventListener('popstate', () => {
 // atrás/adelante (no solo por pushRoute) — hay que re-renderizar.
 window.addEventListener('hashchange', renderRoute);
 
+// Cierra el menú del avatar al tocar fuera. Un solo listener a nivel
+// documento, consultando el DOM en vivo — el header se reconstruye
+// por completo en cada render, así que no conviene cerrar sobre
+// referencias que puedan quedar obsoletas.
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('userMenu');
+  if (!menu || menu.hidden) return;
+  const btn = document.getElementById('avatarBtn');
+  if (menu.contains(e.target) || (btn && btn.contains(e.target))) return;
+  menu.hidden = true;
+});
+
 function isEnabled([key]) {
   if (PUBLIC_TOOLS.includes(key)) return true;
   return user ? (user.permissions || []).includes(key) : false;
@@ -184,17 +196,27 @@ function renderHome() {
 
   if (user) {
     setHeader(`
-      <button class="hd-user" id="profileBtn" title="Cerrar sesión">
-        <span class="avatar">${avatar(user.avatar, user.username)}</span>
-        <h1>Hola, ${user.username}</h1>
-      </button>
+      <div class="hd-left">
+        <button class="hd-user" id="avatarBtn">
+          <span class="avatar">${avatar(user.avatar, user.username)}</span>
+          <h1>Hola, ${user.username}</h1>
+        </button>
+        <div class="user-menu" id="userMenu" hidden>
+          <button class="user-menu-item" id="logoutItem">${icon('logout', 18)} Cerrar sesión</button>
+        </div>
+      </div>
+      <button class="btn-icon" id="notifBtn" title="Notificaciones">${icon('bell', 20)}</button>
     `);
-    document.getElementById('profileBtn').addEventListener('click', () => {
-      if (confirm('¿Cerrar sesión?')) {
-        logout();
-        user = null;
-        renderHome();
-      }
+
+    const menu = document.getElementById('userMenu');
+    document.getElementById('avatarBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.hidden = !menu.hidden;
+    });
+    document.getElementById('logoutItem').addEventListener('click', () => {
+      logout();
+      user = null;
+      renderHome();
     });
   } else {
     setHeader('');
@@ -221,24 +243,19 @@ function renderHome() {
   if (cta) cta.addEventListener('click', () => pushRoute('login'));
 }
 
-// Herramientas y login comparten esta plantilla: sin cabecera fija,
-// solo un enlace de volver arriba del contenido.
+// Herramientas y login comparten esta plantilla: sin cabecera ni
+// botón de volver — la navegación hacia atrás es el gesto/botón
+// físico del dispositivo (ver el manejo de popstate más arriba).
 function renderSubpage(title, fillContent) {
   lastRoute = 'subpage';
   setHeader('');
   const outlet = document.getElementById('outlet');
   outlet.innerHTML = `
     <div class="subpage">
-      <div class="subpage-head">
-        <button class="back-link" id="backBtn">${icon('arrowLeft', 18)} Volver</button>
-        ${title ? `<h2>${title}</h2>` : ''}
-      </div>
+      ${title ? `<h2 class="subpage-title">${title}</h2>` : ''}
       <div class="subpage-body" id="subpageBody"></div>
     </div>
   `;
-  // "Volver" se comporta igual que el botón/gesto físico: retrocede
-  // de verdad en el historial en vez de avanzar a una entrada nueva.
-  outlet.querySelector('#backBtn').addEventListener('click', () => history.back());
   fillContent(outlet.querySelector('#subpageBody'));
 }
 
@@ -248,7 +265,7 @@ function renderTool(key) {
 }
 
 function renderLogin() {
-  renderSubpage('Iniciar sesión', (body) => {
+  renderSubpage(null, (body) => {
     renderAuth(body, (loggedInUser) => {
       user = loggedInUser;
       // Reemplaza la entrada del login en vez de apilar una nueva: así,

@@ -35,21 +35,6 @@ router.post('/login', (req, res) => {
   res.json({ ok: true, user: store.toPublic(user) });
 });
 
-// POST /api/auth/register  { username, password }
-router.post('/register', (req, res) => {
-  const { username, password, avatar } = req.body || {};
-  if (!username || !password) {
-    return res.status(400).json({ ok: false, error: 'MISSING_FIELDS' });
-  }
-  try {
-    const user = store.create({ username, password, avatar: avatar || 1, role: 'user', permissions: [] });
-    startSession(res, user.id);
-    res.status(201).json({ ok: true, user });
-  } catch (e) {
-    res.status(409).json({ ok: false, error: e.message });
-  }
-});
-
 // GET /api/auth/me — datos frescos del usuario logueado (permisos/rol al día)
 router.get('/me', requireAuth, (req, res) => {
   res.json({ ok: true, user: req.user });

@@ -15,7 +15,8 @@ server/
   store/users.store.js     Repositorio de usuarios (hoy en memoria). Login, alta, edición, permisos y borrado
                            pasan por aquí — cuando exista base de datos, solo se reemplaza el cuerpo de este
                            archivo; routes/ y el frontend no cambian.
-  routes/auth.js           API: login / registro / logout. Usa store/users.store.js.
+  routes/auth.js           API: login / logout / me. Sin auto-registro: las cuentas las crea un admin
+                           desde Gestión de usuarios. Usa store/users.store.js.
   routes/users.js          API: listar (con búsqueda+paginación), crear, editar, cambiar contraseña, eliminar.
 
 public/
@@ -28,7 +29,7 @@ public/
     avatars/               Imágenes JPG de avatar (avatar.jpg predeterminado, avatar-1..5.jpg elegibles).
                            Ver README dentro de la carpeta para los nombres exactos.
     js/session.js          Sesión (localStorage) + llamadas reales a /api/auth.
-    js/auth-view.js        Pantalla de login/registro reutilizada por desk y app.
+    js/auth-view.js        Pantalla de login (sin registro) reutilizada por desk y app.
     js/api.js              Cliente fetch mínimo (JSON + manejo de error) usado por los módulos.
 
   desk/                    WEB de escritorio.
