@@ -40,6 +40,12 @@
   --accent-600: #9575f0;
   --accent-700: #7c5fe0;
 
+  /* --- Un color distinto por herramienta (solo el icono) --- */
+  --icon-consultas: #a78bfa; /* lila */
+  --icon-mapear: #2dd4bf;    /* turquesa */
+  --icon-negadas: #fb7185;   /* coral */
+  --icon-vacios: #fbbf24;    /* ámbar */
+
   /* --- Flat: sin sombras ni relieves --- */
   --shadow-1: none;
   --shadow-2: none;
@@ -65,7 +71,7 @@ html, body {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  padding: calc(env(safe-area-inset-top) + 16px) var(--sp-4) var(--sp-3);
+  padding: calc(env(safe-area-inset-top) + var(--sp-4)) var(--sp-4) var(--sp-4);
   background: var(--bg);
 }
 .app-header[hidden] { display: none; }
@@ -102,6 +108,12 @@ html, body {
 .app-header[hidden] + .app-content {
   padding-top: calc(env(safe-area-inset-top) + var(--sp-5));
 }
+/* El header ya deja su propio padding inferior (igual al superior,
+   sobre el avatar) — si el content sumara el suyo, quedaría más
+   espacio abajo del avatar que arriba, rompiendo la simetría. */
+.app-header:not([hidden]) + .app-content {
+  padding-top: 0;
+}
 
 /* --- Inicio: se ajusta a la altura disponible, nunca hace scroll --- */
 .home-layout {
@@ -133,8 +145,8 @@ html, body {
 .tc-top { display: flex; align-items: flex-start; justify-content: space-between; }
 
 .tc-icon {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
   display: grid;
   place-items: center;
@@ -142,6 +154,10 @@ html, body {
   color: #121212;
   background: var(--accent-500);
 }
+.tc-icon.tone-consultas { background: var(--icon-consultas); }
+.tc-icon.tone-mapear { background: var(--icon-mapear); }
+.tc-icon.tone-negadas { background: var(--icon-negadas); }
+.tc-icon.tone-vacios { background: var(--icon-vacios); }
 
 .tc-chevron { color: var(--ink-3); flex-shrink: 0; margin-top: 12px; }
 
