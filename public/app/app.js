@@ -142,11 +142,9 @@ function renderHome() {
   outlet.innerHTML = `
     <div class="home-layout">
       ${enabled.map(([key, t]) => toolCardHTML(key, t)).join('')}
-      ${disabled.length ? `
-        <p class="tool-locked-hint">${user ? 'Sin permiso — pide acceso a un administrador' : 'Inicia sesión para acceder'}</p>
-        ${disabled.map(([key, t]) => lockedCardHTML(key, t)).join('')}
-      ` : ''}
+      ${disabled.map(([key, t]) => lockedCardHTML(key, t)).join('')}
       ${!user ? `<button class="btn btn-primary btn-block login-cta" id="loginCta">Iniciar sesión</button>` : ''}
+      <p class="app-footer">GStock 1.0.0</p>
     </div>
   `;
 
