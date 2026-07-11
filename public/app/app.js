@@ -1,8 +1,11 @@
 /* ============================================================
    GDapp · App — inicio con herramientas + navegación entrar/volver
    Cada módulo vive en /app/modules/*.js y exporta { title, description, render }.
-   El inicio solo muestra las herramientas que el usuario tiene entre
-   sus permisos (user.permissions); no hay barra de tabs fija.
+
+   "Consultas" es de acceso libre (el equipo operativo la usa sin
+   cuenta); el resto exige sesión y el permiso correspondiente. El
+   login no se muestra de entrada — se llega a él desde el botón de
+   la cabecera, solo si el equipo de inventario necesita loguearse.
    ============================================================ */
 
 import { icon } from '/shared/js/icons.js';
@@ -16,18 +19,20 @@ import * as vacios from '/app/modules/vacios.js';
 import * as consultas from '/app/modules/consultas.js';
 
 const TOOLS = {
+  consultas: { ...consultas, icon: 'search', tone: 'ambar' },
   mapear: { ...mapear, icon: 'pin', tone: 'terra' },
   negadas: { ...negadas, icon: 'ban', tone: 'lavanda' },
   vacios: { ...vacios, icon: 'inbox', tone: 'menta' },
-  consultas: { ...consultas, icon: 'search', tone: 'ambar' },
 };
+
+const PUBLIC_TOOLS = ['consultas'];
 
 const root = document.getElementById('root');
 let user = null;
 
 function availableTools() {
-  const perms = user.permissions || [];
-  return Object.entries(TOOLS).filter(([key]) => perms.includes(key));
+  const perms = user ? user.permissions || [] : [];
+  return Object.entries(TOOLS).filter(([key]) => PUBLIC_TOOLS.includes(key) || perms.includes(key));
 }
 
 function currentToolKey() {
@@ -45,25 +50,30 @@ function renderShell() {
   renderRoute();
 }
 
-function renderHeader({ back, title }) {
+function renderHeader({ back, title, showLogin }) {
   const header = document.getElementById('appHeader');
-  header.innerHTML = back
-    ? `
+
+  if (back) {
+    header.innerHTML = `
       <div class="hd-left">
         <button class="btn-icon" id="backBtn">${icon('arrowLeft', 22)}</button>
         <h1>${title}</h1>
       </div>
       <span class="hd-spacer"></span>
-    `
-    : `
-      <h1>${title}</h1>
-      <button class="btn-icon" id="profileBtn" title="Cerrar sesión">
-        <span class="avatar">${avatar(user.avatar)}</span>
-      </button>
     `;
-
-  if (back) {
     header.querySelector('#backBtn').addEventListener('click', () => { location.hash = ''; });
+    return;
+  }
+
+  header.innerHTML = `
+    <h1>${title}</h1>
+    ${showLogin
+      ? `<button class="btn-icon" id="loginBtn" title="Iniciar sesión">${icon('user', 20)}</button>`
+      : `<button class="btn-icon" id="profileBtn" title="Cerrar sesión"><span class="avatar">${avatar(user.avatar)}</span></button>`}
+  `;
+
+  if (showLogin) {
+    header.querySelector('#loginBtn').addEventListener('click', () => { location.hash = '#/login'; });
   } else {
     header.querySelector('#profileBtn').addEventListener('click', () => {
       if (confirm('¿Cerrar sesión?')) logout();
@@ -72,13 +82,16 @@ function renderHeader({ back, title }) {
 }
 
 function renderRoute() {
+  const hash = location.hash.replace('#/', '');
+  if (hash === 'login') { renderLogin(); return; }
+
   const key = currentToolKey();
   if (key) renderTool(key);
   else renderHome();
 }
 
 function renderHome() {
-  renderHeader({ back: false, title: 'Herramientas' });
+  renderHeader({ back: false, title: 'GDapp', showLogin: !user });
   const outlet = document.getElementById('outlet');
   const tools = availableTools();
 
@@ -94,18 +107,15 @@ function renderHome() {
   }
 
   outlet.innerHTML = `
-    <div class="home-greeting">
-      <h2>Hola, ${user.username}</h2>
-      <p class="muted">Elige una herramienta para empezar.</p>
-    </div>
     <div class="tool-grid">
       ${tools.map(([key, t]) => `
         <button class="tool-card tone-${t.tone}" data-key="${key}">
-          <div class="tc-icon">${icon(t.icon, 26)}</div>
+          <div class="tc-icon">${icon(t.icon, 24)}</div>
           <div class="tc-body">
             <h3>${t.title}</h3>
             <p>${t.description || ''}</p>
           </div>
+          <span class="tc-chevron">${icon('chevronRight', 20)}</span>
         </button>
       `).join('')}
     </div>
@@ -122,13 +132,19 @@ function renderTool(key) {
   tool.render(document.getElementById('outlet'));
 }
 
+function renderLogin() {
+  renderHeader({ back: true, title: 'Iniciar sesión' });
+  renderAuth(document.getElementById('outlet'), (loggedInUser) => {
+    user = loggedInUser;
+    location.hash = '';
+  });
+}
+
 async function boot() {
   user = currentUser();
-  if (!user) {
-    renderAuth(root, () => boot());
-    return;
-  }
   renderShell();
+
+  if (!user) return;
 
   // Pintamos con el caché al instante y refrescamos en segundo plano:
   // así un cambio de permisos hecho por un admin se ve al recargar,
@@ -137,7 +153,7 @@ async function boot() {
   if (!fresh) { logout(); return; }
   if (JSON.stringify(fresh) !== JSON.stringify(user)) {
     user = fresh;
-    renderShell();
+    renderRoute();
   }
 }
 

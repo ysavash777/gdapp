@@ -40,8 +40,11 @@ public/
   app/                     PWA móvil.
     index.html             Shell HTML (header + outlet).
     app.css                Layout propio de la app (grid de herramientas, safe areas iOS).
-    app.js                 Inicio = grid de herramientas filtrado por user.permissions;
-                           tocar una entra a su vista con botón de volver. Sin tab bar fija.
+    app.js                 Inicio = lista de herramientas a ancho completo, filtrada por permisos.
+                           "Consultas" es pública (equipo operativo, sin cuenta); el resto exige
+                           login + permiso. El login no aparece de entrada: se llega desde el botón
+                           de la cabecera y se renderiza dentro del propio shell (hash #/login).
+                           Tocar una herramienta entra a su vista con botón de volver. Sin tab bar fija.
     manifest.webmanifest   Manifiesto PWA (start_url /app).
     sw.js                  Service worker (cache básico app-shell).
     icons/icon.svg         Icono de la app.
@@ -59,9 +62,12 @@ public/
 4. **`shared/` no importa nada de `desk/` ni `app/`.** La dependencia va en una sola dirección.
 5. **API**: la lógica HTTP vive en `server/routes/`; la persistencia vive en `server/store/`. Cuando llegue la
    base de datos real, solo se reescribe `store/users.store.js` (misma forma: list/findById/create/update/...).
-6. **Herramientas de la app son permisos, no pestañas fijas.** El grid de inicio de `/app` muestra solo las
+6. **Herramientas de la app son permisos, no pestañas fijas.** La lista de inicio de `/app` muestra solo las
    que el usuario tiene en `permissions` (mismo array que asigna Gestión de usuarios). Un usuario sin
    herramientas asignadas ve un estado vacío pidiendo que un admin le dé acceso.
-7. **Usuarios de prueba** (sembrados en memoria, se pierden al reiniciar el servidor):
+7. **"Consultas" es la única herramienta pública** (`PUBLIC_TOOLS` en `app.js`) — pensada para el equipo
+   operativo, que no necesita cuenta. Sin sesión, es lo único visible en `/app`; el resto queda oculto
+   hasta loguearse, y luego depende del permiso de cada usuario (equipo de inventario).
+8. **Usuarios de prueba** (sembrados en memoria, se pierden al reiniciar el servidor):
    `admin / admin1234` (todos los permisos) · `operador / operador1234` (mapeos, mapear, negadas, vacíos) ·
    `consulta / consulta1234` (basesdatos, consultas).
