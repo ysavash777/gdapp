@@ -59,7 +59,7 @@ router.get('/me', requireAuth, (req, res) => {
 router.post('/logout', (req, res) => {
   const token = req.cookies && req.cookies.sid;
   if (token) sessions.destroy(token);
-  res.clearCookie('sid', COOKIE_OPTS);
+  res.clearCookie('sid', { httpOnly: COOKIE_OPTS.httpOnly, sameSite: COOKIE_OPTS.sameSite, secure: COOKIE_OPTS.secure });
   res.json({ ok: true });
 });
 

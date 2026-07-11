@@ -1,54 +1,176 @@
 /* ============================================================
-   GDapp · App — layout móvil
-   Sin cabecera mientras no hay sesión: el inicio empieza directo
-   con la lista de herramientas. Con sesión, la cabecera es una sola
-   fila (saludo + avatar). Las vistas de herramienta/login no llevan
-   cabecera, solo un enlace de volver arriba del contenido.
+   GDapp · App — tema oscuro flat + layout sin scroll vertical.
+
+   Este archivo solo se carga en /app, así que las variables que
+   sobreescribe aquí NO afectan al /desk (que sigue con el tema claro
+   de tokens.css). Es la única forma de tener dos temas sin duplicar
+   el sistema de diseño: los componentes compartidos (botones, cards,
+   inputs...) ya están escritos en términos de estas variables.
    ============================================================ */
 
-.app-shell {
-  display: flex;
-  flex-direction: column;
-  min-height: 100dvh;
+:root {
+  /* --- Paleta oscura (no negro puro) --- */
+  --bg: #14131b;
+  --surface: #1d1b26;
+  --surface-2: #22202c;
+  --ink: #f1eef8;
+  --ink-2: #a19cb5;
+  --ink-3: #6f6a82;
+  --line: #2c2938;
+  --line-soft: #221f2c;
+
+  --n-0: #1a1824;
+  --n-50: #1d1b26;
+  --n-100: #242130;
+  --n-200: #2c2938;
+  --n-300: #3a3648;
+  --n-400: #6f6a82;
+  --n-500: #8b86a0;
+  --n-600: #a19cb5;
+  --n-700: #c1bdd0;
+  --n-800: #ded9ea;
+  --n-900: #f1eef8;
+
+  /* --- Acento: lila → turquesa --- */
+  --lilac: #a78bfa;
+  --turquoise: #2dd4bf;
+  --brand-gradient: linear-gradient(135deg, var(--lilac), var(--turquoise));
+
+  --accent-50: rgba(167, 139, 250, 0.14);
+  --accent-100: rgba(167, 139, 250, 0.22);
+  --accent-300: #c4b5fd;
+  --accent-500: var(--lilac);
+  --accent-600: #9575f0;
+  --accent-700: #7c5fe0;
+
+  /* --- Flat: sin sombras ni relieves --- */
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-3: none;
+  --clay-shadow: none;
 }
 
-/* --- Header (solo inicio, con sesión) --- */
+html, body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.app-shell {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* --- Header (solo inicio, con sesión): sin línea divisoria ni blur --- */
 .app-header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  padding: calc(env(safe-area-inset-top) + 14px) var(--sp-4) 12px;
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
-  border-bottom: 1px solid var(--line-soft);
+  padding: calc(env(safe-area-inset-top) + 16px) var(--sp-4) var(--sp-3);
+  background: var(--bg);
 }
 .app-header[hidden] { display: none; }
-.app-header h1 {
-  font-size: var(--text-lg);
-  letter-spacing: -0.025em;
+
+.hd-user {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  border: none;
+  background: none;
+  padding: 0;
+  min-width: 0;
+}
+.hd-user h1 {
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.02em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.app-header .avatar { width: 34px; height: 34px; }
+.app-header .avatar { width: 38px; height: 38px; }
 
 /* --- Contenido --- */
 .app-content {
   flex: 1;
-  padding: calc(env(safe-area-inset-top) + var(--sp-5)) var(--sp-4) calc(env(safe-area-inset-bottom) + var(--sp-5));
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-4) var(--sp-4) calc(env(safe-area-inset-bottom) + var(--sp-4));
   max-width: 560px;
   width: 100%;
   margin: 0 auto;
 }
-.app-header:not([hidden]) + .app-content { padding-top: var(--sp-4); }
+.app-header[hidden] + .app-content {
+  padding-top: calc(env(safe-area-inset-top) + var(--sp-5));
+}
 
-/* --- Enlace de volver (vistas de herramienta / login) --- */
-.subpage-head { margin-bottom: var(--sp-4); }
+/* --- Inicio: se ajusta a la altura disponible, nunca hace scroll --- */
+.home-layout {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  overflow: hidden;
+}
+
+.tool-card {
+  flex: 1 1 0;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  width: 100%;
+  padding: 0 var(--sp-5);
+  border: none;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  text-align: left;
+  transition: transform var(--t-fast), background var(--t-fast);
+}
+.tool-card:not(.is-locked):active { transform: scale(0.98); background: var(--surface-2); }
+
+.tc-icon {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  color: #14131b;
+  background: var(--brand-gradient);
+}
+
+.tc-body { flex: 1; min-width: 0; }
+.tc-body h3 { font-size: var(--text-md); letter-spacing: -0.01em; }
+.tc-body p {
+  margin-top: 3px;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  line-height: 1.3;
+}
+.tc-chevron { color: var(--ink-3); flex-shrink: 0; }
+
+/* --- Herramientas sin permiso: mismo tamaño, atenuadas, sin interacción --- */
+.tool-locked-hint {
+  flex: 0 0 auto;
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+.tool-card.is-locked {
+  cursor: default;
+  opacity: 0.45;
+}
+.tool-card.is-locked .tc-icon { background: var(--n-300); color: var(--ink-3); }
+
+/* --- Botón de iniciar sesión (solo sin sesión) --- */
+.login-cta { flex: 0 0 auto; padding: 12px 18px; }
+
+/* --- Vistas de herramienta / login: enlace de volver, sin cabecera --- */
+.subpage { height: 100%; display: flex; flex-direction: column; }
+.subpage-head { flex-shrink: 0; padding-top: env(safe-area-inset-top); margin-bottom: var(--sp-4); }
+.subpage-body { flex: 1; min-height: 0; overflow-y: auto; }
 .back-link {
   display: inline-flex;
   align-items: center;
@@ -63,79 +185,10 @@
 }
 .subpage-head h2 { font-size: var(--text-lg); letter-spacing: -0.025em; }
 
-/* --- Lista de herramientas: una columna, ancho completo, alto uniforme --- */
-.tool-grid {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-}
-
-.tool-card {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-4);
-  width: 100%;
-  min-height: 130px;
-  padding: var(--sp-4) var(--sp-5);
-  border: none;
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-1);
-  text-align: left;
-  transition: transform var(--t-fast), box-shadow var(--t-fast);
-}
-.tool-card:not(.is-locked):active { transform: scale(0.98); box-shadow: none; }
-
-.tc-icon {
-  width: 56px;
-  height: 56px;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-md);
-  color: #fff;
-  box-shadow: var(--shadow-2);
-}
-.tool-card.tone-terra .tc-icon { background: linear-gradient(145deg, var(--tone-terra-1), var(--tone-terra-2)); }
-.tool-card.tone-menta .tc-icon { background: linear-gradient(145deg, var(--tone-menta-1), var(--tone-menta-2)); }
-.tool-card.tone-lavanda .tc-icon { background: linear-gradient(145deg, var(--tone-lavanda-1), var(--tone-lavanda-2)); }
-.tool-card.tone-ambar .tc-icon { background: linear-gradient(145deg, var(--tone-ambar-1), var(--tone-ambar-2)); }
-
-.tc-body { flex: 1; min-width: 0; }
-.tc-body h3 { font-size: var(--text-md); letter-spacing: -0.01em; }
-.tc-body p {
-  margin-top: 3px;
-  font-size: var(--text-sm);
-  color: var(--ink-2);
-  line-height: 1.35;
-}
-.tc-chevron { color: var(--ink-3); flex-shrink: 0; }
-
-/* --- Herramientas sin permiso: mismo tamaño, en BW, sin interacción --- */
-.tool-locked-hint {
-  margin: var(--sp-4) 0 var(--sp-3);
-  font-size: var(--text-sm);
-  color: var(--ink-3);
-}
-.tool-card.is-locked {
-  cursor: default;
-  filter: grayscale(1);
-  opacity: 0.55;
-  box-shadow: none;
-}
-.tool-card.is-locked .tc-icon { background: var(--n-400) !important; }
-
-/* --- Botón de iniciar sesión (solo sin sesión) --- */
-.login-cta { margin-top: var(--sp-5); }
-
 /* --- Login embebido bajo el enlace de volver, sin duplicar título --- */
-.app-content .auth-wrap {
-  min-height: auto;
-  padding: 0;
-  background: none;
-}
-.app-content .auth-brand { display: none; }
-.app-content .auth-card { padding: 0; box-shadow: none; }
+.auth-wrap { min-height: auto; padding: 0; background: none; }
+.auth-brand { display: none; }
+.auth-card { padding: 0; }
 
 /* --- Buscador móvil --- */
 .searchbar {
@@ -146,7 +199,6 @@
   border-radius: var(--r-lg);
   background: var(--surface);
   border: 1px solid var(--line-soft);
-  box-shadow: var(--shadow-1);
   color: var(--ink-3);
   margin-bottom: var(--sp-4);
 }
@@ -166,3 +218,10 @@
   gap: var(--sp-4);
 }
 .action-hero .btn { padding: 14px 18px; border-radius: var(--r-lg); font-size: var(--text-md); }
+
+/* --- Botón primario con el gradiente de marca --- */
+.btn-primary {
+  background: var(--brand-gradient);
+  color: #14131b;
+}
+.btn-primary:hover { background: var(--brand-gradient); filter: brightness(1.05); }

@@ -6,7 +6,7 @@
 import { icon } from '/shared/js/icons.js';
 
 export const title = 'Negadas';
-export const description = 'Marca direcciones que niegan el acceso';
+export const description = 'Posiciones rechazadas por los pickers, listas para auditar.';
 
 export function render(outlet) {
   outlet.innerHTML = `
@@ -17,7 +17,7 @@ export function render(outlet) {
         <div class="empty-state">
           <div class="es-icon">${icon('ban', 26)}</div>
           <h3>Sin negadas registradas</h3>
-          <p>Aquí verás las direcciones marcadas como negadas y su motivo.</p>
+          <p>Las posiciones rechazadas por los pickers aparecerán aquí para su auditoría.</p>
         </div>
       </div>
     </div>

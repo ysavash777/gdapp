@@ -1,16 +1,19 @@
 /* ============================================================
    GDapp · App
 
-   "Consultas" es de acceso libre (el equipo operativo la usa sin
-   cuenta); el resto exige sesión y el permiso correspondiente.
+   "Consultar grupo" es de acceso libre (el equipo operativo la usa
+   sin cuenta); el resto exige sesión y el permiso correspondiente.
 
-   Sin sesión no hay cabecera: el inicio muestra Consultas activa
-   arriba, el resto de herramientas en blanco y negro (sin permiso)
+   Sin sesión no hay cabecera: el inicio muestra la herramienta
+   pública en color arriba, el resto en blanco y negro (sin permiso)
    debajo, y un botón de ancho completo al final para loguearse.
 
-   Con sesión aparece una cabecera simple (saludo + avatar) y el
-   mismo formato: habilitadas en color arriba, sin permiso en BW
-   debajo — todo ordenado alfabéticamente.
+   Con sesión aparece una cabecera de una sola fila: avatar + saludo,
+   ambos a la izquierda. Mismo formato de lista: habilitadas en
+   color arriba, sin permiso en BW debajo — todo alfabético.
+
+   Toda la pantalla de inicio se ajusta a la altura disponible sin
+   generar scroll vertical (ver home-layout en app.css).
 
    Cada módulo vive en /app/modules/*.js y exporta { title, description, render }.
    ============================================================ */
@@ -26,10 +29,10 @@ import * as vacios from '/app/modules/vacios.js';
 import * as consultas from '/app/modules/consultas.js';
 
 const TOOLS = {
-  consultas: { ...consultas, icon: 'search', tone: 'ambar' },
-  mapear: { ...mapear, icon: 'pin', tone: 'terra' },
-  negadas: { ...negadas, icon: 'ban', tone: 'lavanda' },
-  vacios: { ...vacios, icon: 'inbox', tone: 'menta' },
+  consultas: { ...consultas, icon: 'search' },
+  mapear: { ...mapear, icon: 'scan' },
+  negadas: { ...negadas, icon: 'ban' },
+  vacios: { ...vacios, icon: 'package' },
 };
 
 const PUBLIC_TOOLS = ['consultas'];
@@ -88,12 +91,37 @@ function renderRoute() {
   else renderHome();
 }
 
+function toolCardHTML(key, t) {
+  return `
+    <button class="tool-card" data-key="${key}">
+      <div class="tc-icon">${icon(t.icon, 24)}</div>
+      <div class="tc-body">
+        <h3>${t.title}</h3>
+        <p>${t.description || ''}</p>
+      </div>
+      <span class="tc-chevron">${icon('chevronRight', 20)}</span>
+    </button>
+  `;
+}
+
+function lockedCardHTML(t) {
+  return `
+    <div class="tool-card is-locked">
+      <div class="tc-icon">${icon(t.icon, 24)}</div>
+      <div class="tc-body">
+        <h3>${t.title}</h3>
+        <p>${t.description || ''}</p>
+      </div>
+    </div>
+  `;
+}
+
 function renderHome() {
   if (user) {
     setHeader(`
-      <h1>Hola, ${user.username}</h1>
-      <button class="btn-icon" id="profileBtn" title="Cerrar sesión">
+      <button class="hd-user" id="profileBtn" title="Cerrar sesión">
         <span class="avatar">${avatar(user.avatar, user.username)}</span>
+        <h1>Hola, ${user.username}</h1>
       </button>
     `);
     document.getElementById('profileBtn').addEventListener('click', () => {
@@ -108,35 +136,14 @@ function renderHome() {
   const outlet = document.getElementById('outlet');
 
   outlet.innerHTML = `
-    <div class="tool-grid">
-      ${enabled.map(([key, t]) => `
-        <button class="tool-card tone-${t.tone}" data-key="${key}">
-          <div class="tc-icon">${icon(t.icon, 26)}</div>
-          <div class="tc-body">
-            <h3>${t.title}</h3>
-            <p>${t.description || ''}</p>
-          </div>
-          <span class="tc-chevron">${icon('chevronRight', 20)}</span>
-        </button>
-      `).join('')}
+    <div class="home-layout">
+      ${enabled.map(([key, t]) => toolCardHTML(key, t)).join('')}
+      ${disabled.length ? `
+        <p class="tool-locked-hint">${user ? 'Sin permiso — pide acceso a un administrador' : 'Inicia sesión para acceder'}</p>
+        ${disabled.map(([, t]) => lockedCardHTML(t)).join('')}
+      ` : ''}
+      ${!user ? `<button class="btn btn-primary btn-block login-cta" id="loginCta">Iniciar sesión</button>` : ''}
     </div>
-
-    ${disabled.length ? `
-      <p class="tool-locked-hint">${user ? 'Sin permiso — pide acceso a un administrador' : 'Inicia sesión para acceder'}</p>
-      <div class="tool-grid">
-        ${disabled.map(([, t]) => `
-          <div class="tool-card is-locked">
-            <div class="tc-icon">${icon(t.icon, 26)}</div>
-            <div class="tc-body">
-              <h3>${t.title}</h3>
-              <p>${t.description || ''}</p>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    ` : ''}
-
-    ${!user ? `<button class="btn btn-primary btn-block login-cta" id="loginCta">Iniciar sesión</button>` : ''}
   `;
 
   outlet.querySelectorAll('.tool-card[data-key]').forEach((btn) => {
@@ -153,11 +160,13 @@ function renderSubpage(title, fillContent) {
   setHeader('');
   const outlet = document.getElementById('outlet');
   outlet.innerHTML = `
-    <div class="subpage-head">
-      <button class="back-link" id="backBtn">${icon('arrowLeft', 18)} Volver</button>
-      ${title ? `<h2>${title}</h2>` : ''}
+    <div class="subpage">
+      <div class="subpage-head">
+        <button class="back-link" id="backBtn">${icon('arrowLeft', 18)} Volver</button>
+        ${title ? `<h2>${title}</h2>` : ''}
+      </div>
+      <div class="subpage-body" id="subpageBody"></div>
     </div>
-    <div id="subpageBody"></div>
   `;
   outlet.querySelector('#backBtn').addEventListener('click', () => { location.hash = ''; });
   fillContent(outlet.querySelector('#subpageBody'));
