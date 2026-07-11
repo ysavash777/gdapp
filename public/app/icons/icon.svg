@@ -1,17 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#a78bfa"/>
-      <stop offset="100%" stop-color="#2dd4bf"/>
-    </linearGradient>
-    <radialGradient id="sheen" cx="35%" cy="25%" r="60%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.28"/>
-      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <rect width="512" height="512" rx="118" fill="url(#bg)"/>
-  <rect width="512" height="512" rx="118" fill="url(#sheen)"/>
-  <g fill="none" stroke="#ffffff" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+  <rect width="512" height="512" rx="118" fill="#a78bfa"/>
+  <g fill="none" stroke="#16121f" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
     <path d="m256 128 118 66-118 66-118-66 118-66Z"/>
     <path d="m138 260 118 66 118-66"/>
     <path d="m138 322 118 66 118-66"/>

@@ -9,37 +9,33 @@
    ============================================================ */
 
 :root {
-  /* --- Paleta oscura (no negro puro) --- */
-  --bg: #14131b;
-  --surface: #1d1b26;
-  --surface-2: #22202c;
-  --ink: #f1eef8;
-  --ink-2: #a19cb5;
-  --ink-3: #6f6a82;
-  --line: #2c2938;
-  --line-soft: #221f2c;
+  /* --- Paleta oscura con tinte lila (no negro/gris neutro) --- */
+  --bg: #16121f;
+  --surface: #201a2b;
+  --surface-2: #251f32;
+  --ink: #f4f1fa;
+  --ink-2: #b0a6c9;
+  --ink-3: #7c7293;
+  --line: #332b46;
+  --line-soft: #241e30;
 
-  --n-0: #1a1824;
-  --n-50: #1d1b26;
-  --n-100: #242130;
-  --n-200: #2c2938;
-  --n-300: #3a3648;
-  --n-400: #6f6a82;
-  --n-500: #8b86a0;
-  --n-600: #a19cb5;
-  --n-700: #c1bdd0;
-  --n-800: #ded9ea;
-  --n-900: #f1eef8;
+  --n-0: #1c1728;
+  --n-50: #201a2b;
+  --n-100: #271f34;
+  --n-200: #332b46;
+  --n-300: #453a5c;
+  --n-400: #7c7293;
+  --n-500: #948aac;
+  --n-600: #b0a6c9;
+  --n-700: #cac1e0;
+  --n-800: #e3ddf0;
+  --n-900: #f4f1fa;
 
-  /* --- Acento: lila → turquesa --- */
-  --lilac: #a78bfa;
-  --turquoise: #2dd4bf;
-  --brand-gradient: linear-gradient(135deg, var(--lilac), var(--turquoise));
-
+  /* --- Acento: lila flat (sin gradientes) --- */
   --accent-50: rgba(167, 139, 250, 0.14);
   --accent-100: rgba(167, 139, 250, 0.22);
   --accent-300: #c4b5fd;
-  --accent-500: var(--lilac);
+  --accent-500: #a78bfa;
   --accent-600: #9575f0;
   --accent-700: #7c5fe0;
 
@@ -84,7 +80,7 @@ html, body {
 }
 .hd-user h1 {
   font-size: var(--text-md);
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.02em;
   white-space: nowrap;
   overflow: hidden;
@@ -115,14 +111,16 @@ html, body {
   overflow: hidden;
 }
 
+/* --- Tarjeta de herramienta: icono arriba-izquierda, texto abajo,
+   usando el alto completo en vez de centrar todo en una fila. --- */
 .tool-card {
   flex: 1 1 0;
-  min-height: 64px;
+  min-height: 120px;
   display: flex;
-  align-items: center;
-  gap: var(--sp-4);
+  flex-direction: column;
+  justify-content: space-between;
   width: 100%;
-  padding: 0 var(--sp-5);
+  padding: var(--sp-4);
   border: none;
   border-radius: var(--r-lg);
   background: var(--surface);
@@ -131,26 +129,29 @@ html, body {
 }
 .tool-card:not(.is-locked):active { transform: scale(0.98); background: var(--surface-2); }
 
+.tc-top { display: flex; align-items: flex-start; justify-content: space-between; }
+
 .tc-icon {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
   display: grid;
   place-items: center;
   border-radius: var(--r-md);
-  color: #14131b;
-  background: var(--brand-gradient);
+  color: #16121f;
+  background: var(--accent-500);
 }
 
-.tc-body { flex: 1; min-width: 0; }
-.tc-body h3 { font-size: var(--text-md); letter-spacing: -0.01em; }
+.tc-chevron { color: var(--ink-3); flex-shrink: 0; margin-top: 10px; }
+
+.tc-body { min-width: 0; }
+.tc-body h3 { font-size: var(--text-md); font-weight: 700; letter-spacing: -0.01em; }
 .tc-body p {
-  margin-top: 3px;
+  margin-top: 4px;
   font-size: var(--text-sm);
   color: var(--ink-2);
   line-height: 1.3;
 }
-.tc-chevron { color: var(--ink-3); flex-shrink: 0; }
 
 /* --- Herramientas sin permiso: mismo tamaño, atenuadas, sin interacción --- */
 .tool-locked-hint {
@@ -164,8 +165,8 @@ html, body {
 }
 .tool-card.is-locked .tc-icon { background: var(--n-300); color: var(--ink-3); }
 
-/* --- Botón de iniciar sesión (solo sin sesión) --- */
-.login-cta { flex: 0 0 auto; padding: 12px 18px; }
+/* --- Botón de iniciar sesión (solo sin sesión), un poco más alto --- */
+.login-cta { flex: 0 0 auto; padding: 16px 20px; }
 
 /* --- Vistas de herramienta / login: enlace de volver, sin cabecera --- */
 .subpage { height: 100%; display: flex; flex-direction: column; }
@@ -183,7 +184,7 @@ html, body {
   padding: 4px 2px;
   margin-bottom: var(--sp-2);
 }
-.subpage-head h2 { font-size: var(--text-lg); letter-spacing: -0.025em; }
+.subpage-head h2 { font-size: var(--text-lg); font-weight: 700; letter-spacing: -0.025em; }
 
 /* --- Login embebido bajo el enlace de volver, sin duplicar título --- */
 .auth-wrap { min-height: auto; padding: 0; background: none; }
@@ -219,9 +220,9 @@ html, body {
 }
 .action-hero .btn { padding: 14px 18px; border-radius: var(--r-lg); font-size: var(--text-md); }
 
-/* --- Botón primario con el gradiente de marca --- */
+/* --- Botón primario: lila flat, sin gradiente --- */
 .btn-primary {
-  background: var(--brand-gradient);
-  color: #14131b;
+  background: var(--accent-500);
+  color: #16121f;
 }
-.btn-primary:hover { background: var(--brand-gradient); filter: brightness(1.05); }
+.btn-primary:hover { background: var(--accent-600); }

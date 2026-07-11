@@ -31,7 +31,7 @@ p { color: var(--ink-2); }
 
 a { color: var(--accent-600); text-decoration: none; }
 
-button { font-family: inherit; cursor: pointer; }
+button { font-family: inherit; color: inherit; cursor: pointer; }
 input, select, textarea { font-family: inherit; font-size: inherit; }
 
 ::selection { background: var(--accent-100); }

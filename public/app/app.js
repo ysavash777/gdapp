@@ -94,12 +94,14 @@ function renderRoute() {
 function toolCardHTML(key, t) {
   return `
     <button class="tool-card" data-key="${key}">
-      <div class="tc-icon">${icon(t.icon, 24)}</div>
+      <div class="tc-top">
+        <div class="tc-icon">${icon(t.icon, 22)}</div>
+        <span class="tc-chevron">${icon('chevronRight', 18)}</span>
+      </div>
       <div class="tc-body">
         <h3>${t.title}</h3>
         <p>${t.description || ''}</p>
       </div>
-      <span class="tc-chevron">${icon('chevronRight', 20)}</span>
     </button>
   `;
 }
@@ -107,7 +109,9 @@ function toolCardHTML(key, t) {
 function lockedCardHTML(t) {
   return `
     <div class="tool-card is-locked">
-      <div class="tc-icon">${icon(t.icon, 24)}</div>
+      <div class="tc-top">
+        <div class="tc-icon">${icon(t.icon, 22)}</div>
+      </div>
       <div class="tc-body">
         <h3>${t.title}</h3>
         <p>${t.description || ''}</p>
