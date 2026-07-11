@@ -2,11 +2,13 @@
 
 const path = require('path');
 const express = require('express');
+const cookieParser = require('cookie-parser');
 const { PORT } = require('./config');
 const { deviceRedirect } = require('./middleware/device');
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
 
 // / → /desk | /app según dispositivo
 app.use(deviceRedirect);

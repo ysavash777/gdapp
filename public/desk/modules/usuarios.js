@@ -14,6 +14,8 @@ const ERROR_MESSAGES = {
   MISSING_FIELDS: 'Completa todos los campos requeridos.',
   INVALID_PASSWORD: 'La contraseña debe tener al menos 4 caracteres.',
   NOT_FOUND: 'El usuario ya no existe.',
+  FORBIDDEN: 'No tienes permiso de administrador para esta acción.',
+  UNAUTHORIZED: 'Tu sesión expiró. Vuelve a iniciar sesión.',
 };
 
 function errorMessage(err) {
@@ -30,7 +32,7 @@ export function render(outlet) {
 }
 
 async function mount(root) {
-  const state = { users: [], catalog: [], total: 0, q: '', loading: true };
+  const state = { users: [], catalog: [], total: 0, q: '', loading: true, listError: null };
   let searchDebounce = null;
 
   drawShell();
@@ -53,8 +55,10 @@ async function mount(root) {
       const data = await apiFetch(`/api/users?q=${encodeURIComponent(state.q)}`);
       state.users = data.items;
       state.total = data.total;
-    } catch {
+      state.listError = null;
+    } catch (err) {
       state.users = [];
+      state.listError = err;
     }
     state.loading = false;
     if (root.isConnected) drawTable();
@@ -95,6 +99,16 @@ async function mount(root) {
 
     if (state.loading) {
       wrap.innerHTML = `<div class="empty-state"><p>Cargando usuarios…</p></div>`;
+      return;
+    }
+
+    if (state.listError) {
+      wrap.innerHTML = `
+        <div class="empty-state">
+          <div class="es-icon">${icon('shield', 26)}</div>
+          <h3>No se pudo cargar</h3>
+          <p>${errorMessage(state.listError)}</p>
+        </div>`;
       return;
     }
 

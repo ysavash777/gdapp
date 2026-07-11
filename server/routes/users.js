@@ -8,6 +8,13 @@ const express = require('express');
 const router = express.Router();
 const store = require('../store/users.store');
 const { CATALOG } = require('../permissions');
+const { requireAdmin } = require('../middleware/auth');
+
+// Gestión de usuarios es un módulo de administrador: toda esta API
+// exige una sesión con role 'admin'. Sin esto, cualquier cuenta
+// (incluida una recién registrada) podría editar roles, permisos
+// o eliminar a otros usuarios llamando directamente a la API.
+router.use(requireAdmin);
 
 // GET /api/users?q=&page=&pageSize=
 router.get('/', (req, res) => {

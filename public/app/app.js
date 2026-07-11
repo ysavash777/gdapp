@@ -7,7 +7,7 @@
 
 import { icon } from '/shared/js/icons.js';
 import { avatar } from '/shared/js/avatars.js';
-import { currentUser, logout } from '/shared/js/session.js';
+import { currentUser, refreshUser, logout } from '/shared/js/session.js';
 import { renderAuth } from '/shared/js/auth-view.js';
 
 import * as mapear from '/app/modules/mapear.js';
@@ -122,13 +122,23 @@ function renderTool(key) {
   tool.render(document.getElementById('outlet'));
 }
 
-function boot() {
+async function boot() {
   user = currentUser();
   if (!user) {
     renderAuth(root, () => boot());
     return;
   }
   renderShell();
+
+  // Pintamos con el caché al instante y refrescamos en segundo plano:
+  // así un cambio de permisos hecho por un admin se ve al recargar,
+  // sin depender de que el usuario vuelva a loguearse.
+  const fresh = await refreshUser();
+  if (!fresh) { logout(); return; }
+  if (JSON.stringify(fresh) !== JSON.stringify(user)) {
+    user = fresh;
+    renderShell();
+  }
 }
 
 window.addEventListener('hashchange', renderRoute);

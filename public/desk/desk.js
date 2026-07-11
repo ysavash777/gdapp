@@ -1,11 +1,13 @@
 /* ============================================================
    GDapp · Desk — shell + router hash
    Cada módulo vive en /desk/modules/*.js y exporta { title, render }.
+   El sidebar solo muestra los módulos que el usuario tiene entre sus
+   permisos (mismo array que la app usa para sus herramientas).
    ============================================================ */
 
 import { icon } from '/shared/js/icons.js';
 import { avatar } from '/shared/js/avatars.js';
-import { currentUser, logout } from '/shared/js/session.js';
+import { currentUser, refreshUser, logout } from '/shared/js/session.js';
 import { renderAuth } from '/shared/js/auth-view.js';
 
 import * as usuarios from '/desk/modules/usuarios.js';
@@ -18,15 +20,24 @@ const MODULES = {
   basesdatos: { ...basesdatos, icon: 'database' },
 };
 
-const DEFAULT_ROUTE = 'mapeos';
 const root = document.getElementById('root');
+let user = null;
+
+function availableModules() {
+  const perms = user.permissions || [];
+  return Object.entries(MODULES).filter(([key]) => perms.includes(key));
+}
 
 function currentRoute() {
   const r = location.hash.replace('#/', '');
-  return MODULES[r] ? r : DEFAULT_ROUTE;
+  const available = availableModules();
+  if (available.some(([key]) => key === r)) return r;
+  return available.length ? available[0][0] : null;
 }
 
-function renderShell(user) {
+function renderShell() {
+  const available = availableModules();
+
   root.innerHTML = `
     <div class="shell">
       <aside class="sidebar">
@@ -37,7 +48,7 @@ function renderShell(user) {
 
         <nav class="sb-nav">
           <div class="sb-section">Módulos</div>
-          ${Object.entries(MODULES).map(([key, m]) => `
+          ${available.map(([key, m]) => `
             <button class="sb-link" data-route="${key}">
               ${icon(m.icon, 19)}<span>${m.title}</span>
             </button>
@@ -76,16 +87,37 @@ function renderRoute() {
     btn.classList.toggle('active', btn.dataset.route === route);
   });
 
+  if (!route) {
+    outlet.innerHTML = `
+      <div class="empty-state">
+        <div class="es-icon">${icon('shield', 26)}</div>
+        <h3>Sin módulos asignados</h3>
+        <p>Pide a un administrador que te asigne acceso desde Gestión de usuarios.</p>
+      </div>
+    `;
+    return;
+  }
+
   MODULES[route].render(outlet);
 }
 
-function boot() {
-  const user = currentUser();
+async function boot() {
+  user = currentUser();
   if (!user) {
     renderAuth(root, () => boot());
     return;
   }
-  renderShell(user);
+  renderShell();
+
+  // Pintamos con el caché al instante y refrescamos en segundo plano:
+  // así un cambio de permisos hecho por un admin se ve al recargar,
+  // sin depender de que el usuario vuelva a loguearse.
+  const fresh = await refreshUser();
+  if (!fresh) { logout(); return; }
+  if (JSON.stringify(fresh) !== JSON.stringify(user)) {
+    user = fresh;
+    renderShell();
+  }
 }
 
 window.addEventListener('hashchange', renderRoute);
