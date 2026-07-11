@@ -60,8 +60,11 @@ export async function refreshUser() {
   }
 }
 
+// No hace location.reload(): en una PWA instalada, una recarga completa
+// puede hacer que el navegador vuelva a calcular el layout como si fuera
+// una pestaña normal (se ha visto perder el modo standalone/responsive).
+// El caller re-renderiza la vista en el propio documento.
 export function logout() {
   localStorage.removeItem(KEY);
   fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
-  location.reload();
 }

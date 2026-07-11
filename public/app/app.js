@@ -15,6 +15,14 @@
    Toda la pantalla de inicio se ajusta a la altura disponible sin
    generar scroll vertical (ver home-layout en app.css).
 
+   Navegación: se usa history.pushState/replaceState en vez de asignar
+   location.hash directamente, porque en algunos navegadores asignar
+   el hash también dispara 'popstate' (no solo 'hashchange'), lo que
+   confundiría al botón/gesto de volver del dispositivo con un avance
+   normal. Con pushState, 'popstate' solo se dispara en retrocesos o
+   avances reales de historial — así el botón de volver siempre puede
+   distinguirse de un toque hacia adelante.
+
    Cada módulo vive en /app/modules/*.js y exporta { title, description, render }.
    ============================================================ */
 
@@ -39,6 +47,56 @@ const PUBLIC_TOOLS = ['consultas'];
 
 const root = document.getElementById('root');
 let user = null;
+
+// --- Historial: el botón/gesto de volver del dispositivo nunca debe
+// resurfacear el login, y desde el inicio debe pedir una segunda
+// pulsación antes de salir de la app. ---
+let lastRoute = 'home'; // 'home' | 'subpage', refleja la última vista renderizada
+let exitArmed = false;
+let exitTimer = null;
+
+function hashUrl(hash) {
+  return location.pathname + location.search + (hash ? `#/${hash}` : '');
+}
+
+// Avanza a una vista nueva (tocar una tarjeta, "Iniciar sesión", "Volver").
+// pushState nunca dispara 'popstate', así que renderizamos a mano.
+function pushRoute(hash) {
+  history.pushState({ gdapp: true }, '', hashUrl(hash));
+  renderRoute();
+}
+
+// Guarda de retorno: asegura que siempre haya una entrada propia para
+// interceptar el primer "volver" del dispositivo en el inicio.
+function armGuard() {
+  history.pushState({ gdapp: true }, '', location.href);
+}
+
+function showExitToast() {
+  const old = document.getElementById('exitToast');
+  if (old) old.remove();
+  const toast = document.createElement('div');
+  toast.id = 'exitToast';
+  toast.className = 'exit-toast';
+  toast.textContent = 'Presiona de nuevo para salir';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2000);
+}
+
+// Solo dispara con un retroceso/avance real de historial (botón o
+// gesto del dispositivo) — nunca con nuestras propias navegaciones.
+window.addEventListener('popstate', () => {
+  if (lastRoute !== 'home') return; // volver desde una herramienta/login es normal.
+  if (exitArmed) return; // segunda pulsación: se deja salir de verdad.
+  exitArmed = true;
+  showExitToast();
+  clearTimeout(exitTimer);
+  exitTimer = setTimeout(() => { exitArmed = false; }, 2000);
+});
+
+// El hash también puede cambiar por una navegación real hacia
+// atrás/adelante (no solo por pushRoute) — hay que re-renderizar.
+window.addEventListener('hashchange', renderRoute);
 
 function isEnabled([key]) {
   if (PUBLIC_TOOLS.includes(key)) return true;
@@ -121,6 +179,9 @@ function lockedCardHTML(key, t) {
 }
 
 function renderHome() {
+  lastRoute = 'home';
+  armGuard();
+
   if (user) {
     setHeader(`
       <button class="hd-user" id="profileBtn" title="Cerrar sesión">
@@ -129,7 +190,11 @@ function renderHome() {
       </button>
     `);
     document.getElementById('profileBtn').addEventListener('click', () => {
-      if (confirm('¿Cerrar sesión?')) logout();
+      if (confirm('¿Cerrar sesión?')) {
+        logout();
+        user = null;
+        renderHome();
+      }
     });
   } else {
     setHeader('');
@@ -149,16 +214,17 @@ function renderHome() {
   `;
 
   outlet.querySelectorAll('.tool-card[data-key]').forEach((btn) => {
-    btn.addEventListener('click', () => { location.hash = `#/${btn.dataset.key}`; });
+    btn.addEventListener('click', () => pushRoute(btn.dataset.key));
   });
 
   const cta = outlet.querySelector('#loginCta');
-  if (cta) cta.addEventListener('click', () => { location.hash = '#/login'; });
+  if (cta) cta.addEventListener('click', () => pushRoute('login'));
 }
 
 // Herramientas y login comparten esta plantilla: sin cabecera fija,
 // solo un enlace de volver arriba del contenido.
 function renderSubpage(title, fillContent) {
+  lastRoute = 'subpage';
   setHeader('');
   const outlet = document.getElementById('outlet');
   outlet.innerHTML = `
@@ -170,7 +236,9 @@ function renderSubpage(title, fillContent) {
       <div class="subpage-body" id="subpageBody"></div>
     </div>
   `;
-  outlet.querySelector('#backBtn').addEventListener('click', () => { location.hash = ''; });
+  // "Volver" se comporta igual que el botón/gesto físico: retrocede
+  // de verdad en el historial en vez de avanzar a una entrada nueva.
+  outlet.querySelector('#backBtn').addEventListener('click', () => history.back());
   fillContent(outlet.querySelector('#subpageBody'));
 }
 
@@ -183,7 +251,11 @@ function renderLogin() {
   renderSubpage('Iniciar sesión', (body) => {
     renderAuth(body, (loggedInUser) => {
       user = loggedInUser;
-      location.hash = '';
+      // Reemplaza la entrada del login en vez de apilar una nueva: así,
+      // al volver atrás desde el inicio ya logueado, no se resurfacea
+      // el panel de login.
+      history.replaceState(null, '', hashUrl(''));
+      renderRoute();
     });
   });
 }
@@ -199,12 +271,11 @@ async function boot() {
   // así un cambio de permisos hecho por un admin se ve al recargar,
   // sin depender de que el usuario vuelva a loguearse.
   const fresh = await refreshUser();
-  if (!fresh) { logout(); return; }
+  if (!fresh) { logout(); user = null; renderHome(); return; }
   if (JSON.stringify(fresh) !== JSON.stringify(user)) {
     user = fresh;
     renderRoute();
   }
 }
 
-window.addEventListener('hashchange', renderRoute);
 boot();

@@ -73,7 +73,11 @@ function renderShell() {
   root.querySelectorAll('.sb-link[data-route]').forEach((btn) => {
     btn.addEventListener('click', () => { location.hash = `#/${btn.dataset.route}`; });
   });
-  root.querySelector('#logoutBtn').addEventListener('click', logout);
+  root.querySelector('#logoutBtn').addEventListener('click', () => {
+    logout();
+    user = null;
+    boot();
+  });
 
   renderRoute();
 }
@@ -113,7 +117,7 @@ async function boot() {
   // así un cambio de permisos hecho por un admin se ve al recargar,
   // sin depender de que el usuario vuelva a loguearse.
   const fresh = await refreshUser();
-  if (!fresh) { logout(); return; }
+  if (!fresh) { logout(); user = null; boot(); return; }
   if (JSON.stringify(fresh) !== JSON.stringify(user)) {
     user = fresh;
     renderShell();
