@@ -45,14 +45,14 @@
      de luminosidad en las cuatro familias (equivalente a pasar de
      un "400" a un "300" en cada escala), para que la lógica de la
      paleta se sienta consistente entre módulos. --- */
-  --icon-consultas: #a78bfa;       /* lila */
+  --icon-consultas: #a78bfa;       /* violeta: calma, confianza, línea con el acento lila */
   --icon-consultas-light: #c4b5fd;
-  --icon-mapear: #2dd4bf;          /* turquesa */
+  --icon-mapear: #2dd4bf;          /* turquesa: foco, claridad */
   --icon-mapear-light: #5eead4;
-  --icon-negadas: #fb7185;         /* coral */
-  --icon-negadas-light: #fda4af;
-  --icon-vacios: #fbbf24;          /* ámbar */
-  --icon-vacios-light: #fcd34d;
+  --icon-negadas: #f97316;         /* naranja: atención/alerta sin usar rojo */
+  --icon-negadas-light: #fdba74;
+  --icon-vacios: #3b82f6;          /* azul: neutro, informativo */
+  --icon-vacios-light: #93c5fd;
 
   /* --- Flat: sin sombras ni relieves --- */
   --shadow-1: none;
