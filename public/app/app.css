@@ -40,11 +40,19 @@
   --accent-600: #9575f0;
   --accent-700: #7c5fe0;
 
-  /* --- Un color distinto por herramienta (solo el icono) --- */
-  --icon-consultas: #a78bfa; /* lila */
-  --icon-mapear: #2dd4bf;    /* turquesa */
-  --icon-negadas: #fb7185;   /* coral */
-  --icon-vacios: #fbbf24;    /* ámbar */
+  /* --- Un color distinto por herramienta: fondo de su tarjeta
+     desbloqueada + una variante más clara para su icono. Mismo paso
+     de luminosidad en las cuatro familias (equivalente a pasar de
+     un "400" a un "300" en cada escala), para que la lógica de la
+     paleta se sienta consistente entre módulos. --- */
+  --icon-consultas: #a78bfa;       /* lila */
+  --icon-consultas-light: #c4b5fd;
+  --icon-mapear: #2dd4bf;          /* turquesa */
+  --icon-mapear-light: #5eead4;
+  --icon-negadas: #fb7185;         /* coral */
+  --icon-negadas-light: #fda4af;
+  --icon-vacios: #fbbf24;          /* ámbar */
+  --icon-vacios-light: #fcd34d;
 
   /* --- Flat: sin sombras ni relieves --- */
   --shadow-1: none;
@@ -185,7 +193,9 @@ html, body {
   text-align: left;
   transition: transform var(--t-fast), background var(--t-fast);
 }
-.tool-card:not(.is-locked):active { transform: scale(0.98); background: var(--surface-2); }
+/* filter en vez de cambiar el background: funciona igual sobre el
+   gris neutro y sobre el color propio de cada herramienta. */
+.tool-card:not(.is-locked):active { transform: scale(0.98); filter: brightness(1.12); }
 
 .tc-top { display: flex; align-items: flex-start; justify-content: space-between; }
 
@@ -199,11 +209,6 @@ html, body {
   color: #121212;
   background: var(--accent-500);
 }
-.tc-icon.tone-consultas { background: var(--icon-consultas); }
-.tc-icon.tone-mapear { background: var(--icon-mapear); }
-.tc-icon.tone-negadas { background: var(--icon-negadas); }
-.tc-icon.tone-vacios { background: var(--icon-vacios); }
-
 .tc-chevron { color: var(--ink-3); flex-shrink: 0; margin-top: 12px; }
 
 .tc-body { min-width: 0; }
@@ -233,27 +238,24 @@ html, body {
 }
 .tool-card.is-locked .tc-icon { background: var(--n-300); color: var(--ink-3); }
 
-/* --- "Consultar grupo" destaca con fondo lila cuando está desbloqueada
-   (siempre lo está, es pública). El resto de las tarjetas se queda
-   oscura como está — no se toca. --- */
-.tool-card[data-key="consultas"]:not(.is-locked) {
-  background: var(--accent-500);
-}
-.tool-card[data-key="consultas"]:not(.is-locked):active {
-  background: var(--accent-600);
-}
-.tool-card[data-key="consultas"]:not(.is-locked) .tc-icon {
-  background: var(--accent-300);
-}
-.tool-card[data-key="consultas"]:not(.is-locked) .tc-body h3 {
-  color: #fff;
-}
-.tool-card[data-key="consultas"]:not(.is-locked) .tc-body p {
-  color: rgba(255, 255, 255, 0.85);
-}
-.tool-card[data-key="consultas"]:not(.is-locked) .tc-chevron {
-  color: rgba(255, 255, 255, 0.75);
-}
+/* --- Cada herramienta desbloqueada destaca con su propio color de
+   fondo (mismo que usa como acento en el resto de la app), texto
+   blanco para contraste y su icono en la variante más clara de esa
+   misma familia. Las bloqueadas no se tocan: siguen en gris. --- */
+.tool-card[data-key]:not(.is-locked) { color: #fff; }
+.tool-card[data-key="consultas"]:not(.is-locked) { background: var(--icon-consultas); }
+.tool-card[data-key="mapear"]:not(.is-locked)    { background: var(--icon-mapear); }
+.tool-card[data-key="negadas"]:not(.is-locked)   { background: var(--icon-negadas); }
+.tool-card[data-key="vacios"]:not(.is-locked)    { background: var(--icon-vacios); }
+
+.tool-card[data-key="consultas"]:not(.is-locked) .tc-icon { background: var(--icon-consultas-light); }
+.tool-card[data-key="mapear"]:not(.is-locked) .tc-icon    { background: var(--icon-mapear-light); }
+.tool-card[data-key="negadas"]:not(.is-locked) .tc-icon   { background: var(--icon-negadas-light); }
+.tool-card[data-key="vacios"]:not(.is-locked) .tc-icon    { background: var(--icon-vacios-light); }
+
+.tool-card[data-key]:not(.is-locked) .tc-body h3 { color: #fff; }
+.tool-card[data-key]:not(.is-locked) .tc-body p { color: rgba(255, 255, 255, 0.85); }
+.tool-card[data-key]:not(.is-locked) .tc-chevron { color: rgba(255, 255, 255, 0.75); }
 
 /* --- Botón de iniciar sesión (solo sin sesión), un poco más alto --- */
 .login-cta { flex: 0 0 auto; padding: 16px 20px; }

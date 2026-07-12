@@ -170,7 +170,7 @@ function toolCardHTML(key, t) {
   return `
     <button class="tool-card" data-key="${key}">
       <div class="tc-top">
-        <div class="tc-icon tone-${key}">${icon(t.icon, 18)}</div>
+        <div class="tc-icon">${icon(t.icon, 18)}</div>
         <span class="tc-chevron">${icon('chevronRight', 18)}</span>
       </div>
       <div class="tc-body">
@@ -181,11 +181,11 @@ function toolCardHTML(key, t) {
   `;
 }
 
-function lockedCardHTML(key, t) {
+function lockedCardHTML(t) {
   return `
     <div class="tool-card is-locked">
       <div class="tc-top">
-        <div class="tc-icon tone-${key}">${icon(t.icon, 18)}</div>
+        <div class="tc-icon">${icon(t.icon, 18)}</div>
       </div>
       <div class="tc-body">
         <h3>${t.title}</h3>
@@ -234,7 +234,7 @@ function renderHome() {
   outlet.innerHTML = `
     <div class="home-layout">
       ${enabled.map(([key, t]) => toolCardHTML(key, t)).join('')}
-      ${disabled.map(([key, t]) => lockedCardHTML(key, t)).join('')}
+      ${disabled.map(([, t]) => lockedCardHTML(t)).join('')}
       ${!user ? `<button class="btn btn-primary btn-block login-cta" id="loginCta">Iniciar sesión</button>` : ''}
       <p class="app-footer">GStock 1.0.0</p>
     </div>
