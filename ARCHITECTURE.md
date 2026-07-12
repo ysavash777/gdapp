@@ -53,7 +53,14 @@ public/
     manifest.webmanifest   Manifiesto PWA (start_url /app).
     sw.js                  Service worker (cache básico app-shell).
     icons/icon.png         Icono de la app (favicon, ícono de instalación PWA y splash al abrirla).
-    modules/mapear.js      Herramienta Mapear (exporta title, description, render).
+    modules/mapear/        Herramienta Mapear (escáner de cámara), dividida por pantalla:
+      index.js               Entrada (title, description, render) — solo orquesta list-view/scanner-view.
+      store.js                Datos, hoy en memoria pero con forma de API (list/get/create/addCode/finish,
+                               todas async) — cuando exista server/routes/mapeos.js, solo se reescribe acá.
+      list-view.js             Listado de mapeos + detalle de solo lectura de uno ya hecho.
+      scanner-view.js           Escáner de cámara (BarcodeDetector) para un mapeo nuevo, con ingreso manual
+                               como respaldo si el navegador no soporta lectura automática.
+      format.js                 Fecha/hora e ítem de código, compartidos entre list-view y scanner-view.
     modules/negadas.js     Herramienta Negadas.
     modules/vacios.js      Herramienta Vacíos.
     modules/consultas.js   Herramienta Consultas.
