@@ -43,17 +43,19 @@
   --accent-700: #1d4ed8;
 
   /* --- Un color distinto por herramienta: fondo de su tarjeta
-     desbloqueada + una variante más clara para su icono. Mismo paso
-     de luminosidad en las cuatro familias (equivalente a pasar de
-     un "400" a un "300" en cada escala), para que la lógica de la
-     paleta se sienta consistente entre módulos. --- */
-  --icon-consultas: #a78bfa;       /* violeta: calma, confianza, línea con el acento lila */
+     desbloqueada + una variante más clara para su icono. Las cuatro
+     están en el mismo escalón de luminosidad/saturación ("400" con
+     luz "300" para el icono) que el lila de Consultas — por eso se
+     leen como una sola familia y no como colores sueltos. Antes
+     Negadas y Vacíos estaban un escalón más oscuro/saturado ("500"),
+     lo que los hacía sentir fuera de tono frente al lila pastel. --- */
+  --icon-consultas: #a78bfa;       /* violeta: calma, confianza, ancla de la paleta */
   --icon-consultas-light: #c4b5fd;
   --icon-mapear: #2dd4bf;          /* turquesa: foco, claridad */
   --icon-mapear-light: #5eead4;
-  --icon-negadas: #f97316;         /* naranja: atención/alerta sin usar rojo */
+  --icon-negadas: #fb923c;         /* naranja suave: atención sin rojo, mismo escalón que el lila */
   --icon-negadas-light: #fdba74;
-  --icon-vacios: #3b82f6;          /* azul: neutro, informativo */
+  --icon-vacios: #60a5fa;          /* azul suave: neutro, informativo, distinto del acento general */
   --icon-vacios-light: #93c5fd;
 
   /* --- Flat: sin sombras ni relieves --- */
