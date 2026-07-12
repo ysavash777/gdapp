@@ -1,22 +1,24 @@
 /* ============================================================
    Módulo App · Mapear
-   Punto de entrada: listado de mapeos + acceso al escáner de cámara
-   para registrar uno nuevo. Cada pantalla vive en su propio archivo:
+   Punto de entrada: listado de mapeos + acceso al editor (cámara +
+   edición de contenido). Cada pantalla vive en su propio archivo:
      store.js         datos (hoy en memoria, misma forma que una
                        futura API — ver el comentario ahí)
-     list-view.js      listado + detalle de solo lectura de un mapeo
-     scanner-view.js    escáner de cámara para un mapeo nuevo
-     format.js          fecha/hora e ítem de código, compartidos
-                        entre list-view y scanner-view
+     list-view.js      listado + menú de opciones (renombrar,
+                       descargar, eliminar) de cada mapeo
+     editor-view.js     escáner de cámara + edición de un mapeo,
+                       nuevo o existente — nunca queda "cerrado"
+     format.js          fecha/hora, catálogo de condición e ítem de
+                       código, compartidos entre list-view y editor-view
    ============================================================ */
 
 import { renderList } from './list-view.js';
-import { openScanner } from './scanner-view.js';
+import { openEditor } from './editor-view.js';
 
 export const title = 'Mapear';
-export const description = 'Escanea códigos de barra de forma masiva y genera el mapeo de la posición.';
+export const description = 'Escanea productos y registra cantidad, condición y descripción por código.';
 
 export function render(outlet) {
-  const refresh = () => renderList(outlet, { onNew: () => openScanner({ onClose: refresh }) });
+  const refresh = () => renderList(outlet, { onNew: () => openEditor({ onClose: refresh }) });
   refresh();
 }

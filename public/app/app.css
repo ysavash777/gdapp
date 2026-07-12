@@ -415,15 +415,22 @@ html, body {
 .btn-primary:hover { background: var(--n-700); }
 
 /* --- Mapear: listado de mapeos --- */
-.mapeo-item {
-  width: 100%;
+.mapeo-row { padding: 0 4px; }
+.mapeo-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 14px 0;
   background: none;
   border: none;
   font: inherit;
   color: inherit;
+  text-align: left;
   cursor: pointer;
 }
-.mapeo-item .li-icon {
+.mapeo-open .li-icon {
   width: 36px;
   height: 36px;
   flex-shrink: 0;
@@ -433,13 +440,36 @@ html, body {
   background: var(--icon-mapear-light);
   color: var(--bg);
 }
-.mapeo-item .li-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.mapeo-item .li-title { font-weight: 600; letter-spacing: -0.01em; }
-.mapeo-item .li-chevron { color: var(--ink-3); flex-shrink: 0; }
+.mapeo-open .li-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mapeo-open .li-title {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-/* --- Mapear: escáner de cámara y detalle de un mapeo — pantalla
-   completa por encima de todo (fixed), para que la cámara ocupe el
-   máximo posible sin el padding/máx-ancho del resto de las vistas. --- */
+.mapeo-actions { position: relative; flex-shrink: 0; }
+.mapeo-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 6px;
+  z-index: 20;
+  animation: menu-in 120ms ease;
+}
+.mapeo-menu[hidden] { display: none; }
+.user-menu-item.is-danger { color: var(--danger); }
+
+/* --- Mapear: editor de un mapeo (cámara + edición de contenido) —
+   pantalla completa por encima de todo (fixed), para que la cámara
+   ocupe el máximo posible sin el padding/máx-ancho del resto de las
+   vistas. Sirve tanto para un mapeo nuevo como para reabrir uno ya
+   hecho: nunca queda "cerrado". --- */
 .scan-overlay {
   position: fixed;
   inset: 0;
@@ -453,15 +483,23 @@ html, body {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--sp-3);
   padding: calc(env(safe-area-inset-top) + var(--sp-3)) var(--sp-4) var(--sp-3);
 }
 .scan-header .btn-icon { background: var(--surface); }
-.scan-header-spacer { width: 38px; }
-.scan-count { font-size: var(--text-sm); font-weight: 600; color: var(--ink-2); }
-.scan-count strong { color: var(--ink); font-size: var(--text-base); }
-.scan-torch.is-active { color: var(--icon-mapear); background: var(--icon-mapear-light); }
+.scan-title {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scan-header-actions { display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; }
+.scan-torch.is-active,
+.scan-toggle.is-active { color: var(--icon-mapear); background: var(--icon-mapear-light); }
 
 .scan-camera {
   position: relative;
@@ -524,6 +562,8 @@ html, body {
   font-size: var(--text-sm);
 }
 .scan-code:last-child { border-bottom: none; }
+.scan-code { cursor: pointer; }
+.scan-code:active { background: var(--n-50); }
 .scan-code .sc-icon {
   width: 22px;
   height: 22px;
@@ -543,15 +583,16 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.scan-code .sc-qty { flex-shrink: 0; font-size: var(--text-xs); font-weight: 700; color: var(--ink-2); }
 .scan-code .sc-flag {
   flex-shrink: 0;
   font-size: var(--text-xs);
   font-weight: 700;
-  color: var(--warn);
-  background: var(--warn-bg);
   padding: 2px 8px;
   border-radius: var(--r-full);
 }
+.scan-code .sc-flag-cond { color: var(--icon-mapear); background: rgba(45, 212, 191, 0.18); }
+.scan-code .sc-flag-dup { color: var(--warn); background: var(--warn-bg); }
 .scan-code .sc-time { flex-shrink: 0; font-size: var(--text-xs); color: var(--ink-3); }
 
 .scan-manual { flex-shrink: 0; display: flex; gap: var(--sp-2); }
@@ -568,17 +609,31 @@ html, body {
 .scan-manual input:focus { border-color: var(--accent-500); }
 .scan-manual .btn { padding: 0 16px; }
 
-.scan-finish { flex-shrink: 0; }
-
-/* --- Detalle de un mapeo ya hecho: mismo overlay, sin cámara --- */
-.detail-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0 var(--sp-4) calc(env(safe-area-inset-bottom) + var(--sp-4));
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
+/* --- Mapear: edición de cantidad/condición de un código (modal) --- */
+.qty-stepper { display: flex; align-items: center; gap: var(--sp-2); }
+.qty-stepper .btn-icon { background: var(--n-100); }
+.qty-stepper input {
+  width: 64px;
+  text-align: center;
+  padding: 9px 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  outline: none;
 }
-.detail-meta { display: flex; align-items: center; gap: var(--sp-3); }
-.detail-codes { border-top: 1px solid var(--line-soft); }
+.condition-pills { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.cond-pill {
+  padding: 8px 14px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 550;
+}
+.cond-pill.is-selected {
+  background: var(--icon-mapear-light);
+  border-color: var(--icon-mapear-light);
+  color: var(--bg);
+}

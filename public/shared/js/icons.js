@@ -40,6 +40,8 @@ const PATHS = {
   bell: '<path d="M6 9a6 6 0 1 1 12 0c0 3.2 1 5.1 2 6.5H4c1-1.4 2-3.3 2-6.5Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/>',
   camera: '<path d="M14.5 4h-5L7.2 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.2L14.5 4Z"/><circle cx="12" cy="13" r="3.5"/>',
   zap: '<path d="M11 2 3 14h7l-1 8 9-12h-7l1-8Z"/>',
+  moreVertical: '<circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.5" fill="currentColor" stroke="none"/>',
+  download: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
 };
 
 export function icon(name, size = 20, strokeWidth = 1.7) {

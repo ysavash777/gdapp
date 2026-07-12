@@ -53,14 +53,20 @@ public/
     manifest.webmanifest   Manifiesto PWA (start_url /app).
     sw.js                  Service worker (cache básico app-shell).
     icons/icon.png         Icono de la app (favicon, ícono de instalación PWA y splash al abrirla).
-    modules/mapear/        Herramienta Mapear (escáner de cámara), dividida por pantalla:
-      index.js               Entrada (title, description, render) — solo orquesta list-view/scanner-view.
-      store.js                Datos, hoy en memoria pero con forma de API (list/get/create/addCode/finish,
-                               todas async) — cuando exista server/routes/mapeos.js, solo se reescribe acá.
-      list-view.js             Listado de mapeos + detalle de solo lectura de uno ya hecho.
-      scanner-view.js           Escáner de cámara (BarcodeDetector) para un mapeo nuevo, con ingreso manual
-                               como respaldo si el navegador no soporta lectura automática.
-      format.js                 Fecha/hora e ítem de código, compartidos entre list-view y scanner-view.
+    modules/mapear/        Herramienta Mapear (escáner de cámara), dividida por pantalla. Un mapeo no
+                           tiene estado "finalizado": título y contenido se pueden reeditar siempre.
+      index.js               Entrada (title, description, render) — solo orquesta list-view/editor-view.
+      store.js                Datos, hoy en memoria pero con forma de API (list/get/create/rename/remove/
+                               addCode/updateCode/removeCode, todas async) — cuando exista
+                               server/routes/mapeos.js (validando el código contra esa base al escanear),
+                               solo se reescribe este archivo.
+      list-view.js             Listado de mapeos + menú de opciones por fila (renombrar, descargar —
+                               pendiente de implementar—, eliminar con confirmación).
+      editor-view.js            Escáner de cámara (BarcodeDetector) + edición de un mapeo, nuevo o
+                               existente: cada código tiene cantidad, condición (rotura/unidades/
+                               vencido/otro) y descripción editables, con ingreso manual como respaldo
+                               si no hay cámara o el navegador no soporta lectura automática.
+      format.js                 Fecha/hora, catálogo de condición y utilidades compartidas.
     modules/negadas.js     Herramienta Negadas.
     modules/vacios.js      Herramienta Vacíos.
     modules/consultas.js   Herramienta Consultas.
