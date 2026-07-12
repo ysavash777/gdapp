@@ -104,10 +104,15 @@ window.addEventListener('hashchange', renderRoute);
 // referencias que puedan quedar obsoletas.
 document.addEventListener('click', (e) => {
   const menu = document.getElementById('userMenu');
-  if (!menu || menu.hidden) return;
-  const btn = document.getElementById('avatarBtn');
-  if (menu.contains(e.target) || (btn && btn.contains(e.target))) return;
-  menu.hidden = true;
+  if (menu && !menu.hidden) {
+    const btn = document.getElementById('avatarBtn');
+    if (!menu.contains(e.target) && !(btn && btn.contains(e.target))) menu.hidden = true;
+  }
+  const notif = document.getElementById('notifMenu');
+  if (notif && !notif.hidden) {
+    const nbtn = document.getElementById('notifBtn');
+    if (!notif.contains(e.target) && !(nbtn && nbtn.contains(e.target))) notif.hidden = true;
+  }
 });
 
 function isEnabled([key]) {
@@ -210,7 +215,15 @@ function renderHome() {
           <button class="user-menu-item" id="logoutItem">${icon('logout', 18)} Cerrar sesión</button>
         </div>
       </div>
-      <button class="btn-icon" id="notifBtn" title="Notificaciones">${icon('bell', 20)}</button>
+      <div class="hd-right">
+        <button class="btn-icon" id="settingsBtn" title="Configuración">${icon('settings', 20)}</button>
+        <div class="hd-notif">
+          <button class="btn-icon" id="notifBtn" title="Notificaciones">${icon('bell', 20)}</button>
+          <div class="notif-menu" id="notifMenu" hidden>
+            <p class="notif-empty">No tenés notificaciones</p>
+          </div>
+        </div>
+      </div>
     `);
 
     const menu = document.getElementById('userMenu');
@@ -222,6 +235,12 @@ function renderHome() {
       logout();
       user = null;
       renderHome();
+    });
+
+    const notifMenu = document.getElementById('notifMenu');
+    document.getElementById('notifBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      notifMenu.hidden = !notifMenu.hidden;
     });
   } else {
     setHeader('');
