@@ -9,36 +9,38 @@
    ============================================================ */
 
 :root {
-  /* --- Paleta oscura NEUTRA (negro/gris, no negro puro).
-     El lila queda reservado exclusivamente para los iconos. --- */
-  --bg: #121212;
-  --surface: #1c1c1e;
-  --surface-2: #242426;
-  --ink: #f2f2f2;
-  --ink-2: #a1a1a6;
-  --ink-3: #6e6e73;
-  --line: #2c2c2e;
-  --line-soft: #232325;
+  /* --- Prueba de paleta Zinc + acento azul (en vez de negro/gris
+     neutro + lila). Basada en la escala zinc de Tailwind, que
+     coincide con los tres tonos pedidos (950/900/800). --- */
+  --bg: #09090b;
+  --surface: #18181b;
+  --surface-2: #27272a;
+  --ink: #fafafa;
+  --ink-2: #a1a1aa;
+  --ink-3: #71717a;
+  --line: #27272a;
+  --line-soft: #18181b;
 
-  --n-0: #1a1a1c;
-  --n-50: #1c1c1e;
-  --n-100: #232325;
-  --n-200: #2c2c2e;
-  --n-300: #3a3a3c;
-  --n-400: #6e6e73;
-  --n-500: #8e8e93;
-  --n-600: #a1a1a6;
-  --n-700: #c7c7cc;
-  --n-800: #e5e5ea;
-  --n-900: #f2f2f2;
+  --n-0: #09090b;
+  --n-50: #18181b;
+  --n-100: #27272a;
+  --n-200: #3f3f46;
+  --n-300: #52525b;
+  --n-400: #71717a;
+  --n-500: #a1a1aa;
+  --n-600: #d4d4d8;
+  --n-700: #e4e4e7;
+  --n-800: #f4f4f5;
+  --n-900: #fafafa;
 
-  /* --- Acento lila: SOLO para el contenedor de los iconos --- */
-  --accent-50: rgba(167, 139, 250, 0.14);
-  --accent-100: rgba(167, 139, 250, 0.22);
-  --accent-300: #c4b5fd;
-  --accent-500: #a78bfa;
-  --accent-600: #9575f0;
-  --accent-700: #7c5fe0;
+  /* --- Acento azul: reemplaza al lila para el contenedor de iconos,
+     botones primarios y foco --- */
+  --accent-50: rgba(59, 130, 246, 0.14);
+  --accent-100: rgba(59, 130, 246, 0.22);
+  --accent-300: #93c5fd;
+  --accent-500: #3b82f6;
+  --accent-600: #2563eb;
+  --accent-700: #1d4ed8;
 
   /* --- Un color distinto por herramienta: fondo de su tarjeta
      desbloqueada + una variante más clara para su icono. Mismo paso
@@ -231,7 +233,7 @@ html, body {
   display: grid;
   place-items: center;
   border-radius: var(--r-full);
-  color: #121212;
+  color: var(--ink);
   background: var(--accent-500);
 }
 .tc-chevron { color: var(--ink-3); flex-shrink: 0; margin-top: 12px; }
@@ -353,7 +355,7 @@ html, body {
 /* Botón de login en lila sólido (en el resto de la app, ese color
    queda solo para los iconos — aquí es la excepción) y un poco más
    alto que el resto de los botones. */
-#authForm .btn-primary { background: var(--accent-500); color: #121212; padding: 15px 18px; }
+#authForm .btn-primary { background: var(--accent-500); color: var(--ink); padding: 15px 18px; }
 #authForm .btn-primary:hover { background: var(--accent-600); }
 
 /* Inputs sin borde: el color de fondo ya los distingue del negro
