@@ -2,10 +2,16 @@
    Módulo App · Mapear — editor de un mapeo (nuevo o ya existente).
 
    Un solo overlay a pantalla completa cumple los dos casos: crear un
-   mapeo (la cámara arranca sola) o reabrir uno ya hecho para seguir
-   escaneando, corregir cantidad/condición/descripción de un código, o
-   borrarlo — el mapeo nunca queda "cerrado", siempre se puede volver
-   a editar.
+   mapeo o reabrir uno ya hecho para seguir escaneando, corregir
+   cantidad/motivo/descripción de un código, o borrarlo — el mapeo
+   nunca queda "cerrado", siempre se puede volver a editar. La cámara
+   queda activa todo el tiempo que el editor está abierto (no hay
+   forma de apagarla a mitad de camino).
+
+   Apenas se detecta un código (cámara o Enter en el ingreso manual)
+   se abre una ventana flotante inferior pidiendo cantidad y motivo —
+   la detección de la cámara se pausa mientras esa ventana está
+   abierta, para no acumular códigos mientras el usuario responde.
 
    Detección nativa vía BarcodeDetector (Chrome/Android/Edge). Donde
    no está disponible (p. ej. iOS Safari) se avisa de inmediato y el
@@ -14,11 +20,12 @@
 
 import { icon } from '/shared/js/icons.js';
 import * as store from './store.js';
-import { formatTime, escapeHtml, CONDITIONS, conditionLabel } from './format.js';
+import { escapeHtml, CONDITIONS, conditionLabel } from './format.js';
 
 const DETECT_INTERVAL_MS = 350;
 const SAME_CODE_DEBOUNCE_MS = 1200;
 const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code'];
+const GENERIC_DESCRIPTION = 'Producto sin descripción';
 
 function withDuplicateFlags(codes) {
   const counts = new Map();
@@ -26,16 +33,18 @@ function withDuplicateFlags(codes) {
   return codes.map((c) => ({ ...c, duplicate: counts.get(c.code) > 1 }));
 }
 
-function codeRowHTML(c) {
+function recordCardHTML(c) {
   return `
-    <li class="scan-code ${c.duplicate ? 'is-duplicate' : ''}" data-code-id="${c.id}">
-      <span class="sc-icon">${icon('check', 14)}</span>
-      <span class="sc-code">${escapeHtml(c.code)}</span>
-      ${c.quantity > 1 ? `<span class="sc-qty">×${c.quantity}</span>` : ''}
-      ${c.condition ? `<span class="sc-flag sc-flag-cond">${conditionLabel(c.condition)}</span>` : ''}
-      ${c.duplicate ? '<span class="sc-flag sc-flag-dup">Repetido</span>' : ''}
-      <span class="sc-time">${formatTime(c.scannedAt)}</span>
-    </li>
+    <button class="record-card ${c.duplicate ? 'is-duplicate' : ''}" data-code-id="${c.id}">
+      <div class="record-top">
+        <span class="record-desc">${escapeHtml(c.description || GENERIC_DESCRIPTION)}</span>
+        <span class="record-qty">×${c.quantity}</span>
+      </div>
+      <div class="record-bottom">
+        <span class="record-code">${escapeHtml(c.code)}${c.duplicate ? ' · <span class="record-dup">Repetido</span>' : ''}</span>
+        <span class="record-reason ${c.condition ? '' : 'is-empty'}">${conditionLabel(c.condition) || 'Sin motivo'}</span>
+      </div>
+    </button>
   `;
 }
 
@@ -52,21 +61,20 @@ export async function openEditor({ mapeoId, onClose }) {
       <div class="scan-title" id="editorTitle">${escapeHtml(mapeo.title)}</div>
       <div class="scan-header-actions">
         <button class="btn-icon scan-torch" id="scanTorch" title="Linterna" hidden>${icon('zap', 20)}</button>
-        <button class="btn-icon scan-toggle" id="scanToggle" title="Escanear">${icon('camera', 20)}</button>
       </div>
     </div>
-    <div class="scan-camera" id="scanCamera" hidden>
+    <div class="scan-camera">
       <video id="scanVideo" autoplay playsinline muted></video>
       <div class="scan-reticle"></div>
       <p class="scan-hint" id="scanHint">Apuntá al código de barras</p>
     </div>
     <div class="scan-sheet">
-      <div class="scan-sheet-head" id="scanSheetHead">Sin códigos todavía</div>
-      <ul class="scan-codes" id="scanCodes"></ul>
       <form class="scan-manual" id="scanManual">
         <input type="text" inputmode="numeric" placeholder="Ingresar código manualmente" id="scanManualInput" autocomplete="off" />
         <button type="submit" class="btn btn-primary" title="Agregar">${icon('plus', 18)}</button>
       </form>
+      <div class="scan-sheet-head" id="scanSheetHead">Sin códigos todavía</div>
+      <div class="record-list" id="scanCodes"></div>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -82,13 +90,11 @@ export async function openEditor({ mapeoId, onClose }) {
     close();
   }
 
-  const cameraBox = overlay.querySelector('#scanCamera');
   const videoEl = overlay.querySelector('#scanVideo');
   const sheetHead = overlay.querySelector('#scanSheetHead');
   const codesEl = overlay.querySelector('#scanCodes');
   const hintEl = overlay.querySelector('#scanHint');
   const torchBtn = overlay.querySelector('#scanTorch');
-  const toggleBtn = overlay.querySelector('#scanToggle');
 
   let codes = mapeo.codes;
   let stream = null;
@@ -98,14 +104,14 @@ export async function openEditor({ mapeoId, onClose }) {
   let detectTimer = null;
   let lastCode = null;
   let lastAt = 0;
-  let cameraOn = false;
+  let detectionPaused = false;
   let closed = false;
 
   function renderCodes() {
     sheetHead.textContent = codes.length
       ? `${codes.length} código${codes.length === 1 ? '' : 's'} registrado${codes.length === 1 ? '' : 's'}`
       : 'Sin códigos todavía';
-    codesEl.innerHTML = withDuplicateFlags(codes).slice().reverse().map(codeRowHTML).join('');
+    codesEl.innerHTML = withDuplicateFlags(codes).slice().reverse().map(recordCardHTML).join('');
   }
 
   // El debounce por "mismo código" es solo para la cámara: mientras un
@@ -122,15 +128,11 @@ export async function openEditor({ mapeoId, onClose }) {
     codes = updated.codes;
     renderCodes();
     if (navigator.vibrate) navigator.vibrate(35);
+    openRegisterSheet(codes.at(-1));
   }
 
   async function startCamera() {
-    cameraBox.hidden = false;
-    cameraOn = true;
-    toggleBtn.classList.add('is-active');
-    toggleBtn.title = 'Detener cámara';
     hintEl.textContent = 'Apuntá al código de barras';
-
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -140,7 +142,7 @@ export async function openEditor({ mapeoId, onClose }) {
       hintEl.textContent = 'No se pudo acceder a la cámara. Usá el ingreso manual.';
       return;
     }
-    if (closed || !cameraOn) {
+    if (closed) {
       stream.getTracks().forEach((t) => t.stop());
       return;
     }
@@ -163,7 +165,7 @@ export async function openEditor({ mapeoId, onClose }) {
     }
 
     detectTimer = setInterval(async () => {
-      if (closed || !cameraOn || videoEl.readyState < 2) return;
+      if (closed || detectionPaused || videoEl.readyState < 2) return;
       try {
         const detected = await detector.detect(videoEl);
         if (detected.length) await registerCode(detected[0].rawValue, { debounce: true });
@@ -174,7 +176,6 @@ export async function openEditor({ mapeoId, onClose }) {
   }
 
   function stopCamera() {
-    cameraOn = false;
     clearInterval(detectTimer);
     detectTimer = null;
     if (stream) {
@@ -182,10 +183,6 @@ export async function openEditor({ mapeoId, onClose }) {
       stream = null;
     }
     track = null;
-    torchBtn.hidden = true;
-    cameraBox.hidden = true;
-    toggleBtn.classList.remove('is-active');
-    toggleBtn.title = 'Escanear';
   }
 
   function close() {
@@ -199,11 +196,6 @@ export async function openEditor({ mapeoId, onClose }) {
   }
 
   overlay.querySelector('#editorClose').addEventListener('click', close);
-
-  toggleBtn.addEventListener('click', () => {
-    if (cameraOn) stopCamera();
-    else startCamera();
-  });
 
   torchBtn.addEventListener('click', async () => {
     if (!track) return;
@@ -223,97 +215,105 @@ export async function openEditor({ mapeoId, onClose }) {
     if (!value) return;
     await registerCode(value);
     input.value = '';
-    input.focus();
   });
 
-  // Tocar un código abre su edición (cantidad/condición/descripción) o
-  // permite borrarlo — así el contenido de un mapeo se puede corregir
-  // todas las veces que haga falta, no solo en el momento del escaneo.
+  // Tocar un registro reabre la misma ventana flotante para corregir
+  // su cantidad, motivo o descripción, o para eliminarlo.
   codesEl.addEventListener('click', (e) => {
-    const row = e.target.closest('.scan-code');
-    if (row) openCodeEditor(Number(row.dataset.codeId));
+    const card = e.target.closest('.record-card');
+    if (!card) return;
+    const entry = codes.find((c) => c.id === Number(card.dataset.codeId));
+    if (entry) openRegisterSheet(entry);
   });
 
-  async function openCodeEditor(codeId) {
-    const entry = codes.find((c) => c.id === codeId);
-    if (!entry) return;
+  function openRegisterSheet(entry) {
+    detectionPaused = true;
 
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.innerHTML = `
-      <div class="modal">
-        <div class="modal-head">
-          <h3>${escapeHtml(entry.code)}</h3>
-          <button class="btn-icon" data-close>${icon('x', 18)}</button>
-        </div>
-        <div class="modal-body">
-          <div class="field">
-            <label>Cantidad</label>
-            <div class="qty-stepper">
-              <button type="button" class="btn-icon" data-qty="-1">−</button>
-              <input type="number" min="1" value="${entry.quantity}" id="qtyInput" />
-              <button type="button" class="btn-icon" data-qty="1">+</button>
-            </div>
-          </div>
-          <div class="field">
-            <label>Condición</label>
-            <div class="condition-pills" id="condPills">
-              ${CONDITIONS.map((cond) => `<button type="button" class="cond-pill ${entry.condition === cond.value ? 'is-selected' : ''}" data-condition="${cond.value}">${cond.label}</button>`).join('')}
-            </div>
-          </div>
-          <div class="field">
-            <label>Descripción</label>
-            <input type="text" id="descInput" placeholder="Ej: Coca Cola Zero 1,75 - Generic Brand" value="${escapeHtml(entry.description || '')}" />
+    const backdrop = document.createElement('div');
+    backdrop.className = 'reg-sheet-backdrop';
+    backdrop.innerHTML = `
+      <div class="reg-sheet">
+        <div class="reg-sheet-head">
+          <span class="reg-sheet-code">${escapeHtml(entry.code)}</span>
+          <div class="reg-sheet-head-actions">
+            <button type="button" class="btn-icon" id="regDelete" title="Eliminar código">${icon('trash', 18)}</button>
+            <button type="button" class="btn-icon" id="regClose" title="Cerrar">${icon('x', 18)}</button>
           </div>
         </div>
-        <div class="modal-foot">
-          <button type="button" class="btn btn-danger" id="removeCodeBtn">${icon('trash', 16)} Eliminar</button>
-          <button type="button" class="btn btn-primary" id="saveCodeBtn">Guardar</button>
+        <div class="field">
+          <label>Cantidad</label>
+          <div class="qty-stepper">
+            <button type="button" class="btn-icon" data-qty="-1">−</button>
+            <input type="number" min="1" value="${entry.quantity}" id="qtyInput" />
+            <button type="button" class="btn-icon" data-qty="1">+</button>
+          </div>
         </div>
+        <div class="field">
+          <label>Motivo</label>
+          <div class="condition-pills">
+            ${CONDITIONS.map((cond) => `<button type="button" class="cond-pill ${entry.condition === cond.value ? 'is-selected' : ''}" data-condition="${cond.value}">${cond.label}</button>`).join('')}
+          </div>
+        </div>
+        <div class="field">
+          <label>Descripción (opcional)</label>
+          <input type="text" id="descInput" placeholder="Ej: Coca Cola Zero 1,75 - Generic Brand" value="${escapeHtml(entry.description || '')}" />
+        </div>
+        <button type="button" class="btn btn-primary btn-block" id="regDone">Listo</button>
       </div>
     `;
-    document.body.appendChild(modal);
-    const closeModal = () => modal.remove();
-    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
-    modal.querySelector('[data-close]').addEventListener('click', closeModal);
+    document.body.appendChild(backdrop);
 
     let quantity = entry.quantity;
     let condition = entry.condition;
-    const qtyInput = modal.querySelector('#qtyInput');
+    const qtyInput = backdrop.querySelector('#qtyInput');
 
-    modal.querySelectorAll('[data-qty]').forEach((btn) => {
+    async function commit(patch) {
+      const updated = await store.updateCode(mapeo.id, entry.id, patch);
+      codes = updated.codes;
+      renderCodes();
+    }
+
+    backdrop.querySelectorAll('[data-qty]').forEach((btn) => {
       btn.addEventListener('click', () => {
         quantity = Math.max(1, quantity + Number(btn.dataset.qty));
         qtyInput.value = quantity;
+        commit({ quantity });
       });
     });
     qtyInput.addEventListener('change', () => {
       quantity = Math.max(1, Number(qtyInput.value) || 1);
       qtyInput.value = quantity;
+      commit({ quantity });
     });
-    modal.querySelectorAll('.cond-pill').forEach((pill) => {
+    backdrop.querySelectorAll('.cond-pill').forEach((pill) => {
       pill.addEventListener('click', () => {
         condition = condition === pill.dataset.condition ? null : pill.dataset.condition;
-        modal.querySelectorAll('.cond-pill').forEach((p) => p.classList.toggle('is-selected', p.dataset.condition === condition));
+        backdrop.querySelectorAll('.cond-pill').forEach((p) => p.classList.toggle('is-selected', p.dataset.condition === condition));
+        commit({ condition });
       });
     });
-
-    modal.querySelector('#saveCodeBtn').addEventListener('click', async () => {
-      const description = modal.querySelector('#descInput').value.trim();
-      const updated = await store.updateCode(mapeo.id, entry.id, { quantity, condition, description });
-      codes = updated.codes;
-      renderCodes();
-      closeModal();
+    backdrop.querySelector('#descInput').addEventListener('change', (e) => {
+      commit({ description: e.target.value.trim() });
     });
 
-    modal.querySelector('#removeCodeBtn').addEventListener('click', async () => {
+    function closeSheet() {
+      backdrop.remove();
+      detectionPaused = false;
+    }
+    backdrop.querySelector('#regClose').addEventListener('click', closeSheet);
+    backdrop.querySelector('#regDone').addEventListener('click', closeSheet);
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) closeSheet();
+    });
+
+    backdrop.querySelector('#regDelete').addEventListener('click', async () => {
       const updated = await store.removeCode(mapeo.id, entry.id);
       codes = updated.codes;
       renderCodes();
-      closeModal();
+      closeSheet();
     });
   }
 
   renderCodes();
-  if (isNew) startCamera();
+  startCamera();
 }
