@@ -52,7 +52,7 @@ public/
                            cabecera y muestra solo un enlace "Volver" sobre el contenido.
     manifest.webmanifest   Manifiesto PWA (start_url /app).
     sw.js                  Service worker (cache básico app-shell).
-    icons/icon.svg         Icono de la app.
+    icons/icon.png         Icono de la app (favicon, ícono de instalación PWA y splash al abrirla).
     modules/mapear.js      Herramienta Mapear (exporta title, description, render).
     modules/negadas.js     Herramienta Negadas.
     modules/vacios.js      Herramienta Vacíos.

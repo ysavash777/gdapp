@@ -284,7 +284,7 @@ function renderLogin() {
     // el panel de login.
     history.replaceState(null, '', hashUrl(''));
     renderRoute();
-  });
+  }, { showBack: true });
 }
 
 async function boot() {

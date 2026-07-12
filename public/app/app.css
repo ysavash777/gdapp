@@ -302,9 +302,17 @@ html, body {
 }
 
 /* Botón de login en lila sólido (en el resto de la app, ese color
-   queda solo para los iconos — aquí es la excepción). */
-#authForm .btn-primary { background: var(--accent-500); color: #121212; }
+   queda solo para los iconos — aquí es la excepción) y un poco más
+   alto que el resto de los botones. */
+#authForm .btn-primary { background: var(--accent-500); color: #121212; padding: 15px 18px; }
 #authForm .btn-primary:hover { background: var(--accent-600); }
+
+/* Inputs sin borde: el color de fondo ya los distingue del negro
+   del panel, no hace falta el contorno. */
+#authForm .field input,
+#authForm .password-wrap input {
+  border: none;
+}
 
 /* --- Buscador móvil --- */
 .searchbar {

@@ -2,7 +2,10 @@
    GDapp · Vista de autenticación (solo login — sin registro).
    Compartida por /desk y /app. Ventana partida en dos: arriba una
    imagen con degradado hacia negro, abajo los campos.
-   Uso:  renderAuth(container, onSuccess)
+   Uso:  renderAuth(container, onSuccess, { showBack })
+   showBack solo tiene sentido en /app: ahí el login se llega desde
+   un inicio público, así que hay adónde volver. En /desk el login
+   es la puerta de entrada misma, sin nada detrás.
    ============================================================ */
 
 import { icon } from './icons.js';
@@ -13,7 +16,7 @@ const ERROR_MESSAGES = {
   MISSING_FIELDS: 'Completa usuario y contraseña.',
 };
 
-export function renderAuth(container, onSuccess) {
+export function renderAuth(container, onSuccess, { showBack = false } = {}) {
   let error = null;
   let pendingUsername = '';
   let pendingPassword = '';
@@ -23,6 +26,7 @@ export function renderAuth(container, onSuccess) {
       <div class="auth-wrap">
         <div class="auth-card">
           <div class="auth-top">
+            ${showBack ? `<button class="auth-back" id="authBack" aria-label="Volver">${icon('arrowLeft', 20)}</button>` : ''}
             <div class="auth-image" style="background-image:url('/shared/images/login-bg.png')"></div>
             <div class="auth-gradient"></div>
           </div>
@@ -43,13 +47,17 @@ export function renderAuth(container, onSuccess) {
                     <button type="button" class="pw-toggle" id="pwToggle" aria-label="Mostrar contraseña">${icon('eye', 18)}</button>
                   </div>
                 </div>
-                <button class="btn btn-primary btn-block" type="submit">Entrar</button>
+                <button class="btn btn-primary btn-block" type="submit">Iniciar Sesión</button>
               </form>
             </div>
           </div>
         </div>
       </div>
     `;
+
+    if (showBack) {
+      container.querySelector('#authBack').addEventListener('click', () => history.back());
+    }
 
     container.querySelector('#pwToggle').addEventListener('click', () => {
       const pwInput = container.querySelector('#password');

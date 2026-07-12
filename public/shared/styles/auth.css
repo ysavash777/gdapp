@@ -44,6 +44,23 @@
   background-position: center;
   background-repeat: no-repeat;
 }
+
+/* Botón de volver sobre la imagen (solo cuando renderAuth se llama
+   con { showBack: true } — en /app, donde hay un inicio detrás). */
+.auth-back {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 16px);
+  left: 16px;
+  z-index: 5;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+}
 /* Degradado a negro: separa la imagen del panel de campos, fundiéndose
    con el color de fondo para que no se note el corte. */
 .auth-gradient {
