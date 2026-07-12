@@ -233,6 +233,28 @@ html, body {
 }
 .tool-card.is-locked .tc-icon { background: var(--n-300); color: var(--ink-3); }
 
+/* --- "Consultar grupo" destaca con fondo lila cuando está desbloqueada
+   (siempre lo está, es pública). El resto de las tarjetas se queda
+   oscura como está — no se toca. --- */
+.tool-card[data-key="consultas"]:not(.is-locked) {
+  background: var(--accent-500);
+}
+.tool-card[data-key="consultas"]:not(.is-locked):active {
+  background: var(--accent-600);
+}
+.tool-card[data-key="consultas"]:not(.is-locked) .tc-icon {
+  background: var(--accent-300);
+}
+.tool-card[data-key="consultas"]:not(.is-locked) .tc-body h3 {
+  color: #fff;
+}
+.tool-card[data-key="consultas"]:not(.is-locked) .tc-body p {
+  color: rgba(255, 255, 255, 0.85);
+}
+.tool-card[data-key="consultas"]:not(.is-locked) .tc-chevron {
+  color: rgba(255, 255, 255, 0.75);
+}
+
 /* --- Botón de iniciar sesión (solo sin sesión), un poco más alto --- */
 .login-cta { flex: 0 0 auto; padding: 16px 20px; }
 
