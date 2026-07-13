@@ -21,11 +21,16 @@
 import { icon } from '/shared/js/icons.js';
 import * as store from './store.js';
 import { escapeHtml, CONDITIONS, conditionLabel } from './format.js';
+import { currentUser } from '/shared/js/session.js';
 
 const DETECT_INTERVAL_MS = 350;
 const SAME_CODE_DEBOUNCE_MS = 1200;
 const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code'];
 const GENERIC_DESCRIPTION = 'Producto sin descripción';
+
+function actor() {
+  return currentUser()?.username || null;
+}
 
 function withDuplicateFlags(codes) {
   const counts = new Map();
@@ -33,16 +38,36 @@ function withDuplicateFlags(codes) {
   return codes.map((c) => ({ ...c, duplicate: counts.get(c.code) > 1 }));
 }
 
+// La caja de "Unidades" tiene ancho fijo (ver .record-qty en app.css):
+// de 1 a 5 cifras entran siempre achicando la fuente, nunca el ancho.
+function qtySizeClass(quantity) {
+  const len = String(quantity).length;
+  if (len <= 2) return '';
+  if (len === 3) return 'is-md';
+  if (len === 4) return 'is-sm';
+  return 'is-xs';
+}
+
+// La descripción tiene una franja de alto fijo para 2 líneas (ver
+// .record-desc): si el texto es largo, se achica la fuente para que
+// esas 2 líneas le entren completo en vez de cortarlo.
+function descSizeClass(text) {
+  if (text.length <= 46) return '';
+  if (text.length <= 80) return 'is-md';
+  return 'is-sm';
+}
+
 function recordCardHTML(c) {
+  const desc = c.description || GENERIC_DESCRIPTION;
+  const reasonLabel = conditionLabel(c.condition) || 'Sin motivo';
   return `
     <button class="record-card ${c.duplicate ? 'is-duplicate' : ''}" data-code-id="${c.id}">
-      <div class="record-top">
-        <span class="record-desc">${escapeHtml(c.description || GENERIC_DESCRIPTION)}</span>
-        <span class="record-qty">×${c.quantity}</span>
-      </div>
-      <div class="record-bottom">
-        <span class="record-code">${escapeHtml(c.code)}${c.duplicate ? ' · <span class="record-dup">Repetido</span>' : ''}</span>
-        <span class="record-reason ${c.condition ? '' : 'is-empty'}">${conditionLabel(c.condition) || 'Sin motivo'}</span>
+      <div class="record-qty ${qtySizeClass(c.quantity)}">${c.quantity}</div>
+      <div class="record-info">
+        <span class="record-desc ${descSizeClass(desc)}">${escapeHtml(desc)}</span>
+        <span class="record-line2">
+          <span class="record-code-text">${escapeHtml(c.code)}</span> · <span class="record-reason-inline ${c.condition ? '' : 'is-empty'}">${reasonLabel}</span>${c.duplicate ? ' · <span class="record-dup">Repetido</span>' : ''}
+        </span>
       </div>
     </button>
   `;
@@ -50,14 +75,14 @@ function recordCardHTML(c) {
 
 export async function openEditor({ mapeoId, onClose }) {
   const isNew = !mapeoId;
-  const mapeo = isNew ? await store.create() : await store.get(mapeoId);
+  const mapeo = isNew ? await store.create(actor()) : await store.get(mapeoId);
   if (!mapeo) return onClose();
 
   const overlay = document.createElement('div');
   overlay.className = 'scan-overlay';
   overlay.innerHTML = `
     <div class="scan-header">
-      <button class="btn-icon scan-close" id="editorClose" title="Cerrar">${icon('x', 20)}</button>
+      <button class="btn-icon scan-back" id="editorClose" title="Volver">${icon('arrowLeft', 20)}</button>
       <div class="scan-title" id="editorTitle">${escapeHtml(mapeo.title)}</div>
       <div class="scan-header-actions">
         <button class="btn-icon scan-torch" id="scanTorch" title="Linterna" hidden>${icon('zap', 20)}</button>
@@ -65,15 +90,19 @@ export async function openEditor({ mapeoId, onClose }) {
     </div>
     <div class="scan-camera">
       <video id="scanVideo" autoplay playsinline muted></video>
-      <div class="scan-reticle"></div>
-      <p class="scan-hint" id="scanHint">Apuntá al código de barras</p>
+      <div class="scan-line"></div>
+      <p class="scan-hint" id="scanHint" hidden></p>
+      <div class="scan-camera-gradient"></div>
     </div>
     <div class="scan-sheet">
-      <form class="scan-manual" id="scanManual">
+      <div class="scan-sheet-head">
+        <span id="scanSheetHead">Sin códigos todavía</span>
+        <button type="button" class="manual-toggle" id="manualToggle" title="Ingresar código manualmente">${icon('plus', 13)} Manual</button>
+      </div>
+      <form class="scan-manual" id="scanManual" hidden>
         <input type="text" inputmode="numeric" placeholder="Ingresar código manualmente" id="scanManualInput" autocomplete="off" />
         <button type="submit" class="btn btn-primary" title="Agregar">${icon('plus', 18)}</button>
       </form>
-      <div class="scan-sheet-head" id="scanSheetHead">Sin códigos todavía</div>
       <div class="record-list" id="scanCodes"></div>
     </div>
   `;
@@ -124,22 +153,26 @@ export async function openEditor({ mapeoId, onClose }) {
     if (debounce && rawValue === lastCode && now - lastAt < SAME_CODE_DEBOUNCE_MS) return;
     lastCode = rawValue;
     lastAt = now;
-    const updated = await store.addCode(mapeo.id, rawValue);
+    const updated = await store.addCode(mapeo.id, rawValue, actor());
     codes = updated.codes;
     renderCodes();
     if (navigator.vibrate) navigator.vibrate(35);
     openRegisterSheet(codes.at(-1));
   }
 
+  function showHint(text) {
+    hintEl.textContent = text;
+    hintEl.hidden = false;
+  }
+
   async function startCamera() {
-    hintEl.textContent = 'Apuntá al código de barras';
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       });
     } catch {
-      hintEl.textContent = 'No se pudo acceder a la cámara. Usá el ingreso manual.';
+      showHint('No se pudo acceder a la cámara. Usá el ingreso manual.');
       return;
     }
     if (closed) {
@@ -160,7 +193,7 @@ export async function openEditor({ mapeoId, onClose }) {
       }
     }
     if (!detector) {
-      hintEl.textContent = 'Este dispositivo no soporta lectura automática. Usá el ingreso manual.';
+      showHint('Este dispositivo no soporta lectura automática. Usá el ingreso manual.');
       return;
     }
 
@@ -206,6 +239,15 @@ export async function openEditor({ mapeoId, onClose }) {
     } catch {
       torchOn = !torchOn; // el navegador anunció soporte pero no lo aplicó
     }
+  });
+
+  // El ingreso manual queda oculto por defecto (se usa poco), pero a
+  // un solo tap de distancia junto al contador de códigos — nunca
+  // escondido del todo, porque a veces es la única vía posible.
+  const manualForm = overlay.querySelector('#scanManual');
+  overlay.querySelector('#manualToggle').addEventListener('click', () => {
+    manualForm.hidden = !manualForm.hidden;
+    if (!manualForm.hidden) overlay.querySelector('#scanManualInput').focus();
   });
 
   overlay.querySelector('#scanManual').addEventListener('submit', async (e) => {
@@ -268,7 +310,7 @@ export async function openEditor({ mapeoId, onClose }) {
     const qtyInput = backdrop.querySelector('#qtyInput');
 
     async function commit(patch) {
-      const updated = await store.updateCode(mapeo.id, entry.id, patch);
+      const updated = await store.updateCode(mapeo.id, entry.id, patch, actor());
       codes = updated.codes;
       renderCodes();
     }
@@ -307,7 +349,7 @@ export async function openEditor({ mapeoId, onClose }) {
     });
 
     backdrop.querySelector('#regDelete').addEventListener('click', async () => {
-      const updated = await store.removeCode(mapeo.id, entry.id);
+      const updated = await store.removeCode(mapeo.id, entry.id, actor());
       codes = updated.codes;
       renderCodes();
       closeSheet();

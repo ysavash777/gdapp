@@ -8,18 +8,25 @@ import { icon } from '/shared/js/icons.js';
 import * as store from './store.js';
 import { formatDateTime, escapeHtml } from './format.js';
 import { openEditor } from './editor-view.js';
+import { currentUser } from '/shared/js/session.js';
 
 let outletRef = null;
 let refreshRef = null;
 
-function mapeoRowHTML(m) {
+function actor() {
+  return currentUser()?.username || null;
+}
+
+function mapeoCardHTML(m) {
+  const count = m.codes.length;
   return `
-    <div class="list-item mapeo-row" data-id="${m.id}">
+    <div class="mapeo-card" data-id="${m.id}">
       <button class="mapeo-open" data-id="${m.id}">
         <div class="li-icon">${icon('scan', 18)}</div>
-        <div class="li-main">
-          <span class="li-title">${escapeHtml(m.title)}</span>
-          <span class="li-sub">${m.codes.length} código${m.codes.length === 1 ? '' : 's'} · ${formatDateTime(m.updatedAt)}</span>
+        <div class="mapeo-info">
+          <span class="mapeo-title">${escapeHtml(m.title)}</span>
+          <span class="mapeo-meta">${count} código${count === 1 ? '' : 's'} · ${formatDateTime(m.updatedAt)}</span>
+          ${m.updatedBy ? `<span class="mapeo-editor">Editado por ${escapeHtml(m.updatedBy)}</span>` : ''}
         </div>
       </button>
       <div class="mapeo-actions">
@@ -44,7 +51,7 @@ export async function renderList(outlet, { onNew }) {
     <div class="action-hero">
       <button class="btn btn-primary btn-block" id="newMapeoBtn">${icon('camera', 20)} Nuevo mapeo</button>
       ${mapeos.length
-        ? `<div class="list mapeo-list">${mapeos.map(mapeoRowHTML).join('')}</div>`
+        ? `<div class="mapeo-list">${mapeos.map(mapeoCardHTML).join('')}</div>`
         : `
           <div class="card">
             <div class="empty-state">
@@ -160,7 +167,7 @@ async function openRenameModal(id) {
     },
     onSubmit: async (overlay, form, close) => {
       const value = overlay.querySelector('#renameInput').value.trim();
-      if (value) await store.rename(id, value);
+      if (value) await store.rename(id, value, actor());
       close();
       if (refreshRef) refreshRef();
     },

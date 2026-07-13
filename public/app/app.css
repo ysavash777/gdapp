@@ -414,15 +414,25 @@ html, body {
 }
 .btn-primary:hover { background: var(--n-700); }
 
-/* --- Mapear: listado de mapeos --- */
-.mapeo-row { padding: 0 4px; }
+/* --- Mapear: listado de mapeos — cada mapeo es su propia tarjeta,
+   no una fila angosta, con lugar para el dato de quién lo editó sin
+   que la tarjeta se deforme si el título o el usuario son largos. --- */
+.mapeo-list { display: flex; flex-direction: column; gap: var(--sp-3); }
+.mapeo-card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
+}
 .mapeo-open {
   flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: 14px 0;
   background: none;
   border: none;
   font: inherit;
@@ -440,10 +450,18 @@ html, body {
   background: var(--icon-mapear-light);
   color: var(--bg);
 }
-.mapeo-open .li-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.mapeo-open .li-title {
-  font-weight: 600;
+.mapeo-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mapeo-title {
+  font-weight: 650;
   letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mapeo-meta { font-size: var(--text-xs); color: var(--ink-2); }
+.mapeo-editor {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -487,6 +505,14 @@ html, body {
   padding: calc(env(safe-area-inset-top) + var(--sp-3)) var(--sp-4) var(--sp-3);
 }
 .scan-header .btn-icon { background: var(--surface); }
+/* Misma flecha e igual tratamiento visual que el botón de volver del
+   login (círculo translúcido, ícono blanco) — más específico que la
+   regla de arriba para poder ganarla. */
+.scan-header .btn-icon.scan-back {
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  border-radius: 50%;
+}
 .scan-title {
   flex: 1;
   min-width: 0;
@@ -515,13 +541,25 @@ html, body {
   height: 100%;
   object-fit: cover;
 }
-.scan-reticle {
+/* Sin recuadro ni texto: solo una línea que sube y baja, representando
+   el escaneo. */
+.scan-line {
   position: absolute;
-  inset: 12% 8%;
-  border: 2.5px solid rgba(250, 250, 250, 0.55);
-  border-radius: var(--r-lg);
-  box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.35);
+  left: 10%;
+  right: 10%;
+  top: 15%;
+  height: 2px;
+  border-radius: var(--r-full);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, #fff 50%, rgba(255, 255, 255, 0) 100%);
+  box-shadow: 0 0 10px 2px rgba(255, 255, 255, 0.55);
+  animation: scan-line-move 2.4s ease-in-out infinite;
 }
+@keyframes scan-line-move {
+  0%, 100% { top: 15%; }
+  50% { top: 82%; }
+}
+/* El texto solo aparece si algo falla de verdad (sin cámara, sin
+   soporte) — nunca para la instrucción de apuntar. */
 .scan-hint {
   position: absolute;
   left: 0;
@@ -534,6 +572,19 @@ html, body {
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
   padding: 0 var(--sp-5);
+}
+.scan-hint[hidden] { display: none; }
+/* La unión con el contenedor de registros es un degradado hacia el
+   mismo color de fondo de ese contenedor (mismo truco que el login
+   entre la imagen y el panel de campos). */
+.scan-camera-gradient {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 64px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, var(--surface) 100%);
+  pointer-events: none;
 }
 
 /* El contenedor de registros es la protagonista de la pantalla (~70%
@@ -549,8 +600,34 @@ html, body {
   padding: var(--sp-4) var(--sp-4) calc(env(safe-area-inset-bottom) + var(--sp-4));
   gap: var(--sp-3);
 }
-.scan-sheet-head { flex-shrink: 0; font-size: var(--text-sm); font-weight: 600; color: var(--ink-2); }
+.scan-sheet-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+/* El ingreso manual se usa poco: queda oculto (ver [hidden] en
+   scan-manual) detrás de este enlace chico, siempre en el mismo lugar
+   así nunca es difícil de encontrar cuando sí hace falta. */
+.manual-toggle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.manual-toggle:active { color: var(--ink); }
 .scan-manual { flex-shrink: 0; display: flex; gap: var(--sp-2); }
+.scan-manual[hidden] { display: none; }
 .scan-manual input {
   flex: 1;
   min-width: 0;
@@ -564,9 +641,12 @@ html, body {
 .scan-manual input:focus { border-color: var(--accent-500); }
 .scan-manual .btn { padding: 0 16px; }
 
-/* --- Registros: tarjetas modernas (no la lista angosta anterior) —
-   la descripción es el dato principal, el código queda subordinado
-   en gris y más chico, con cantidad y motivo siempre visibles. --- */
+/* --- Registros: dos columnas fijas (Unidades | Info) — el mismo alto
+   para todas las tarjetas sin importar cuánto texto tenga cada una.
+   La cantidad achica su fuente de 1 a 5 cifras sin romper el ancho de
+   su columna (ver qtySizeClass en editor-view.js); la descripción
+   reserva una franja de 2 líneas y hace lo mismo si el texto es largo;
+   código y motivo van siempre en una sola línea, sin saltos. --- */
 .record-list {
   flex: 1;
   min-height: 40px;
@@ -577,13 +657,14 @@ html, body {
 }
 .record-card {
   width: 100%;
+  height: 74px;
+  flex-shrink: 0;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: var(--sp-3) var(--sp-4);
+  align-items: stretch;
   background: var(--n-50);
   border: 1px solid var(--line-soft);
   border-radius: var(--r-md);
+  overflow: hidden;
   text-align: left;
   font: inherit;
   color: inherit;
@@ -591,39 +672,55 @@ html, body {
 }
 .record-card:active { background: var(--n-100); }
 .record-card.is-duplicate { border-color: var(--warn); }
-.record-top, .record-bottom { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
-.record-desc {
+
+.record-qty {
+  flex-shrink: 0;
+  width: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--icon-mapear-light);
+  color: var(--bg);
+  font-weight: 700;
+  font-size: 19px;
+}
+.record-qty.is-md { font-size: 16px; }
+.record-qty.is-sm { font-size: 14px; }
+.record-qty.is-xs { font-size: 12px; }
+
+.record-info {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 var(--sp-4);
+}
+.record-desc {
+  height: 38px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  line-height: 1.35;
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+.record-desc.is-md { font-size: 12px; }
+.record-desc.is-sm { font-size: 11px; }
+.record-line2 {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.record-qty { flex-shrink: 0; font-size: var(--text-sm); font-weight: 700; color: var(--icon-mapear); }
-.record-code {
-  flex: 1;
-  min-width: 0;
   font-size: var(--text-xs);
   color: var(--ink-3);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
+.record-reason-inline { color: var(--icon-mapear); font-weight: 600; }
+.record-reason-inline.is-empty { color: var(--ink-3); }
 .record-dup { color: var(--warn); font-weight: 700; }
-.record-reason {
-  flex-shrink: 0;
-  width: 78px;
-  text-align: center;
-  font-size: var(--text-xs);
-  font-weight: 700;
-  padding: 3px 0;
-  border-radius: var(--r-full);
-  color: var(--icon-mapear);
-  background: rgba(45, 212, 191, 0.18);
-}
-.record-reason.is-empty { color: var(--ink-3); background: var(--n-100); }
 
 /* --- Mapear: ventana flotante inferior para cantidad/motivo/descripción,
    se abre sola al detectar o ingresar un código. z-index por encima
