@@ -6,12 +6,17 @@
    cantidad/motivo/descripción de un código, o borrarlo — el mapeo
    nunca queda "cerrado", siempre se puede volver a editar. La cámara
    queda activa todo el tiempo que el editor está abierto (no hay
-   forma de apagarla a mitad de camino).
+   forma de apagarla a mitad de camino salvo el gesto de emergencia
+   sobre el propio recuadro de la cámara).
 
    Apenas se detecta un código (cámara o Enter en el ingreso manual)
-   se abre una ventana flotante inferior pidiendo cantidad y motivo —
-   la detección de la cámara se pausa mientras esa ventana está
-   abierta, para no acumular códigos mientras el usuario responde.
+   se abre una ventana flotante inferior pidiendo motivo y sus datos
+   propios — la detección de la cámara se pausa y se ve "apagada"
+   mientras esa ventana está abierta, para no acumular códigos ni
+   distraer mientras el usuario responde. Los saltos automáticos a
+   cantidad (Vencido, responsable ya recordado en rotura) solo pasan
+   al registrar un código nuevo — al reabrir uno existente para
+   editarlo, nunca se mueve el foco solo.
 
    Detección nativa vía BarcodeDetector (Chrome/Android/Edge). Donde
    no está disponible (p. ej. iOS Safari) se avisa de inmediato y el
@@ -56,22 +61,42 @@ function descSizeClass(text) {
   return 'is-sm';
 }
 
-function recordCardHTML(c) {
+// Rotura y Vencido se colorean por responsable (IDL/Rappi), no por
+// motivo — Unidades y Otro siguen su propio color de motivo.
+function motivoColorClass(c) {
+  if (c.condition === 'rotura' || c.condition === 'vencido') {
+    return c.roturaResponsible ? `resp-${c.roturaResponsible}` : 'is-empty';
+  }
+  return c.condition ? `cond-${c.condition}` : 'is-empty';
+}
+
+function recordCardHTML(c, flashId) {
   const desc = c.description || GENERIC_DESCRIPTION;
   const reasonLabel = conditionLabel(c.condition) || 'Sin motivo';
-  const reasonClass = c.condition ? `cond-${c.condition}` : 'is-empty';
+  const colorClass = motivoColorClass(c);
+
+  let secondaryBadge = '';
+  if (c.condition === 'unidades' && c.expiryDate) {
+    secondaryBadge = `<span class="record-fecha-badge">Vto ${escapeHtml(c.expiryDate)}</span>`;
+  } else if ((c.condition === 'rotura' || c.condition === 'vencido') && c.roturaResponsible) {
+    secondaryBadge = `<span class="record-resp-badge resp-${c.roturaResponsible}">${c.roturaResponsible === 'rappi' ? 'Rappi' : 'IDL'}</span>`;
+  } else if (c.condition === 'otro' && c.customReason) {
+    secondaryBadge = `<span class="record-comment-badge">${escapeHtml(c.customReason)}</span>`;
+  }
+
   return `
-    <button class="record-card" data-code-id="${c.id}">
-      <div class="record-qty ${reasonClass} ${qtySizeClass(c.quantity)}">
+    <button class="record-card ${c.id === flashId ? 'is-touched' : ''}" data-code-id="${c.id}">
+      <div class="record-qty ${colorClass} ${qtySizeClass(c.quantity)}">
         <span class="record-qty-num">${c.quantity}</span>
         <span class="record-qty-label">unidades</span>
       </div>
       <div class="record-info">
         <span class="record-desc ${descSizeClass(desc)}">${escapeHtml(desc)}</span>
-        <span class="record-line2">
-          <span class="record-reason-inline ${reasonClass}">${reasonLabel}</span>
-          <span class="record-code-text">${escapeHtml(c.code)}</span>
-        </span>
+        <span class="record-code-line">${escapeHtml(c.code)}</span>
+        <div class="record-badges">
+          <span class="record-reason-inline ${colorClass}">${reasonLabel}</span>
+          ${secondaryBadge}
+        </div>
       </div>
       <div class="record-edit-hint" title="Tocar para modificar">${icon('moreVertical', 14)}</div>
     </button>
@@ -102,8 +127,21 @@ export async function openEditor({ mapeoId, onClose }) {
     <div class="scan-sheet">
       <div class="scan-sheet-head">
         <span id="scanSheetHead">Sin códigos todavía</span>
-        <button type="button" class="manual-toggle" id="manualToggle" title="Ingresar código manualmente">${icon('plus', 13)} Manual</button>
+        <div class="scan-sheet-tools">
+          <div class="sheet-tool-wrap">
+            <button type="button" class="btn-icon" id="filterToggle" title="Filtrar por motivo">${icon('filter', 15)}</button>
+            <div class="mapeo-menu filter-menu" id="filterMenu" hidden>
+              <button type="button" class="user-menu-item" data-filter="">Todos</button>
+              ${CONDITIONS.map((c) => `<button type="button" class="user-menu-item" data-filter="${c.value}">${c.label}</button>`).join('')}
+            </div>
+          </div>
+          <button type="button" class="btn-icon" id="searchToggle" title="Buscar en los registros">${icon('search', 15)}</button>
+          <button type="button" class="manual-toggle" id="manualToggle" title="Ingresar código manualmente">${icon('plus', 13)} Manual</button>
+        </div>
       </div>
+      <form class="scan-manual" id="scanSearch" hidden>
+        <input type="text" id="scanSearchInput" placeholder="Buscar por código, descripción, motivo…" autocomplete="off" />
+      </form>
       <form class="scan-manual" id="scanManual" hidden>
         <input type="text" inputmode="numeric" placeholder="Ingresar código manualmente" id="scanManualInput" autocomplete="off" />
         <button type="submit" class="btn btn-primary" title="Agregar">${icon('plus', 18)}</button>
@@ -130,6 +168,13 @@ export async function openEditor({ mapeoId, onClose }) {
   const codesEl = overlay.querySelector('#scanCodes');
   const hintEl = overlay.querySelector('#scanHint');
   const torchBtn = overlay.querySelector('#scanTorch');
+  const filterToggle = overlay.querySelector('#filterToggle');
+  const filterMenu = overlay.querySelector('#filterMenu');
+  const searchToggle = overlay.querySelector('#searchToggle');
+  const searchForm = overlay.querySelector('#scanSearch');
+  const searchInput = overlay.querySelector('#scanSearchInput');
+  const manualForm = overlay.querySelector('#scanManual');
+  const manualToggle = overlay.querySelector('#manualToggle');
 
   let codes = mapeo.codes;
   let stream = null;
@@ -142,29 +187,61 @@ export async function openEditor({ mapeoId, onClose }) {
   let lastAt = 0;
   let detectionPaused = false;
   let closed = false;
+  let activeFilter = '';
+  let searchQuery = '';
+  let flashId = null;
+
+  function visibleCodes() {
+    return codes
+      .filter((c) => !activeFilter || c.condition === activeFilter)
+      .filter((c) => {
+        if (!searchQuery) return true;
+        const q = searchQuery.toLowerCase();
+        const haystack = [c.code, c.description, conditionLabel(c.condition), c.customReason, c.roturaResponsible, c.expiryDate]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(q);
+      })
+      .slice()
+      .sort((a, b) => b.touchedAt - a.touchedAt);
+  }
 
   function renderCodes() {
     sheetHead.textContent = codes.length
       ? `${codes.length} Registro${codes.length === 1 ? '' : 's'}`
       : 'Sin registros todavía';
-    codesEl.innerHTML = codes.slice().reverse().map(recordCardHTML).join('');
+    codesEl.innerHTML = visibleCodes().map((c) => recordCardHTML(c, flashId)).join('');
+    flashId = null;
+  }
+
+  function closeSearch() {
+    if (searchForm.hidden) return;
+    searchForm.hidden = true;
+    searchToggle.classList.remove('is-active');
+    searchQuery = '';
+    searchInput.value = '';
+    renderCodes();
   }
 
   // El debounce por "mismo código" es solo para la cámara: mientras un
   // código sigue en cuadro, el loop de detección lo vuelve a leer cada
   // ciclo y no hay que reingresarlo. El ingreso manual es una acción
   // deliberada del usuario — siempre se registra, aunque sea el mismo
-  // código que el último (queda marcado como repetido si corresponde).
+  // código que el último.
   async function registerCode(rawValue, { debounce = false } = {}) {
     const now = Date.now();
     if (debounce && rawValue === lastCode && now - lastAt < SAME_CODE_DEBOUNCE_MS) return;
     lastCode = rawValue;
     lastAt = now;
+    // Si quedó una búsqueda abierta, no debe tapar ni confundirse con
+    // la ventana de registro que está por abrirse.
+    closeSearch();
     const updated = await store.addCode(mapeo.id, rawValue, actor());
     codes = updated.codes;
     renderCodes();
     if (navigator.vibrate) navigator.vibrate(35);
-    openRegisterSheet(codes.at(-1), { isNew: true });
+    openRegisterSheet(codes.find((c) => c.id === updated.codes.at(-1).id), { isNew: true });
   }
 
   function showHint(text) {
@@ -259,6 +336,13 @@ export async function openEditor({ mapeoId, onClose }) {
   let activeSheetBackdrop = null;
   let activeSheetDiscard = null;
 
+  function onDocClick(e) {
+    if (!filterMenu.hidden && !e.target.closest('#filterToggle') && !e.target.closest('#filterMenu')) {
+      filterMenu.hidden = true;
+    }
+  }
+  document.addEventListener('click', onDocClick);
+
   function close() {
     if (closed) return;
     closed = true;
@@ -266,6 +350,7 @@ export async function openEditor({ mapeoId, onClose }) {
       activeSheetBackdrop.remove();
       if (activeSheetDiscard) activeSheetDiscard();
     }
+    document.removeEventListener('click', onDocClick);
     stopCamera();
     window.removeEventListener('popstate', onPopState);
     overlay.remove();
@@ -288,16 +373,49 @@ export async function openEditor({ mapeoId, onClose }) {
 
   torchBtn.addEventListener('click', () => setTorch(!torchOn));
 
+  // Filtro por motivo: menú chico anclado al ícono, cierra al elegir
+  // una opción o al tocar fuera.
+  filterToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    filterMenu.hidden = !filterMenu.hidden;
+  });
+  filterMenu.querySelectorAll('[data-filter]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      activeFilter = btn.dataset.filter;
+      filterMenu.hidden = true;
+      filterToggle.classList.toggle('is-active', !!activeFilter);
+      renderCodes();
+    });
+  });
+
+  // Búsqueda en vivo por cualquier dato del registro. Igual que el
+  // ingreso manual, queda oculta por defecto para no ensuciar la
+  // pantalla — y ambas se excluyen entre sí para no amontonarse.
+  searchToggle.addEventListener('click', () => {
+    if (!searchForm.hidden) {
+      closeSearch();
+      return;
+    }
+    manualForm.hidden = true;
+    searchForm.hidden = false;
+    searchToggle.classList.add('is-active');
+    searchInput.focus();
+  });
+  searchInput.addEventListener('input', () => {
+    searchQuery = searchInput.value.trim();
+    renderCodes();
+  });
+
   // El ingreso manual queda oculto por defecto (se usa poco), pero a
   // un solo tap de distancia junto al contador de códigos — nunca
   // escondido del todo, porque a veces es la única vía posible.
-  const manualForm = overlay.querySelector('#scanManual');
-  overlay.querySelector('#manualToggle').addEventListener('click', () => {
+  manualToggle.addEventListener('click', () => {
+    closeSearch();
     manualForm.hidden = !manualForm.hidden;
     if (!manualForm.hidden) overlay.querySelector('#scanManualInput').focus();
   });
 
-  overlay.querySelector('#scanManual').addEventListener('submit', async (e) => {
+  manualForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const input = overlay.querySelector('#scanManualInput');
     const value = input.value.trim();
@@ -327,7 +445,10 @@ export async function openEditor({ mapeoId, onClose }) {
       <div class="reg-sheet">
         <div class="reg-sheet-head">
           <span class="reg-sheet-title">${isNew ? 'Producto encontrado' : 'Editar registro'}</span>
-          <button type="button" class="btn-icon" id="regClose" title="Cerrar">${icon('x', 18)}</button>
+          <div class="reg-sheet-head-actions">
+            ${!isNew ? `<button type="button" class="btn-icon" id="regDelete" title="Eliminar registro">${icon('trash', 18)}</button>` : ''}
+            <button type="button" class="btn-icon" id="regClose" title="Cerrar">${icon('x', 18)}</button>
+          </div>
         </div>
         <div class="reg-info-grid">
           <div class="reg-info-cell">
@@ -348,8 +469,9 @@ export async function openEditor({ mapeoId, onClose }) {
         </div>
         <div class="reg-extra" id="regExtra"></div>
         <div class="reg-sheet-footer">
+          <span class="qty-label">Cantidad</span>
           <input type="number" min="1" placeholder="1" id="qtyInput" class="qty-input-sm" />
-          <button type="button" class="btn btn-primary" id="regDone" disabled>Listo</button>
+          <button type="button" class="btn btn-primary is-compact" id="regDone" disabled>Listo</button>
         </div>
       </div>
     `;
@@ -365,7 +487,6 @@ export async function openEditor({ mapeoId, onClose }) {
     async function commit(patch) {
       const updated = await store.updateCode(mapeo.id, entry.id, patch, actor());
       codes = updated.codes;
-      renderCodes();
     }
 
     function finishQuantity() {
@@ -384,13 +505,15 @@ export async function openEditor({ mapeoId, onClose }) {
     });
 
     // Cada motivo pide datos distintos, renderizados debajo de los
-    // botones: fecha opcional (unidades), responsable (rotura), texto
-    // libre (otro) o nada (vencido). Cambiar de motivo reemplaza el
-    // bloque entero.
+    // botones: fecha opcional (unidades), responsable (rotura y
+    // vencido) o texto libre (otro). Los saltos automáticos de foco
+    // (sin que el usuario presione Enter) solo ocurren al registrar
+    // un código nuevo — al editar uno existente no se mueve el foco.
     function renderExtra() {
       if (condition === 'unidades') {
         extraEl.innerHTML = `
           <div class="date-field">
+            <span class="date-label">Fecha vto</span>
             <div class="date-segments">
               <input type="text" inputmode="numeric" maxlength="2" placeholder="DD" class="date-seg" id="dateDd" />
               <span class="date-sep">/</span>
@@ -407,21 +530,27 @@ export async function openEditor({ mapeoId, onClose }) {
         const mmInput = extraEl.querySelector('#dateMm');
         const aaInput = extraEl.querySelector('#dateAa');
         const nativeInput = extraEl.querySelector('#dateNative');
-        ddInput.value = dd || '';
-        mmInput.value = mm || '';
-        aaInput.value = aa || '';
+        ddInput.value = dd && dd !== '--' ? dd : '';
+        mmInput.value = mm && mm !== '--' ? mm : '';
+        aaInput.value = aa && aa !== '--' ? aa : '';
 
         function commitDate() {
           const parts = [ddInput.value, mmInput.value, aaInput.value];
           commit({ expiryDate: parts.some(Boolean) ? parts.map((p) => p || '--').join('/') : null });
         }
+        // Nunca 00 ni fuera de rango: si se excede, se borra el campo
+        // en vez de forzarlo al tope (no autocompletar con 1 o 31).
         function clampSegment(input, max) {
           input.value = input.value.replace(/\D/g, '').slice(0, 2);
-          if (input.value && Number(input.value) > max) input.value = String(max);
+          const num = Number(input.value);
+          if (input.value && (num < 1 || num > max)) input.value = '';
         }
         ddInput.addEventListener('input', () => { clampSegment(ddInput, 31); commitDate(); });
         mmInput.addEventListener('input', () => { clampSegment(mmInput, 12); commitDate(); });
-        aaInput.addEventListener('input', () => { clampSegment(aaInput, 99); commitDate(); });
+        aaInput.addEventListener('input', () => {
+          aaInput.value = aaInput.value.replace(/\D/g, '').slice(0, 2);
+          commitDate();
+        });
         ddInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); mmInput.focus(); } });
         mmInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); aaInput.focus(); } });
         aaInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); qtyInput.focus(); } });
@@ -438,6 +567,8 @@ export async function openEditor({ mapeoId, onClose }) {
           aaInput.value = yyyy.slice(2);
           commitDate();
         });
+
+        if (isNew) ddInput.focus();
       } else if (condition === 'rotura') {
         extraEl.innerHTML = `
           <div class="rotura-options">
@@ -456,16 +587,22 @@ export async function openEditor({ mapeoId, onClose }) {
             lastRoturaResponsible = responsible;
             paint();
             commit({ roturaResponsible: responsible });
-            qtyInput.focus();
+            if (isNew) qtyInput.focus();
           });
         });
         if (responsible) {
           // Ya había (o se recuerda) un responsable: no hace falta
-          // esperar el toque, se agiliza yendo directo a cantidad.
+          // esperar el toque, se agiliza yendo directo a cantidad —
+          // pero solo al registrar, nunca al editar uno existente.
           paint();
           commit({ roturaResponsible: responsible });
-          qtyInput.focus();
+          if (isNew) qtyInput.focus();
         }
+      } else if (condition === 'vencido') {
+        // Vencido no pide nada: siempre queda atribuido a IDL.
+        extraEl.innerHTML = '';
+        if (entry.roturaResponsible !== 'idl') commit({ roturaResponsible: 'idl' });
+        if (isNew) qtyInput.focus();
       } else if (condition === 'otro') {
         extraEl.innerHTML = `
           <input type="text" id="otroInput" class="otro-input" maxlength="30" placeholder="Especificar motivo (máx. 30 caracteres)" />
@@ -479,9 +616,9 @@ export async function openEditor({ mapeoId, onClose }) {
           commit({ customReason: otroInput.value.trim() });
           qtyInput.focus();
         });
+        if (isNew) otroInput.focus();
       } else {
         extraEl.innerHTML = '';
-        if (condition === 'vencido') qtyInput.focus();
       }
     }
 
@@ -506,12 +643,21 @@ export async function openEditor({ mapeoId, onClose }) {
     activeSheetBackdrop = backdrop;
     activeSheetDiscard = isNew ? discardEntry : null;
 
-    function closeSheet() {
+    function cleanupSheet() {
       backdrop.remove();
       detectionPaused = false;
       resumeCameraView();
       activeSheetBackdrop = null;
       activeSheetDiscard = null;
+    }
+
+    // El registro recién tocado (nuevo o editado) sube al tope de la
+    // lista y se resalta con una animación breve al reaparecer —
+    // los que no cambiaron quedan donde estaban.
+    function closeSheet() {
+      cleanupSheet();
+      flashId = entry.id;
+      renderCodes();
     }
 
     async function discardEntry() {
@@ -522,16 +668,29 @@ export async function openEditor({ mapeoId, onClose }) {
 
     // Un código recién detectado todavía no fue confirmado: cerrar con
     // la cruz equivale a no registrarlo. Uno ya existente, en cambio,
-    // solo se está revisando — cerrar no borra nada.
+    // solo se está revisando — cerrar no borra nada (para eso está el
+    // tacho, que solo aparece en el modo de edición).
     async function discardIfNew() {
-      if (isNew) await discardEntry();
-      closeSheet();
+      if (isNew) {
+        await discardEntry();
+        cleanupSheet();
+      } else {
+        closeSheet();
+      }
     }
     backdrop.querySelector('#regClose').addEventListener('click', discardIfNew);
     backdrop.addEventListener('click', (e) => {
       if (e.target === backdrop) discardIfNew();
     });
     backdrop.querySelector('#regDone').addEventListener('click', closeSheet);
+
+    const deleteBtn = backdrop.querySelector('#regDelete');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', async () => {
+        await discardEntry();
+        cleanupSheet();
+      });
+    }
   }
 
   renderCodes();

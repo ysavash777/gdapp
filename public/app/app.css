@@ -58,6 +58,14 @@
   --icon-vacios: #60a5fa;          /* azul suave: neutro, informativo, distinto del acento general */
   --icon-vacios-light: #93c5fd;
 
+  /* --- Responsable de rotura/vencido: mismo escalón "400/300" que
+     los motivos, para que Rotura cambie de color según quién sea el
+     responsable sin salirse de la paleta. --- */
+  --resp-idl: #fb923c;             /* reutiliza el naranja de rotura */
+  --resp-idl-light: #fdba74;
+  --resp-rappi: #f472b6;           /* rosa suave: distinto de todo lo demás */
+  --resp-rappi-light: #f9a8d4;
+
   /* --- Tokens semánticos (badge-ok/warn/danger de components.css)
      redefinidos para el fondo oscuro: tokens.css trae versiones claras
      pensadas para /desk, que se verían como tarjetas blancas flotando
@@ -615,6 +623,14 @@ html, body {
   font-weight: 600;
   color: var(--ink-2);
 }
+.scan-sheet-tools { flex-shrink: 0; display: flex; align-items: center; gap: 2px; }
+.scan-sheet-tools .btn-icon { padding: 7px; }
+.sheet-tool-wrap { position: relative; }
+.filter-menu { top: calc(100% + 6px); left: auto; right: 0; min-width: 160px; }
+/* Estado activo genérico para íconos chicos del header/toolbar
+   (linterna, filtro, búsqueda) — mismo tratamiento en los tres. */
+.btn-icon.is-active { color: var(--icon-mapear); background: var(--icon-mapear-light); }
+
 /* El ingreso manual se usa poco: queda oculto (ver [hidden] en
    scan-manual) detrás de este enlace chico, siempre en el mismo lugar
    así nunca es difícil de encontrar cuando sí hace falta. */
@@ -662,7 +678,7 @@ html, body {
 }
 .record-card {
   width: 100%;
-  height: 74px;
+  height: 92px;
   flex-shrink: 0;
   display: flex;
   align-items: stretch;
@@ -680,9 +696,17 @@ html, body {
 }
 .record-card:active { background: var(--n-200); }
 
-/* Sin motivo: gris neutro con texto claro. Con motivo: el mismo color
-   de esa condición (ver .record-reason-inline más abajo) — así el
-   box de cantidad "avisa" la condición del registro de un vistazo. */
+/* Animación breve al aparecer arriba de la lista, recién creado o
+   editado — sutil, una sola vez, nada de rebote ni parpadeo. */
+@keyframes record-touch {
+  0% { transform: scale(0.97); box-shadow: 0 0 0 2px var(--icon-mapear-light); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+}
+.record-card.is-touched { animation: record-touch 480ms ease; }
+
+/* Sin motivo: gris neutro con texto claro. Rotura y Vencido toman el
+   color de su responsable (IDL/Rappi); Unidades y Otro, el de su
+   propio motivo — así el box de cantidad "avisa" de un vistazo. */
 .record-qty {
   flex-shrink: 0;
   width: 60px;
@@ -694,10 +718,10 @@ html, body {
   background: var(--n-200);
   color: var(--ink);
 }
-.record-qty.cond-rotura { background: var(--icon-negadas-light); color: var(--bg); }
-.record-qty.cond-vencido { background: var(--icon-consultas-light); color: var(--bg); }
 .record-qty.cond-unidades { background: var(--icon-vacios-light); color: var(--bg); }
 .record-qty.cond-otro { background: var(--icon-mapear-light); color: var(--bg); }
+.record-qty.resp-idl { background: var(--resp-idl-light); color: var(--bg); }
+.record-qty.resp-rappi { background: var(--resp-rappi-light); color: var(--bg); }
 .record-qty-num { font-weight: 700; font-size: 19px; line-height: 1; }
 .record-qty-label { font-size: 8px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: currentColor; opacity: 0.65; }
 .record-qty.is-md .record-qty-num { font-size: 16px; }
@@ -711,12 +735,11 @@ html, body {
   flex-direction: column;
   justify-content: center;
   gap: 4px;
-  padding: 0 var(--sp-3) 0 var(--sp-4);
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-4);
 }
-/* max-height (no height fija): un texto corto ocupa solo 1 línea y
-   queda pegado a la línea de abajo en vez de dejar un hueco — el
-   grupo entero se sigue centrando dentro de la tarjeta gracias a
-   .record-info; solo baja cuando de verdad necesita las 2 líneas. */
+/* max-height (no height fija): un texto corto ocupa solo 1 línea sin
+   dejar un hueco — el grupo entero se centra dentro de la tarjeta
+   gracias a .record-info; solo baja cuando de verdad necesita 2. */
 .record-desc {
   max-height: 38px;
   display: -webkit-box;
@@ -730,16 +753,14 @@ html, body {
 }
 .record-desc.is-md { font-size: 12px; }
 .record-desc.is-sm { font-size: 11px; }
-.record-line2 { display: flex; align-items: center; gap: 6px; }
-.record-code-text {
-  flex: 1;
-  min-width: 0;
+.record-code-line {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--text-xs);
   color: var(--ink-3);
 }
+.record-badges { display: flex; align-items: center; gap: 6px; }
 /* Contenedor de ancho fijo para el motivo — "Rotura" y "Unidades"
    ocupan siempre el mismo espacio, sin importar el largo del texto. */
 .record-reason-inline {
@@ -757,10 +778,55 @@ html, body {
   white-space: nowrap;
 }
 .record-reason-inline.is-empty { color: var(--ink-3); background: var(--n-200); }
-.record-reason-inline.cond-rotura { color: var(--icon-negadas); background: rgba(251, 146, 60, 0.18); }
-.record-reason-inline.cond-vencido { color: var(--icon-consultas); background: rgba(167, 139, 250, 0.18); }
 .record-reason-inline.cond-unidades { color: var(--icon-vacios); background: rgba(96, 165, 250, 0.18); }
 .record-reason-inline.cond-otro { color: var(--icon-mapear); background: rgba(45, 212, 191, 0.18); }
+.record-reason-inline.resp-idl { color: var(--resp-idl); background: rgba(251, 146, 60, 0.18); }
+.record-reason-inline.resp-rappi { color: var(--resp-rappi); background: rgba(244, 114, 182, 0.18); }
+
+/* Segunda etiqueta, condicionada al motivo: responsable (rotura y
+   vencido), vencimiento (unidades) o comentario truncado (otro).
+   Nunca aparece más de una junto al motivo. */
+.record-resp-badge {
+  flex-shrink: 0;
+  height: 20px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-full);
+  font-size: 10px;
+  font-weight: 700;
+}
+.record-resp-badge.resp-idl { color: var(--resp-idl); background: rgba(251, 146, 60, 0.18); }
+.record-resp-badge.resp-rappi { color: var(--resp-rappi); background: rgba(244, 114, 182, 0.18); }
+.record-fecha-badge {
+  flex-shrink: 0;
+  height: 20px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  border-radius: var(--r-full);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-2);
+  background: var(--n-200);
+}
+.record-comment-badge {
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  border-radius: var(--r-full);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: var(--n-200);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* Ícono sutil a la derecha: la única pista de que la tarjeta entera
    es tocable para editar el registro. */
@@ -803,6 +869,7 @@ html, body {
 }
 .reg-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
 .reg-sheet-title { flex: 1; min-width: 0; font-size: var(--text-md); font-weight: 700; letter-spacing: -0.01em; }
+.reg-sheet-head-actions { display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; }
 
 /* Un escalón más claro que el fondo del sheet (var(--surface)),
    mismo criterio que el resto de los contenedores de la app. */
@@ -840,9 +907,10 @@ html, body {
 }
 
 .reg-sheet-footer { display: flex; align-items: center; gap: var(--sp-2); }
+.qty-label { flex-shrink: 0; font-size: var(--text-sm); font-weight: 600; color: var(--ink-2); }
 .qty-input-sm {
-  flex-shrink: 0;
-  width: 64px;
+  flex: 1;
+  min-width: 0;
   text-align: center;
   padding: 12px 4px;
   border: none;
@@ -853,7 +921,9 @@ html, body {
   outline: none;
 }
 .qty-input-sm:focus { box-shadow: 0 0 0 3px var(--accent-100); }
-.reg-sheet-footer .btn { flex: 1; }
+/* "Listo" no se usa mucho (casi todo el flujo se cierra con Enter) —
+   se achica en vez de ocupar el mismo ancho que el resto. */
+.reg-sheet-footer .btn.is-compact { flex: 0 0 auto; padding: 0 18px; }
 .reg-sheet-footer .btn:disabled { opacity: 0.4; pointer-events: none; }
 
 /* Grid en vez de flex-wrap: las 4 opciones ocupan exactamente el mismo
@@ -887,10 +957,11 @@ html, body {
 /* --- Datos propios de cada motivo, debajo de los botones --- */
 .reg-extra:empty { display: none; }
 
-.date-field { display: flex; align-items: center; gap: var(--sp-2); }
-.date-segments { display: flex; align-items: center; gap: 4px; flex: 1; }
+.date-field { display: flex; align-items: center; gap: var(--sp-3); }
+.date-label { flex-shrink: 0; font-size: var(--text-sm); font-weight: 600; color: var(--ink-2); }
+.date-segments { display: flex; align-items: center; gap: 4px; flex: 1; justify-content: flex-end; }
 .date-seg {
-  width: 44px;
+  width: 40px;
   text-align: center;
   padding: 10px 2px;
   border: none;
@@ -902,7 +973,7 @@ html, body {
 }
 .date-seg:focus { box-shadow: 0 0 0 3px var(--accent-100); }
 .date-sep { color: var(--ink-3); font-weight: 700; }
-.date-calendar-btn { flex-shrink: 0; background: var(--n-100); }
+.date-calendar-btn { flex-shrink: 0; margin-left: 2px; background: var(--n-100); }
 
 .rotura-options { display: flex; gap: var(--sp-2); }
 .rotura-pill {

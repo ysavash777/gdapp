@@ -76,6 +76,7 @@ export async function addCode(mapeoId, rawCode, actor) {
   if (!mapeo) throw new Error('NOT_FOUND');
   const code = String(rawCode).trim();
   if (!code) throw new Error('EMPTY_CODE');
+  const now = Date.now();
   const entry = {
     id: nextCodeId++,
     code,
@@ -84,13 +85,14 @@ export async function addCode(mapeoId, rawCode, actor) {
     condition: null,
     // Datos específicos de cada motivo — solo se completa el que
     // corresponde a la condición elegida (ver editor-view.js).
-    expiryDate: null,       // motivo "unidades": vencimiento, opcional
-    roturaResponsible: null, // motivo "rotura": IDL | Rappi
+    expiryDate: null,        // motivo "unidades": vencimiento, opcional
+    roturaResponsible: null, // motivo "rotura" (IDL | Rappi) y "vencido" (siempre IDL)
     customReason: '',        // motivo "otro": texto libre
-    scannedAt: Date.now(),
+    scannedAt: now,
+    touchedAt: now, // último alta o edición — ordena el listado en vivo
   };
   mapeo.codes.push(entry);
-  mapeo.updatedAt = Date.now();
+  mapeo.updatedAt = now;
   mapeo.updatedBy = actor || mapeo.updatedBy;
   return cloneMapeo(mapeo);
 }
@@ -101,6 +103,7 @@ export async function updateCode(mapeoId, codeId, patch, actor) {
   const entry = mapeo.codes.find((c) => c.id === codeId);
   if (!entry) throw new Error('NOT_FOUND');
   Object.assign(entry, patch);
+  entry.touchedAt = Date.now();
   mapeo.updatedAt = Date.now();
   mapeo.updatedBy = actor || mapeo.updatedBy;
   return cloneMapeo(mapeo);
