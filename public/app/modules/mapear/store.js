@@ -82,6 +82,11 @@ export async function addCode(mapeoId, rawCode, actor) {
     description: '',
     quantity: 1,
     condition: null,
+    // Datos específicos de cada motivo — solo se completa el que
+    // corresponde a la condición elegida (ver editor-view.js).
+    expiryDate: null,       // motivo "unidades": vencimiento, opcional
+    roturaResponsible: null, // motivo "rotura": IDL | Rappi
+    customReason: '',        // motivo "otro": texto libre
     scannedAt: Date.now(),
   };
   mapeo.codes.push(entry);

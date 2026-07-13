@@ -28,6 +28,11 @@ const SAME_CODE_DEBOUNCE_MS = 1200;
 const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code'];
 const GENERIC_DESCRIPTION = 'Producto sin descripción';
 
+// Se recuerda entre registros (no entre sesiones) quién fue el último
+// responsable de rotura marcado, para preseleccionarlo y agilizar el
+// alta de la próxima rotura — ver motivo "rotura" en openRegisterSheet.
+let lastRoturaResponsible = null;
+
 function actor() {
   return currentUser()?.username || null;
 }
@@ -247,9 +252,20 @@ export async function openEditor({ mapeoId, onClose }) {
     if (cameraOn) videoEl.play().catch(() => {});
   }
 
+  // La ventana flotante de registro vive fuera de `overlay` (en
+  // document.body, para poder tapar toda la pantalla) — si el editor
+  // se cierra mientras está abierta, hay que sacarla a mano o queda
+  // huérfana en el DOM.
+  let activeSheetBackdrop = null;
+  let activeSheetDiscard = null;
+
   function close() {
     if (closed) return;
     closed = true;
+    if (activeSheetBackdrop) {
+      activeSheetBackdrop.remove();
+      if (activeSheetDiscard) activeSheetDiscard();
+    }
     stopCamera();
     window.removeEventListener('popstate', onPopState);
     overlay.remove();
@@ -330,8 +346,9 @@ export async function openEditor({ mapeoId, onClose }) {
         <div class="condition-pills">
           ${CONDITIONS.map((cond) => `<button type="button" class="cond-pill cond-${cond.value} ${entry.condition === cond.value ? 'is-selected' : ''}" data-condition="${cond.value}">${cond.label}</button>`).join('')}
         </div>
+        <div class="reg-extra" id="regExtra"></div>
         <div class="reg-sheet-footer">
-          <input type="number" min="1" value="${entry.quantity}" id="qtyInput" class="qty-input-sm" />
+          <input type="number" min="1" placeholder="1" id="qtyInput" class="qty-input-sm" />
           <button type="button" class="btn btn-primary" id="regDone" disabled>Listo</button>
         </div>
       </div>
@@ -340,6 +357,7 @@ export async function openEditor({ mapeoId, onClose }) {
 
     let quantity = entry.quantity;
     let condition = entry.condition;
+    const extraEl = backdrop.querySelector('#regExtra');
     const qtyInput = backdrop.querySelector('#qtyInput');
     const doneBtn = backdrop.querySelector('#regDone');
     doneBtn.disabled = !condition;
@@ -350,11 +368,123 @@ export async function openEditor({ mapeoId, onClose }) {
       renderCodes();
     }
 
-    qtyInput.addEventListener('change', () => {
+    function finishQuantity() {
       quantity = Math.max(1, Number(qtyInput.value) || 1);
       qtyInput.value = quantity;
       commit({ quantity });
+    }
+    qtyInput.addEventListener('change', finishQuantity);
+    // Enter cierra el flujo completo (equivale a tocar "Listo") — es el
+    // último salto de la cadena DD → MM → AA/responsable/texto → cantidad.
+    qtyInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      finishQuantity();
+      if (!doneBtn.disabled) doneBtn.click();
     });
+
+    // Cada motivo pide datos distintos, renderizados debajo de los
+    // botones: fecha opcional (unidades), responsable (rotura), texto
+    // libre (otro) o nada (vencido). Cambiar de motivo reemplaza el
+    // bloque entero.
+    function renderExtra() {
+      if (condition === 'unidades') {
+        extraEl.innerHTML = `
+          <div class="date-field">
+            <div class="date-segments">
+              <input type="text" inputmode="numeric" maxlength="2" placeholder="DD" class="date-seg" id="dateDd" />
+              <span class="date-sep">/</span>
+              <input type="text" inputmode="numeric" maxlength="2" placeholder="MM" class="date-seg" id="dateMm" />
+              <span class="date-sep">/</span>
+              <input type="text" inputmode="numeric" maxlength="2" placeholder="AA" class="date-seg" id="dateAa" />
+            </div>
+            <button type="button" class="btn-icon date-calendar-btn" id="dateCalendarBtn" title="Elegir con calendario">${icon('calendar', 18)}</button>
+            <input type="date" class="date-native" id="dateNative" hidden />
+          </div>
+        `;
+        const [dd, mm, aa] = (entry.expiryDate || '').split('/');
+        const ddInput = extraEl.querySelector('#dateDd');
+        const mmInput = extraEl.querySelector('#dateMm');
+        const aaInput = extraEl.querySelector('#dateAa');
+        const nativeInput = extraEl.querySelector('#dateNative');
+        ddInput.value = dd || '';
+        mmInput.value = mm || '';
+        aaInput.value = aa || '';
+
+        function commitDate() {
+          const parts = [ddInput.value, mmInput.value, aaInput.value];
+          commit({ expiryDate: parts.some(Boolean) ? parts.map((p) => p || '--').join('/') : null });
+        }
+        function clampSegment(input, max) {
+          input.value = input.value.replace(/\D/g, '').slice(0, 2);
+          if (input.value && Number(input.value) > max) input.value = String(max);
+        }
+        ddInput.addEventListener('input', () => { clampSegment(ddInput, 31); commitDate(); });
+        mmInput.addEventListener('input', () => { clampSegment(mmInput, 12); commitDate(); });
+        aaInput.addEventListener('input', () => { clampSegment(aaInput, 99); commitDate(); });
+        ddInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); mmInput.focus(); } });
+        mmInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); aaInput.focus(); } });
+        aaInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); qtyInput.focus(); } });
+
+        extraEl.querySelector('#dateCalendarBtn').addEventListener('click', () => {
+          if (nativeInput.showPicker) nativeInput.showPicker();
+          else nativeInput.click();
+        });
+        nativeInput.addEventListener('change', () => {
+          const [yyyy, mo, da] = nativeInput.value.split('-');
+          if (!yyyy) return;
+          ddInput.value = da;
+          mmInput.value = mo;
+          aaInput.value = yyyy.slice(2);
+          commitDate();
+        });
+      } else if (condition === 'rotura') {
+        extraEl.innerHTML = `
+          <div class="rotura-options">
+            <button type="button" class="rotura-pill" data-resp="idl">IDL</button>
+            <button type="button" class="rotura-pill" data-resp="rappi">Rappi</button>
+          </div>
+        `;
+        let responsible = entry.roturaResponsible || lastRoturaResponsible || null;
+        const pills = [...extraEl.querySelectorAll('.rotura-pill')];
+        function paint() {
+          pills.forEach((p) => p.classList.toggle('is-selected', p.dataset.resp === responsible));
+        }
+        pills.forEach((btn) => {
+          btn.addEventListener('click', () => {
+            responsible = btn.dataset.resp;
+            lastRoturaResponsible = responsible;
+            paint();
+            commit({ roturaResponsible: responsible });
+            qtyInput.focus();
+          });
+        });
+        if (responsible) {
+          // Ya había (o se recuerda) un responsable: no hace falta
+          // esperar el toque, se agiliza yendo directo a cantidad.
+          paint();
+          commit({ roturaResponsible: responsible });
+          qtyInput.focus();
+        }
+      } else if (condition === 'otro') {
+        extraEl.innerHTML = `
+          <input type="text" id="otroInput" class="otro-input" maxlength="30" placeholder="Especificar motivo (máx. 30 caracteres)" />
+        `;
+        const otroInput = extraEl.querySelector('#otroInput');
+        otroInput.value = entry.customReason || '';
+        otroInput.addEventListener('change', () => commit({ customReason: otroInput.value.trim() }));
+        otroInput.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          commit({ customReason: otroInput.value.trim() });
+          qtyInput.focus();
+        });
+      } else {
+        extraEl.innerHTML = '';
+        if (condition === 'vencido') qtyInput.focus();
+      }
+    }
+
     // No se permite registrar sin motivo: el botón de confirmar queda
     // deshabilitado hasta que se elija uno, y una vez elegido solo se
     // puede cambiar por otro (no volver a "sin motivo").
@@ -364,24 +494,37 @@ export async function openEditor({ mapeoId, onClose }) {
         backdrop.querySelectorAll('.cond-pill').forEach((p) => p.classList.toggle('is-selected', p.dataset.condition === condition));
         doneBtn.disabled = false;
         commit({ condition });
+        renderExtra();
       });
     });
+    renderExtra();
+
+    // El editor completo puede cerrarse (botón/gesto de volver)
+    // mientras esta ventana sigue abierta — se registra acá para que
+    // `close()` pueda sacarla del DOM y descartar el registro
+    // pendiente sin quedar huérfana.
+    activeSheetBackdrop = backdrop;
+    activeSheetDiscard = isNew ? discardEntry : null;
 
     function closeSheet() {
       backdrop.remove();
       detectionPaused = false;
       resumeCameraView();
+      activeSheetBackdrop = null;
+      activeSheetDiscard = null;
+    }
+
+    async function discardEntry() {
+      const updated = await store.removeCode(mapeo.id, entry.id, actor());
+      codes = updated.codes;
+      renderCodes();
     }
 
     // Un código recién detectado todavía no fue confirmado: cerrar con
     // la cruz equivale a no registrarlo. Uno ya existente, en cambio,
     // solo se está revisando — cerrar no borra nada.
     async function discardIfNew() {
-      if (isNew) {
-        const updated = await store.removeCode(mapeo.id, entry.id, actor());
-        codes = updated.codes;
-        renderCodes();
-      }
+      if (isNew) await discardEntry();
       closeSheet();
     }
     backdrop.querySelector('#regClose').addEventListener('click', discardIfNew);

@@ -883,3 +883,48 @@ html, body {
 .cond-pill.cond-vencido.is-selected { background: var(--icon-consultas-light); border-color: var(--icon-consultas-light); color: var(--bg); }
 .cond-pill.cond-unidades.is-selected { background: var(--icon-vacios-light); border-color: var(--icon-vacios-light); color: var(--bg); }
 .cond-pill.cond-otro.is-selected { background: var(--icon-mapear-light); border-color: var(--icon-mapear-light); color: var(--bg); }
+
+/* --- Datos propios de cada motivo, debajo de los botones --- */
+.reg-extra:empty { display: none; }
+
+.date-field { display: flex; align-items: center; gap: var(--sp-2); }
+.date-segments { display: flex; align-items: center; gap: 4px; flex: 1; }
+.date-seg {
+  width: 44px;
+  text-align: center;
+  padding: 10px 2px;
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--bg);
+  color: var(--ink);
+  font-weight: 700;
+  outline: none;
+}
+.date-seg:focus { box-shadow: 0 0 0 3px var(--accent-100); }
+.date-sep { color: var(--ink-3); font-weight: 700; }
+.date-calendar-btn { flex-shrink: 0; background: var(--n-100); }
+
+.rotura-options { display: flex; gap: var(--sp-2); }
+.rotura-pill {
+  flex: 1;
+  height: 46px;
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--bg);
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.rotura-pill.is-selected { background: var(--icon-negadas-light); color: var(--bg); }
+
+.otro-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--bg);
+  color: var(--ink);
+  outline: none;
+}
+.otro-input:focus { box-shadow: 0 0 0 3px var(--accent-100); }
