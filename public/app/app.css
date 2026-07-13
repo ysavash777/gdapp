@@ -548,10 +548,9 @@ html, body {
   left: 10%;
   right: 10%;
   top: 15%;
-  height: 2px;
+  height: 3px;
   border-radius: var(--r-full);
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, #fff 50%, rgba(255, 255, 255, 0) 100%);
-  box-shadow: 0 0 10px 2px rgba(255, 255, 255, 0.55);
+  background: #fff;
   animation: scan-line-move 2.4s ease-in-out infinite;
 }
 @keyframes scan-line-move {
@@ -661,7 +660,10 @@ html, body {
   flex-shrink: 0;
   display: flex;
   align-items: stretch;
-  background: var(--n-50);
+  /* Un escalón más claro que el fondo del contenedor que lo rodea
+     (.scan-sheet, en var(--surface)) — si no, la tarjeta se pierde
+     contra el fondo. */
+  background: var(--surface-2);
   border: 1px solid var(--line-soft);
   border-radius: var(--r-md);
   overflow: hidden;
@@ -670,23 +672,25 @@ html, body {
   color: inherit;
   cursor: pointer;
 }
-.record-card:active { background: var(--n-100); }
+.record-card:active { background: var(--n-200); }
 .record-card.is-duplicate { border-color: var(--warn); }
 
 .record-qty {
   flex-shrink: 0;
-  width: 56px;
+  width: 60px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1px;
   background: var(--icon-mapear-light);
   color: var(--bg);
-  font-weight: 700;
-  font-size: 19px;
 }
-.record-qty.is-md { font-size: 16px; }
-.record-qty.is-sm { font-size: 14px; }
-.record-qty.is-xs { font-size: 12px; }
+.record-qty-num { font-weight: 700; font-size: 19px; line-height: 1; }
+.record-qty-label { font-size: 9px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: rgba(9, 9, 11, 0.6); }
+.record-qty.is-md .record-qty-num { font-size: 16px; }
+.record-qty.is-sm .record-qty-num { font-size: 14px; }
+.record-qty.is-xs .record-qty-num { font-size: 12px; }
 
 .record-info {
   flex: 1;
@@ -695,7 +699,7 @@ html, body {
   flex-direction: column;
   justify-content: center;
   gap: 4px;
-  padding: 0 var(--sp-4);
+  padding: 0 var(--sp-3) 0 var(--sp-4);
 }
 .record-desc {
   height: 38px;
@@ -718,13 +722,28 @@ html, body {
   font-size: var(--text-xs);
   color: var(--ink-3);
 }
-.record-reason-inline { color: var(--icon-mapear); font-weight: 600; }
-.record-reason-inline.is-empty { color: var(--ink-3); }
+.record-reason-inline { font-weight: 650; }
+.record-reason-inline.is-empty { color: var(--ink-3); font-weight: 600; }
+.record-reason-inline.cond-rotura { color: var(--icon-negadas); }
+.record-reason-inline.cond-vencido { color: var(--icon-consultas); }
+.record-reason-inline.cond-unidades { color: var(--icon-vacios); }
+.record-reason-inline.cond-otro { color: var(--icon-mapear); }
 .record-dup { color: var(--warn); font-weight: 700; }
 
-/* --- Mapear: ventana flotante inferior para cantidad/motivo/descripción,
-   se abre sola al detectar o ingresar un código. z-index por encima
-   del overlay del escáner (60) para que nunca quede tapada. --- */
+/* Ícono sutil a la derecha: la única pista de que la tarjeta entera
+   es tocable para editar el registro. */
+.record-edit-hint {
+  flex-shrink: 0;
+  width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-3);
+}
+
+/* --- Mapear: ventana flotante inferior para motivo/cantidad, se abre
+   sola al detectar o ingresar un código. z-index por encima del
+   overlay del escáner (60) para que nunca quede tapada. --- */
 .reg-sheet-backdrop {
   position: fixed;
   inset: 0;
@@ -750,38 +769,48 @@ html, body {
   from { opacity: 0; transform: translateY(24px); }
   to { opacity: 1; transform: none; }
 }
-.reg-sheet-head { display: flex; align-items: center; justify-content: space-between; }
-.reg-sheet-code { font-size: var(--text-md); font-weight: 700; letter-spacing: -0.01em; }
-.reg-sheet-head-actions { display: flex; align-items: center; gap: var(--sp-2); }
+.reg-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.reg-sheet-titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.reg-sheet-title { font-size: var(--text-md); font-weight: 700; letter-spacing: -0.01em; }
+.reg-sheet-code { font-size: var(--text-sm); color: var(--ink-3); }
 
-.qty-stepper { display: flex; align-items: center; gap: var(--sp-2); }
-.qty-stepper .btn-icon { background: var(--n-100); }
-.qty-stepper input {
+.reg-sheet-footer { display: flex; align-items: center; gap: var(--sp-2); }
+.qty-input-sm {
+  flex-shrink: 0;
   width: 64px;
   text-align: center;
-  padding: 9px 4px;
+  padding: 12px 4px;
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   background: var(--bg);
   color: var(--ink);
+  font-weight: 700;
   outline: none;
 }
+.qty-input-sm:focus { border-color: var(--accent-500); }
+.reg-sheet-footer .btn { flex: 1; }
 
-/* Grid en vez de flex-wrap: las 4 opciones ocupan el mismo ancho sin
-   importar el largo de su etiqueta ("Rotura" vs. "Unidades"). */
+/* Grid en vez de flex-wrap: las 4 opciones ocupan exactamente el mismo
+   ancho y alto sin importar el largo de su etiqueta ("Rotura" vs.
+   "Unidades"), y cada motivo tiene su propio color de la paleta ya
+   establecida en la app al seleccionarse. */
 .condition-pills { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-2); }
 .cond-pill {
-  padding: 9px 4px;
-  border-radius: var(--r-full);
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--bg);
   color: var(--ink-2);
   font-size: var(--text-sm);
-  font-weight: 550;
+  font-weight: 600;
   text-align: center;
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
 }
-.cond-pill.is-selected {
-  background: var(--icon-mapear-light);
-  border-color: var(--icon-mapear-light);
-  color: var(--bg);
-}
+.cond-pill.cond-rotura.is-selected { background: var(--icon-negadas-light); border-color: var(--icon-negadas-light); color: var(--bg); }
+.cond-pill.cond-vencido.is-selected { background: var(--icon-consultas-light); border-color: var(--icon-consultas-light); color: var(--bg); }
+.cond-pill.cond-unidades.is-selected { background: var(--icon-vacios-light); border-color: var(--icon-vacios-light); color: var(--bg); }
+.cond-pill.cond-otro.is-selected { background: var(--icon-mapear-light); border-color: var(--icon-mapear-light); color: var(--bg); }

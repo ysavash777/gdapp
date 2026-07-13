@@ -60,15 +60,20 @@ function descSizeClass(text) {
 function recordCardHTML(c) {
   const desc = c.description || GENERIC_DESCRIPTION;
   const reasonLabel = conditionLabel(c.condition) || 'Sin motivo';
+  const reasonClass = c.condition ? `cond-${c.condition}` : 'is-empty';
   return `
     <button class="record-card ${c.duplicate ? 'is-duplicate' : ''}" data-code-id="${c.id}">
-      <div class="record-qty ${qtySizeClass(c.quantity)}">${c.quantity}</div>
+      <div class="record-qty ${qtySizeClass(c.quantity)}">
+        <span class="record-qty-num">${c.quantity}</span>
+        <span class="record-qty-label">unidades</span>
+      </div>
       <div class="record-info">
         <span class="record-desc ${descSizeClass(desc)}">${escapeHtml(desc)}</span>
         <span class="record-line2">
-          <span class="record-code-text">${escapeHtml(c.code)}</span> · <span class="record-reason-inline ${c.condition ? '' : 'is-empty'}">${reasonLabel}</span>${c.duplicate ? ' · <span class="record-dup">Repetido</span>' : ''}
+          <span class="record-code-text">${escapeHtml(c.code)}</span> · <span class="record-reason-inline ${reasonClass}">${reasonLabel}</span>${c.duplicate ? ' · <span class="record-dup">Repetido</span>' : ''}
         </span>
       </div>
+      <div class="record-edit-hint" title="Tocar para modificar">${icon('edit', 14)}</div>
     </button>
   `;
 }
@@ -138,8 +143,8 @@ export async function openEditor({ mapeoId, onClose }) {
 
   function renderCodes() {
     sheetHead.textContent = codes.length
-      ? `${codes.length} código${codes.length === 1 ? '' : 's'} registrado${codes.length === 1 ? '' : 's'}`
-      : 'Sin códigos todavía';
+      ? `${codes.length} Registro${codes.length === 1 ? '' : 's'}`
+      : 'Sin registros todavía';
     codesEl.innerHTML = withDuplicateFlags(codes).slice().reverse().map(recordCardHTML).join('');
   }
 
@@ -157,7 +162,7 @@ export async function openEditor({ mapeoId, onClose }) {
     codes = updated.codes;
     renderCodes();
     if (navigator.vibrate) navigator.vibrate(35);
-    openRegisterSheet(codes.at(-1));
+    openRegisterSheet(codes.at(-1), { isNew: true });
   }
 
   function showHint(text) {
@@ -257,18 +262,19 @@ export async function openEditor({ mapeoId, onClose }) {
     if (!value) return;
     await registerCode(value);
     input.value = '';
+    manualForm.hidden = true;
   });
 
   // Tocar un registro reabre la misma ventana flotante para corregir
-  // su cantidad, motivo o descripción, o para eliminarlo.
+  // su cantidad o motivo.
   codesEl.addEventListener('click', (e) => {
     const card = e.target.closest('.record-card');
     if (!card) return;
     const entry = codes.find((c) => c.id === Number(card.dataset.codeId));
-    if (entry) openRegisterSheet(entry);
+    if (entry) openRegisterSheet(entry, { isNew: false });
   });
 
-  function openRegisterSheet(entry) {
+  function openRegisterSheet(entry, { isNew }) {
     detectionPaused = true;
 
     const backdrop = document.createElement('div');
@@ -276,31 +282,22 @@ export async function openEditor({ mapeoId, onClose }) {
     backdrop.innerHTML = `
       <div class="reg-sheet">
         <div class="reg-sheet-head">
-          <span class="reg-sheet-code">${escapeHtml(entry.code)}</span>
-          <div class="reg-sheet-head-actions">
-            <button type="button" class="btn-icon" id="regDelete" title="Eliminar código">${icon('trash', 18)}</button>
-            <button type="button" class="btn-icon" id="regClose" title="Cerrar">${icon('x', 18)}</button>
+          <div class="reg-sheet-titles">
+            <span class="reg-sheet-title">${isNew ? 'Producto encontrado' : 'Editar registro'}</span>
+            <span class="reg-sheet-code">${escapeHtml(entry.code)}</span>
           </div>
-        </div>
-        <div class="field">
-          <label>Cantidad</label>
-          <div class="qty-stepper">
-            <button type="button" class="btn-icon" data-qty="-1">−</button>
-            <input type="number" min="1" value="${entry.quantity}" id="qtyInput" />
-            <button type="button" class="btn-icon" data-qty="1">+</button>
-          </div>
+          <button type="button" class="btn-icon" id="regClose" title="Cerrar">${icon('x', 18)}</button>
         </div>
         <div class="field">
           <label>Motivo</label>
           <div class="condition-pills">
-            ${CONDITIONS.map((cond) => `<button type="button" class="cond-pill ${entry.condition === cond.value ? 'is-selected' : ''}" data-condition="${cond.value}">${cond.label}</button>`).join('')}
+            ${CONDITIONS.map((cond) => `<button type="button" class="cond-pill cond-${cond.value} ${entry.condition === cond.value ? 'is-selected' : ''}" data-condition="${cond.value}">${cond.label}</button>`).join('')}
           </div>
         </div>
-        <div class="field">
-          <label>Descripción (opcional)</label>
-          <input type="text" id="descInput" placeholder="Ej: Coca Cola Zero 1,75 - Generic Brand" value="${escapeHtml(entry.description || '')}" />
+        <div class="reg-sheet-footer">
+          <input type="number" min="1" value="${entry.quantity}" id="qtyInput" class="qty-input-sm" />
+          <button type="button" class="btn btn-primary" id="regDone">Listo</button>
         </div>
-        <button type="button" class="btn btn-primary btn-block" id="regDone">Listo</button>
       </div>
     `;
     document.body.appendChild(backdrop);
@@ -315,13 +312,6 @@ export async function openEditor({ mapeoId, onClose }) {
       renderCodes();
     }
 
-    backdrop.querySelectorAll('[data-qty]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        quantity = Math.max(1, quantity + Number(btn.dataset.qty));
-        qtyInput.value = quantity;
-        commit({ quantity });
-      });
-    });
     qtyInput.addEventListener('change', () => {
       quantity = Math.max(1, Number(qtyInput.value) || 1);
       qtyInput.value = quantity;
@@ -334,26 +324,28 @@ export async function openEditor({ mapeoId, onClose }) {
         commit({ condition });
       });
     });
-    backdrop.querySelector('#descInput').addEventListener('change', (e) => {
-      commit({ description: e.target.value.trim() });
-    });
 
     function closeSheet() {
       backdrop.remove();
       detectionPaused = false;
     }
-    backdrop.querySelector('#regClose').addEventListener('click', closeSheet);
-    backdrop.querySelector('#regDone').addEventListener('click', closeSheet);
-    backdrop.addEventListener('click', (e) => {
-      if (e.target === backdrop) closeSheet();
-    });
 
-    backdrop.querySelector('#regDelete').addEventListener('click', async () => {
-      const updated = await store.removeCode(mapeo.id, entry.id, actor());
-      codes = updated.codes;
-      renderCodes();
+    // Un código recién detectado todavía no fue confirmado: cerrar con
+    // la cruz equivale a no registrarlo. Uno ya existente, en cambio,
+    // solo se está revisando — cerrar no borra nada.
+    async function discardIfNew() {
+      if (isNew) {
+        const updated = await store.removeCode(mapeo.id, entry.id, actor());
+        codes = updated.codes;
+        renderCodes();
+      }
       closeSheet();
+    }
+    backdrop.querySelector('#regClose').addEventListener('click', discardIfNew);
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) discardIfNew();
     });
+    backdrop.querySelector('#regDone').addEventListener('click', closeSheet);
   }
 
   renderCodes();
