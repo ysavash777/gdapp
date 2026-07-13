@@ -32,12 +32,6 @@ function actor() {
   return currentUser()?.username || null;
 }
 
-function withDuplicateFlags(codes) {
-  const counts = new Map();
-  codes.forEach((c) => counts.set(c.code, (counts.get(c.code) || 0) + 1));
-  return codes.map((c) => ({ ...c, duplicate: counts.get(c.code) > 1 }));
-}
-
 // La caja de "Unidades" tiene ancho fijo (ver .record-qty en app.css):
 // de 1 a 5 cifras entran siempre achicando la fuente, nunca el ancho.
 function qtySizeClass(quantity) {
@@ -62,18 +56,18 @@ function recordCardHTML(c) {
   const reasonLabel = conditionLabel(c.condition) || 'Sin motivo';
   const reasonClass = c.condition ? `cond-${c.condition}` : 'is-empty';
   return `
-    <button class="record-card ${c.duplicate ? 'is-duplicate' : ''}" data-code-id="${c.id}">
-      <div class="record-qty ${qtySizeClass(c.quantity)}">
+    <button class="record-card" data-code-id="${c.id}">
+      <div class="record-qty ${reasonClass} ${qtySizeClass(c.quantity)}">
         <span class="record-qty-num">${c.quantity}</span>
         <span class="record-qty-label">unidades</span>
       </div>
       <div class="record-info">
         <span class="record-desc ${descSizeClass(desc)}">${escapeHtml(desc)}</span>
         <span class="record-line2">
-          <span class="record-code-text">${escapeHtml(c.code)}</span> · <span class="record-reason-inline ${reasonClass}">${reasonLabel}</span>${c.duplicate ? ' · <span class="record-dup">Repetido</span>' : ''}
+          <span class="record-reason-inline ${reasonClass}">${reasonLabel}</span> · <span class="record-code-text">${escapeHtml(c.code)}</span>
         </span>
       </div>
-      <div class="record-edit-hint" title="Tocar para modificar">${icon('edit', 14)}</div>
+      <div class="record-edit-hint" title="Tocar para modificar">${icon('moreVertical', 14)}</div>
     </button>
   `;
 }
@@ -145,7 +139,7 @@ export async function openEditor({ mapeoId, onClose }) {
     sheetHead.textContent = codes.length
       ? `${codes.length} Registro${codes.length === 1 ? '' : 's'}`
       : 'Sin registros todavía';
-    codesEl.innerHTML = withDuplicateFlags(codes).slice().reverse().map(recordCardHTML).join('');
+    codesEl.innerHTML = codes.slice().reverse().map(recordCardHTML).join('');
   }
 
   // El debounce por "mismo código" es solo para la cámara: mientras un
@@ -235,16 +229,18 @@ export async function openEditor({ mapeoId, onClose }) {
 
   overlay.querySelector('#editorClose').addEventListener('click', close);
 
-  torchBtn.addEventListener('click', async () => {
-    if (!track) return;
-    torchOn = !torchOn;
+  async function setTorch(on) {
+    if (!track || torchOn === on) return;
     try {
-      await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+      await track.applyConstraints({ advanced: [{ torch: on }] });
+      torchOn = on;
       torchBtn.classList.toggle('is-active', torchOn);
     } catch {
-      torchOn = !torchOn; // el navegador anunció soporte pero no lo aplicó
+      /* el navegador anunció soporte pero no lo aplicó */
     }
-  });
+  }
+
+  torchBtn.addEventListener('click', () => setTorch(!torchOn));
 
   // El ingreso manual queda oculto por defecto (se usa poco), pero a
   // un solo tap de distancia junto al contador de códigos — nunca
@@ -276,17 +272,29 @@ export async function openEditor({ mapeoId, onClose }) {
 
   function openRegisterSheet(entry, { isNew }) {
     detectionPaused = true;
+    setTorch(false);
 
     const backdrop = document.createElement('div');
     backdrop.className = 'reg-sheet-backdrop';
     backdrop.innerHTML = `
       <div class="reg-sheet">
         <div class="reg-sheet-head">
-          <div class="reg-sheet-titles">
-            <span class="reg-sheet-title">${isNew ? 'Producto encontrado' : 'Editar registro'}</span>
-            <span class="reg-sheet-code">${escapeHtml(entry.code)}</span>
-          </div>
+          <span class="reg-sheet-title">${isNew ? 'Producto encontrado' : 'Editar registro'}</span>
           <button type="button" class="btn-icon" id="regClose" title="Cerrar">${icon('x', 18)}</button>
+        </div>
+        <div class="reg-info-grid">
+          <div class="reg-info-cell">
+            <span class="reg-info-label">EAN</span>
+            <span class="reg-info-value">${escapeHtml(entry.code)}</span>
+          </div>
+          <div class="reg-info-cell">
+            <span class="reg-info-label">Referencia</span>
+            <span class="reg-info-value">-</span>
+          </div>
+          <div class="reg-info-cell">
+            <span class="reg-info-label">Grupo</span>
+            <span class="reg-info-value">-</span>
+          </div>
         </div>
         <div class="field">
           <label>Motivo</label>

@@ -673,8 +673,10 @@ html, body {
   cursor: pointer;
 }
 .record-card:active { background: var(--n-200); }
-.record-card.is-duplicate { border-color: var(--warn); }
 
+/* Sin motivo: gris neutro con texto claro. Con motivo: el mismo color
+   de esa condición (ver .record-reason-inline más abajo) — así el
+   box de cantidad "avisa" la condición del registro de un vistazo. */
 .record-qty {
   flex-shrink: 0;
   width: 60px;
@@ -683,11 +685,15 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 1px;
-  background: var(--icon-mapear-light);
-  color: var(--bg);
+  background: var(--n-200);
+  color: var(--ink);
 }
+.record-qty.cond-rotura { background: var(--icon-negadas-light); color: var(--bg); }
+.record-qty.cond-vencido { background: var(--icon-consultas-light); color: var(--bg); }
+.record-qty.cond-unidades { background: var(--icon-vacios-light); color: var(--bg); }
+.record-qty.cond-otro { background: var(--icon-mapear-light); color: var(--bg); }
 .record-qty-num { font-weight: 700; font-size: 19px; line-height: 1; }
-.record-qty-label { font-size: 9px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: rgba(9, 9, 11, 0.6); }
+.record-qty-label { font-size: 8px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: currentColor; opacity: 0.65; }
 .record-qty.is-md .record-qty-num { font-size: 16px; }
 .record-qty.is-sm .record-qty-num { font-size: 14px; }
 .record-qty.is-xs .record-qty-num { font-size: 12px; }
@@ -701,8 +707,12 @@ html, body {
   gap: 4px;
   padding: 0 var(--sp-3) 0 var(--sp-4);
 }
+/* max-height (no height fija): un texto corto ocupa solo 1 línea y
+   queda pegado a la línea de abajo en vez de dejar un hueco — el
+   grupo entero se sigue centrando dentro de la tarjeta gracias a
+   .record-info; solo baja cuando de verdad necesita las 2 líneas. */
 .record-desc {
-  height: 38px;
+  max-height: 38px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -728,7 +738,6 @@ html, body {
 .record-reason-inline.cond-vencido { color: var(--icon-consultas); }
 .record-reason-inline.cond-unidades { color: var(--icon-vacios); }
 .record-reason-inline.cond-otro { color: var(--icon-mapear); }
-.record-dup { color: var(--warn); font-weight: 700; }
 
 /* Ícono sutil a la derecha: la única pista de que la tarjeta entera
    es tocable para editar el registro. */
@@ -770,9 +779,42 @@ html, body {
   to { opacity: 1; transform: none; }
 }
 .reg-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
-.reg-sheet-titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.reg-sheet-title { font-size: var(--text-md); font-weight: 700; letter-spacing: -0.01em; }
-.reg-sheet-code { font-size: var(--text-sm); color: var(--ink-3); }
+.reg-sheet-title { flex: 1; min-width: 0; font-size: var(--text-md); font-weight: 700; letter-spacing: -0.01em; }
+
+/* Un escalón más claro que el fondo del sheet (var(--surface)),
+   mismo criterio que el resto de los contenedores de la app. */
+.reg-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.reg-info-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: var(--sp-3) var(--sp-2);
+  border-right: 1px solid var(--line);
+}
+.reg-info-cell:last-child { border-right: none; }
+.reg-info-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.reg-info-value {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
 
 .reg-sheet-footer { display: flex; align-items: center; gap: var(--sp-2); }
 .qty-input-sm {
@@ -794,13 +836,16 @@ html, body {
    ancho y alto sin importar el largo de su etiqueta ("Rotura" vs.
    "Unidades"), y cada motivo tiene su propio color de la paleta ya
    establecida en la app al seleccionarse. */
-.condition-pills { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-2); }
+.condition-pills { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .cond-pill {
   height: 46px;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 4px;
+  padding: 0 6px;
+  overflow: hidden;
+  white-space: nowrap;
   border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--bg);
