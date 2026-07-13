@@ -535,12 +535,18 @@ html, body {
   min-height: 140px;
   background: #000;
   overflow: hidden;
+  cursor: pointer;
 }
 .scan-camera video {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: filter var(--t-med);
 }
+/* Mientras se está completando un registro, la cámara se ve "apagada"
+   (congelada y oscurecida, sin barra) sin soltar el stream real. */
+.scan-camera.is-paused video { filter: brightness(0.35); }
+.scan-camera.is-paused .scan-line { display: none; }
 /* Sin recuadro ni texto: solo una línea que sube y baja, representando
    el escaneo. */
 .scan-line {
@@ -724,20 +730,37 @@ html, body {
 }
 .record-desc.is-md { font-size: 12px; }
 .record-desc.is-sm { font-size: 11px; }
-.record-line2 {
-  display: block;
+.record-line2 { display: flex; align-items: center; gap: 6px; }
+.record-code-text {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--text-xs);
   color: var(--ink-3);
 }
-.record-reason-inline { font-weight: 650; }
-.record-reason-inline.is-empty { color: var(--ink-3); font-weight: 600; }
-.record-reason-inline.cond-rotura { color: var(--icon-negadas); }
-.record-reason-inline.cond-vencido { color: var(--icon-consultas); }
-.record-reason-inline.cond-unidades { color: var(--icon-vacios); }
-.record-reason-inline.cond-otro { color: var(--icon-mapear); }
+/* Contenedor de ancho fijo para el motivo — "Rotura" y "Unidades"
+   ocupan siempre el mismo espacio, sin importar el largo del texto. */
+.record-reason-inline {
+  flex-shrink: 0;
+  width: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  border-radius: var(--r-full);
+  font-size: 10px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.record-reason-inline.is-empty { color: var(--ink-3); background: var(--n-200); }
+.record-reason-inline.cond-rotura { color: var(--icon-negadas); background: rgba(251, 146, 60, 0.18); }
+.record-reason-inline.cond-vencido { color: var(--icon-consultas); background: rgba(167, 139, 250, 0.18); }
+.record-reason-inline.cond-unidades { color: var(--icon-vacios); background: rgba(96, 165, 250, 0.18); }
+.record-reason-inline.cond-otro { color: var(--icon-mapear); background: rgba(45, 212, 191, 0.18); }
 
 /* Ícono sutil a la derecha: la única pista de que la tarjeta entera
    es tocable para editar el registro. */
@@ -822,15 +845,16 @@ html, body {
   width: 64px;
   text-align: center;
   padding: 12px 4px;
-  border: 1px solid var(--line);
+  border: none;
   border-radius: var(--r-md);
   background: var(--bg);
   color: var(--ink);
   font-weight: 700;
   outline: none;
 }
-.qty-input-sm:focus { border-color: var(--accent-500); }
+.qty-input-sm:focus { box-shadow: 0 0 0 3px var(--accent-100); }
 .reg-sheet-footer .btn { flex: 1; }
+.reg-sheet-footer .btn:disabled { opacity: 0.4; pointer-events: none; }
 
 /* Grid en vez de flex-wrap: las 4 opciones ocupan exactamente el mismo
    ancho y alto sin importar el largo de su etiqueta ("Rotura" vs.
@@ -847,7 +871,7 @@ html, body {
   overflow: hidden;
   white-space: nowrap;
   border-radius: var(--r-md);
-  border: 1px solid var(--line);
+  border: none;
   background: var(--bg);
   color: var(--ink-2);
   font-size: var(--text-sm);

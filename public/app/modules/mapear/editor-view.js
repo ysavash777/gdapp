@@ -64,7 +64,8 @@ function recordCardHTML(c) {
       <div class="record-info">
         <span class="record-desc ${descSizeClass(desc)}">${escapeHtml(desc)}</span>
         <span class="record-line2">
-          <span class="record-reason-inline ${reasonClass}">${reasonLabel}</span> · <span class="record-code-text">${escapeHtml(c.code)}</span>
+          <span class="record-reason-inline ${reasonClass}">${reasonLabel}</span>
+          <span class="record-code-text">${escapeHtml(c.code)}</span>
         </span>
       </div>
       <div class="record-edit-hint" title="Tocar para modificar">${icon('moreVertical', 14)}</div>
@@ -87,7 +88,7 @@ export async function openEditor({ mapeoId, onClose }) {
         <button class="btn-icon scan-torch" id="scanTorch" title="Linterna" hidden>${icon('zap', 20)}</button>
       </div>
     </div>
-    <div class="scan-camera">
+    <div class="scan-camera" id="scanCamera" title="Tocar para apagar/prender la cámara">
       <video id="scanVideo" autoplay playsinline muted></video>
       <div class="scan-line"></div>
       <p class="scan-hint" id="scanHint" hidden></p>
@@ -118,6 +119,7 @@ export async function openEditor({ mapeoId, onClose }) {
     close();
   }
 
+  const cameraBox = overlay.querySelector('#scanCamera');
   const videoEl = overlay.querySelector('#scanVideo');
   const sheetHead = overlay.querySelector('#scanSheetHead');
   const codesEl = overlay.querySelector('#scanCodes');
@@ -128,6 +130,7 @@ export async function openEditor({ mapeoId, onClose }) {
   let stream = null;
   let track = null;
   let torchOn = false;
+  let cameraOn = false;
   let detector = null;
   let detectTimer = null;
   let lastCode = null;
@@ -165,6 +168,7 @@ export async function openEditor({ mapeoId, onClose }) {
   }
 
   async function startCamera() {
+    hintEl.hidden = true;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -178,6 +182,7 @@ export async function openEditor({ mapeoId, onClose }) {
       stream.getTracks().forEach((t) => t.stop());
       return;
     }
+    cameraOn = true;
 
     videoEl.srcObject = stream;
     track = stream.getVideoTracks()[0];
@@ -208,6 +213,7 @@ export async function openEditor({ mapeoId, onClose }) {
   }
 
   function stopCamera() {
+    cameraOn = false;
     clearInterval(detectTimer);
     detectTimer = null;
     if (stream) {
@@ -215,6 +221,30 @@ export async function openEditor({ mapeoId, onClose }) {
       stream = null;
     }
     track = null;
+  }
+
+  // Tocar el recuadro de la cámara la apaga/prende por completo — un
+  // escape a mano para resolver bugs de cámara sin reiniciar la app,
+  // sin exponer un botón dedicado para algo que no se usa seguido.
+  cameraBox.addEventListener('click', () => {
+    if (cameraOn) {
+      stopCamera();
+      showHint('Cámara apagada. Tocá para reactivarla.');
+    } else {
+      startCamera();
+    }
+  });
+
+  // Mientras la ventana de registro está abierta, la cámara se ve
+  // "apagada" (video congelado, sin barra) para no distraer — sin
+  // soltar el stream, así se reanuda al instante al cerrarla.
+  function pauseCameraView() {
+    videoEl.pause();
+    cameraBox.classList.add('is-paused');
+  }
+  function resumeCameraView() {
+    cameraBox.classList.remove('is-paused');
+    if (cameraOn) videoEl.play().catch(() => {});
   }
 
   function close() {
@@ -273,6 +303,7 @@ export async function openEditor({ mapeoId, onClose }) {
   function openRegisterSheet(entry, { isNew }) {
     detectionPaused = true;
     setTorch(false);
+    pauseCameraView();
 
     const backdrop = document.createElement('div');
     backdrop.className = 'reg-sheet-backdrop';
@@ -285,26 +316,23 @@ export async function openEditor({ mapeoId, onClose }) {
         <div class="reg-info-grid">
           <div class="reg-info-cell">
             <span class="reg-info-label">EAN</span>
-            <span class="reg-info-value">${escapeHtml(entry.code)}</span>
+            <span class="reg-info-value">-</span>
           </div>
           <div class="reg-info-cell">
             <span class="reg-info-label">Referencia</span>
-            <span class="reg-info-value">-</span>
+            <span class="reg-info-value">${escapeHtml(entry.code)}</span>
           </div>
           <div class="reg-info-cell">
             <span class="reg-info-label">Grupo</span>
             <span class="reg-info-value">-</span>
           </div>
         </div>
-        <div class="field">
-          <label>Motivo</label>
-          <div class="condition-pills">
-            ${CONDITIONS.map((cond) => `<button type="button" class="cond-pill cond-${cond.value} ${entry.condition === cond.value ? 'is-selected' : ''}" data-condition="${cond.value}">${cond.label}</button>`).join('')}
-          </div>
+        <div class="condition-pills">
+          ${CONDITIONS.map((cond) => `<button type="button" class="cond-pill cond-${cond.value} ${entry.condition === cond.value ? 'is-selected' : ''}" data-condition="${cond.value}">${cond.label}</button>`).join('')}
         </div>
         <div class="reg-sheet-footer">
           <input type="number" min="1" value="${entry.quantity}" id="qtyInput" class="qty-input-sm" />
-          <button type="button" class="btn btn-primary" id="regDone">Listo</button>
+          <button type="button" class="btn btn-primary" id="regDone" disabled>Listo</button>
         </div>
       </div>
     `;
@@ -313,6 +341,8 @@ export async function openEditor({ mapeoId, onClose }) {
     let quantity = entry.quantity;
     let condition = entry.condition;
     const qtyInput = backdrop.querySelector('#qtyInput');
+    const doneBtn = backdrop.querySelector('#regDone');
+    doneBtn.disabled = !condition;
 
     async function commit(patch) {
       const updated = await store.updateCode(mapeo.id, entry.id, patch, actor());
@@ -325,10 +355,14 @@ export async function openEditor({ mapeoId, onClose }) {
       qtyInput.value = quantity;
       commit({ quantity });
     });
+    // No se permite registrar sin motivo: el botón de confirmar queda
+    // deshabilitado hasta que se elija uno, y una vez elegido solo se
+    // puede cambiar por otro (no volver a "sin motivo").
     backdrop.querySelectorAll('.cond-pill').forEach((pill) => {
       pill.addEventListener('click', () => {
-        condition = condition === pill.dataset.condition ? null : pill.dataset.condition;
+        condition = pill.dataset.condition;
         backdrop.querySelectorAll('.cond-pill').forEach((p) => p.classList.toggle('is-selected', p.dataset.condition === condition));
+        doneBtn.disabled = false;
         commit({ condition });
       });
     });
@@ -336,6 +370,7 @@ export async function openEditor({ mapeoId, onClose }) {
     function closeSheet() {
       backdrop.remove();
       detectionPaused = false;
+      resumeCameraView();
     }
 
     // Un código recién detectado todavía no fue confirmado: cerrar con
