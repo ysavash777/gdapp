@@ -18,19 +18,21 @@
    al registrar un código nuevo — al reabrir uno existente para
    editarlo, nunca se mueve el foco solo.
 
-   Detección nativa vía BarcodeDetector (Chrome/Android/Edge). Donde
-   no está disponible (p. ej. iOS Safari) se avisa de inmediato y el
-   ingreso manual queda como única vía para agregar un código.
+   La lectura del código corre sobre uno de dos motores intercambiables
+   (ver scan-engines/): BarcodeDetector nativo en Android/Chrome, o
+   ZXing por software en iOS Safari (que no tiene esa API). Este
+   archivo no sabe cuál de los dos está activo — solo pide uno con
+   pickEngine() y lo usa siempre igual (detectFrame(videoEl)).
    ============================================================ */
 
 import { icon } from '/shared/js/icons.js';
 import * as store from './store.js';
 import { escapeHtml, CONDITIONS, conditionLabel } from './format.js';
 import { currentUser } from '/shared/js/session.js';
+import { pickEngine } from './scan-engines/index.js';
 
 const DETECT_INTERVAL_MS = 350;
 const SAME_CODE_DEBOUNCE_MS = 1200;
-const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code'];
 const GENERIC_DESCRIPTION = 'Producto sin descripción';
 
 // Se recuerda entre registros (no entre sesiones) quién fue el último
@@ -185,7 +187,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
   let track = null;
   let torchOn = false;
   let cameraOn = false;
-  let detector = null;
+  let engine = null;
   let detectTimer = null;
   let lastCode = null;
   let lastAt = 0;
@@ -275,26 +277,20 @@ export async function openEditor({ mapeoId, title, onClose }) {
     const caps = track.getCapabilities ? track.getCapabilities() : {};
     torchBtn.hidden = !caps.torch;
 
-    if ('BarcodeDetector' in window) {
-      try {
-        detector = new window.BarcodeDetector({ formats: FORMATS });
-      } catch {
-        detector = null;
-      }
+    try {
+      engine = await pickEngine();
+    } catch {
+      engine = null;
     }
-    if (!detector) {
+    if (!engine) {
       showHint('Este dispositivo no soporta lectura automática. Usá el ingreso manual.');
       return;
     }
 
     detectTimer = setInterval(async () => {
-      if (closed || detectionPaused || videoEl.readyState < 2) return;
-      try {
-        const detected = await detector.detect(videoEl);
-        if (detected.length) await registerCode(detected[0].rawValue, { debounce: true });
-      } catch {
-        /* frame no decodificable, se reintenta en el próximo ciclo */
-      }
+      if (closed || detectionPaused || !engine) return;
+      const code = await engine.detectFrame(videoEl);
+      if (code) await registerCode(code, { debounce: true });
     }, DETECT_INTERVAL_MS);
   }
 

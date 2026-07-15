@@ -62,10 +62,18 @@ public/
                                solo se reescribe este archivo.
       list-view.js             Listado de mapeos + menú de opciones por fila (renombrar, descargar —
                                pendiente de implementar—, eliminar con confirmación).
-      editor-view.js            Escáner de cámara (BarcodeDetector) + edición de un mapeo, nuevo o
-                               existente: cada código tiene cantidad, condición (rotura/unidades/
-                               vencido/otro) y descripción editables, con ingreso manual como respaldo
-                               si no hay cámara o el navegador no soporta lectura automática.
+      editor-view.js            Escáner de cámara + edición de un mapeo, nuevo o existente: cada código
+                               tiene cantidad, condición (rotura/unidades/vencido/otro) y descripción
+                               editables, con ingreso manual como respaldo. La lectura del código no
+                               decodifica nada por su cuenta — se la delega a scan-engines/.
+      scan-engines/             Dos motores de lectura intercambiables, cada uno en su archivo:
+        index.js                  pickEngine() elige uno según la plataforma y lo cachea.
+        android-engine.js         BarcodeDetector nativo (Chrome/Edge/Android) — sin dependencias.
+        ios-engine.js             ZXing por software para iOS Safari (no tiene BarcodeDetector),
+                                 importado en forma dinámica para que Android no lo descargue nunca.
+                                 Usa /shared/js/vendor/zxing.bundle.js — bundle propio generado con
+                                 `npm run build:zxing` (ver build/zxing-entry.js), comiteado como
+                                 cualquier otro estático porque el resto de la app no tiene build step.
       format.js                 Fecha/hora, catálogo de condición y utilidades compartidas.
     modules/negadas.js     Herramienta Negadas.
     modules/vacios.js      Herramienta Vacíos.
