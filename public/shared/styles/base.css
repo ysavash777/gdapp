@@ -44,7 +44,7 @@ svg { display: block; }
 .row { display: flex; align-items: center; gap: var(--sp-3); }
 .grow { flex: 1; }
 
-/* Scrollbar discreto */
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: var(--n-300); border-radius: 8px; border: 3px solid var(--bg); }
+/* Scrollbar discreto: gris plano, sin borde, esquinas redondas */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--n-300); border-radius: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }

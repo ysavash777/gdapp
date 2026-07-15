@@ -85,7 +85,7 @@ function recordCardHTML(c, flashId) {
   } else if (c.condition === 'vencido') {
     secondaryBadge = `<span class="record-resp-badge cond-vencido">IDL</span>`;
   } else if (c.condition === 'otro' && c.customReason) {
-    secondaryBadge = `<span class="record-comment-badge" title="${escapeHtml(c.customReason)}">${escapeHtml(c.customReason)}</span>`;
+    secondaryBadge = `<span class="record-comment-badge" title="${escapeHtml(c.customReason)}"><span class="record-comment-text">${escapeHtml(c.customReason)}</span></span>`;
   }
 
   return `
@@ -107,9 +107,9 @@ function recordCardHTML(c, flashId) {
   `;
 }
 
-export async function openEditor({ mapeoId, onClose }) {
+export async function openEditor({ mapeoId, title, onClose }) {
   const isNew = !mapeoId;
-  const mapeo = isNew ? await store.create(actor()) : await store.get(mapeoId);
+  const mapeo = isNew ? await store.create(actor(), title) : await store.get(mapeoId);
   if (!mapeo) return onClose();
 
   const overlay = document.createElement('div');
@@ -212,8 +212,8 @@ export async function openEditor({ mapeoId, onClose }) {
   }
 
   function renderCodes() {
-    sheetHead.textContent = codes.length
-      ? `${codes.length} Registro${codes.length === 1 ? '' : 's'}`
+    sheetHead.innerHTML = codes.length
+      ? `<span class="sheet-count-badge">${codes.length}</span> Registro${codes.length === 1 ? '' : 's'}`
       : 'Sin registros todavía';
     codesEl.innerHTML = visibleCodes().map((c) => recordCardHTML(c, flashId)).join('');
     flashId = null;
@@ -477,18 +477,14 @@ export async function openEditor({ mapeoId, onClose }) {
         </div>
         <div class="reg-extra" id="regExtra"></div>
         <div class="reg-sheet-footer">
-          <div class="reg-fields-row">
-            <div class="field-group" id="vtoFieldGroup" hidden>
-              <span class="field-label">Vencimiento</span>
-              <div class="date-input-wrap">
-                <input type="text" inputmode="numeric" placeholder="DD/MM/AA" id="dateInput" class="date-input-full" autocomplete="off" />
-                <button type="button" class="btn-icon date-calendar-btn" id="dateCalendarBtn" title="Elegir con calendario">${icon('calendar', 18)}</button>
-                <input type="date" class="date-native" id="dateNative" hidden />
-              </div>
+          <div class="reg-fields-grid" id="regFieldsGrid">
+            <div class="reg-field-cell" id="vtoFieldCell" hidden>
+              <span class="reg-field-label">Vencimiento</span>
+              <input type="text" inputmode="numeric" id="dateInput" class="reg-field-input" autocomplete="off" />
             </div>
-            <div class="field-group">
-              <span class="field-label">Cantidad</span>
-              <input type="number" min="1" placeholder="1" id="qtyInput" class="qty-input-sm" />
+            <div class="reg-field-cell">
+              <span class="reg-field-label">Cantidad</span>
+              <input type="number" min="1" placeholder="1" id="qtyInput" class="reg-field-input" />
             </div>
           </div>
           <button type="button" class="btn btn-primary btn-block" id="regDone" disabled>Listo</button>
@@ -503,6 +499,11 @@ export async function openEditor({ mapeoId, onClose }) {
     const qtyInput = backdrop.querySelector('#qtyInput');
     const doneBtn = backdrop.querySelector('#regDone');
     doneBtn.disabled = !condition;
+    // Al editar un registro existente se precarga la cantidad que ya
+    // tenía (si no, "Listo" sin tocar el campo la pisaría con 1). Al
+    // registrar uno nuevo queda vacío a propósito: Enter sin escribir
+    // nada equivale a 1.
+    qtyInput.value = isNew ? '' : entry.quantity;
 
     async function commit(patch) {
       const updated = await store.updateCode(mapeo.id, entry.id, patch, actor());
@@ -526,21 +527,22 @@ export async function openEditor({ mapeoId, onClose }) {
     // El campo de vencimiento vive fijo en el footer (junto a Cantidad,
     // no dentro de #regExtra) — solo se muestra/oculta y se completa
     // según el motivo, nunca se recrea, así no pierde el listener.
-    const fieldsRow = backdrop.querySelector('.reg-fields-row');
-    const vtoFieldGroup = backdrop.querySelector('#vtoFieldGroup');
+    // Es un único input de texto, pero con máscara "DD/MM/AA" siempre
+    // visible (con "_" en los dígitos que faltan) — la barra es parte
+    // real del valor, no un placeholder que desaparece al escribir.
+    const fieldsGrid = backdrop.querySelector('#regFieldsGrid');
+    const vtoFieldCell = backdrop.querySelector('#vtoFieldCell');
     const dateInput = backdrop.querySelector('#dateInput');
-    const dateCalendarBtn = backdrop.querySelector('#dateCalendarBtn');
-    const dateNative = backdrop.querySelector('#dateNative');
     let dateDigits = ''; // hasta 6 dígitos sin validar: DDMMAA
 
+    function maskFromDigits(digits) {
+      const dd = digits.slice(0, 2).padEnd(2, '_');
+      const mm = digits.slice(2, 4).padEnd(2, '_');
+      const aa = digits.slice(4, 6).padEnd(2, '_');
+      return `${dd}/${mm}/${aa}`;
+    }
     function renderDateValue() {
-      const dd = dateDigits.slice(0, 2);
-      const mm = dateDigits.slice(2, 4);
-      const aa = dateDigits.slice(4, 6);
-      let out = dd;
-      if (dateDigits.length > 2) out += '/' + mm;
-      if (dateDigits.length > 4) out += '/' + aa;
-      dateInput.value = out;
+      dateInput.value = maskFromDigits(dateDigits);
     }
     function commitDate() {
       const dd = dateDigits.slice(0, 2);
@@ -568,17 +570,6 @@ export async function openEditor({ mapeoId, onClose }) {
       e.preventDefault();
       qtyInput.focus();
     });
-    dateCalendarBtn.addEventListener('click', () => {
-      if (dateNative.showPicker) dateNative.showPicker();
-      else dateNative.click();
-    });
-    dateNative.addEventListener('change', () => {
-      const [yyyy, mo, da] = dateNative.value.split('-');
-      if (!yyyy) return;
-      dateDigits = da + mo + yyyy.slice(2);
-      renderDateValue();
-      commitDate();
-    });
 
     // Cada motivo pide datos distintos: fecha opcional (unidades, en
     // el footer junto a Cantidad), responsable (rotura y vencido) o
@@ -587,8 +578,8 @@ export async function openEditor({ mapeoId, onClose }) {
     // registrar un código nuevo — al editar uno existente no se mueve
     // el foco.
     function renderExtra() {
-      vtoFieldGroup.hidden = condition !== 'unidades';
-      fieldsRow.classList.toggle('has-vto', condition === 'unidades');
+      vtoFieldCell.hidden = condition !== 'unidades';
+      fieldsGrid.classList.toggle('has-vto', condition === 'unidades');
       if (condition === 'unidades') {
         const [dd, mm, aa] = (entry.expiryDate || '').split('/');
         dateDigits = [dd, mm, aa].map((p) => (p && p !== '--' ? p : '')).join('');
@@ -630,7 +621,7 @@ export async function openEditor({ mapeoId, onClose }) {
         if (isNew) qtyInput.focus();
       } else if (condition === 'otro') {
         extraEl.innerHTML = `
-          <input type="text" id="otroInput" class="otro-input" maxlength="30" placeholder="Especificar motivo (máx. 30 caracteres)" />
+          <input type="text" id="otroInput" class="otro-input" maxlength="30" placeholder="Especificar motivo" />
         `;
         const otroInput = extraEl.querySelector('#otroInput');
         otroInput.value = entry.customReason || '';

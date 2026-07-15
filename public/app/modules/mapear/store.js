@@ -36,12 +36,13 @@ export async function get(id) {
   return m ? cloneMapeo(m) : null;
 }
 
-export async function create(actor) {
+export async function create(actor, title) {
   const now = Date.now();
   const id = nextMapeoId++;
+  const trimmed = title && String(title).trim();
   const mapeo = {
     id,
-    title: `Mapeo #${id}`,
+    title: trimmed || `Mapeo #${id}`,
     createdAt: now,
     createdBy: actor || null,
     updatedAt: now,

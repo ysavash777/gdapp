@@ -19,6 +19,6 @@ export const title = 'Mapear';
 export const description = 'Escanea productos y registra cantidad, condición y descripción por código.';
 
 export function render(outlet) {
-  const refresh = () => renderList(outlet, { onNew: () => openEditor({ onClose: refresh }) });
+  const refresh = () => renderList(outlet, { onNew: (title) => openEditor({ title, onClose: refresh }) });
   refresh();
 }

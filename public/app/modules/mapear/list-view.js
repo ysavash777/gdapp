@@ -51,12 +51,13 @@ export async function renderList(outlet, { onNew }) {
     <div class="action-hero">
       <div class="mapeo-toolbar">
         <button class="btn btn-primary btn-block" id="newMapeoBtn">Nuevo mapeo</button>
-        ${mapeos.length ? `<button type="button" class="btn-icon" id="mapeoSearchToggle" title="Buscar mapeo por título">${icon('search', 20)}</button>` : ''}
+        ${mapeos.length ? `<button type="button" class="btn-icon" id="mapeoSearchToggle" title="Buscar mapeo">${icon('search', 20)}</button>` : ''}
       </div>
       ${mapeos.length ? `
-        <div class="searchbar" id="mapeoSearchBar" hidden>
-          ${icon('search', 18)}
-          <input type="search" id="mapeoSearchInput" placeholder="Buscar mapeo por título…" autocomplete="off" />
+        <div class="mapeo-search-wrap" id="mapeoSearchWrap">
+          <div class="searchbar">
+            <input type="search" id="mapeoSearchInput" placeholder="Buscar por nombre, fecha, usuario…" autocomplete="off" />
+          </div>
         </div>
       ` : ''}
       ${mapeos.length
@@ -73,23 +74,24 @@ export async function renderList(outlet, { onNew }) {
     </div>
   `;
 
-  outlet.querySelector('#newMapeoBtn').addEventListener('click', onNew);
+  outlet.querySelector('#newMapeoBtn').addEventListener('click', () => openCreateModal(onNew));
 
-  // Buscador de mapeos por título — filtra las tarjetas ya renderizadas
-  // en vivo, sin volver a pedirle nada al store.
+  // Buscador de mapeos por cualquier dato visible en su tarjeta (título,
+  // fecha, cantidad de códigos, usuario que lo editó) — colapsado hasta
+  // que se toca la lupa, con una transición corta al abrir/cerrar.
   const searchToggle = outlet.querySelector('#mapeoSearchToggle');
-  const searchBar = outlet.querySelector('#mapeoSearchBar');
+  const searchWrap = outlet.querySelector('#mapeoSearchWrap');
   const searchInput = outlet.querySelector('#mapeoSearchInput');
   if (searchToggle) {
     function filterCards(q) {
       outlet.querySelectorAll('.mapeo-card').forEach((card) => {
-        const title = card.querySelector('.mapeo-title')?.textContent.toLowerCase() || '';
-        card.style.display = !q || title.includes(q) ? '' : 'none';
+        const haystack = card.textContent.toLowerCase();
+        card.style.display = !q || haystack.includes(q) ? '' : 'none';
       });
     }
     searchToggle.addEventListener('click', () => {
-      const opening = searchBar.hidden;
-      searchBar.hidden = !opening;
+      const opening = !searchWrap.classList.contains('is-open');
+      searchWrap.classList.toggle('is-open', opening);
       searchToggle.classList.toggle('is-active', opening);
       if (opening) {
         searchInput.focus();
@@ -177,6 +179,32 @@ function openModal({ headTitle, bodyHTML, footHTML, onMount, onSubmit }) {
     });
   }
   return { overlay, close };
+}
+
+// Pide el nombre del mapeo antes de crearlo — si se cancela, no se
+// crea nada (evita mapeos vacíos sin título elegido).
+function openCreateModal(onNew) {
+  openModal({
+    headTitle: 'Nuevo mapeo',
+    bodyHTML: `
+      <div class="field">
+        <label>Nombre del mapeo</label>
+        <input type="text" id="createTitleInput" placeholder="Ej: Depósito A - Pasillo 3" autocomplete="off" />
+      </div>
+    `,
+    footHTML: `
+      <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+      <button type="submit" class="btn btn-primary">Crear</button>
+    `,
+    onMount: (overlay) => {
+      overlay.querySelector('#createTitleInput').focus();
+    },
+    onSubmit: async (overlay, form, close) => {
+      const value = overlay.querySelector('#createTitleInput').value.trim();
+      close();
+      onNew(value);
+    },
+  });
 }
 
 async function openRenameModal(id) {

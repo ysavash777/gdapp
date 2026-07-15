@@ -422,6 +422,19 @@ html, body {
 .mapeo-toolbar .btn-icon { flex-shrink: 0; width: auto; padding: 0 16px; background: var(--surface); border-radius: var(--r-lg); }
 .mapeo-toolbar .btn-icon.is-active { color: var(--icon-mapear); background: var(--icon-mapear-light); }
 
+/* El buscador de mapeos queda colapsado (alto 0) hasta que se toca el
+   botón de lupa — se abre/cierra con una transición corta en vez de
+   aparecer de golpe. Sin icono propio adentro: la lupa del botón ya
+   cumple ese rol, no hace falta repetirla. */
+.mapeo-search-wrap {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 180ms ease, opacity 140ms ease;
+}
+.mapeo-search-wrap.is-open { max-height: 56px; opacity: 1; }
+.mapeo-search-wrap .searchbar { margin-bottom: 0; }
+
 /* --- Botón primario: neutro (blanco/gris), el lila es solo de los iconos --- */
 .btn-primary {
   background: var(--ink);
@@ -633,6 +646,22 @@ html, body {
   font-weight: 600;
   color: var(--ink-2);
 }
+/* Solo el número va en su propio contenedor — "Registros" queda como
+   texto plano al lado. */
+.sheet-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  margin-right: 5px;
+  border-radius: var(--r-full);
+  background: var(--n-200);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 11px;
+}
 .scan-sheet-tools { flex-shrink: 0; display: flex; align-items: center; gap: 2px; }
 .scan-sheet-tools .btn-icon { padding: 7px; }
 .sheet-tool-wrap { position: relative; }
@@ -663,13 +692,13 @@ html, body {
   flex: 1;
   min-width: 0;
   padding: 11px 14px;
-  border: 1px solid var(--line);
+  border: none;
   border-radius: var(--r-md);
   background: var(--bg);
   color: var(--ink);
   outline: none;
 }
-.scan-manual input:focus { border-color: var(--accent-500); }
+.scan-manual input:focus { box-shadow: 0 0 0 3px var(--accent-100); }
 .scan-manual .btn { padding: 0 16px; }
 
 /* --- Registros: dos columnas fijas (Unidades | Info) — el mismo alto
@@ -706,23 +735,16 @@ html, body {
 }
 .record-card:active { background: var(--n-200); }
 
-/* Animación breve al aparecer arriba de la lista, recién creado o
-   editado — un solo disparo, en el color propio del motivo de esa
-   tarjeta (mismo token que su box de cantidad), para que se note de
-   un vistazo y siempre calce con el resto de la tarjeta. Solo
-   transform + box-shadow: liviana, sin reflow. */
-.record-card.cond-unidades { --touch-color: var(--icon-vacios-light); }
-.record-card.cond-vencido { --touch-color: var(--icon-consultas-light); }
-.record-card.cond-otro { --touch-color: var(--icon-mapear-light); }
-.record-card.resp-idl { --touch-color: var(--resp-idl-light); }
-.record-card.resp-rappi { --touch-color: var(--resp-rappi-light); }
-.record-card.is-empty { --touch-color: var(--n-400); }
+/* Aviso breve al aparecer arriba de la lista, recién creado o editado
+   — plano, sin escalar ni sombra: solo el fondo se aclara un poco y
+   vuelve a su color (la salida queda animada por el mismo ease, no es
+   un corte). Perceptible pero corto. */
 @keyframes record-touch {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 2px var(--touch-color, var(--icon-mapear-light)), 0 6px 18px -6px var(--touch-color, var(--icon-mapear-light)); }
-  55% { transform: scale(1.012); box-shadow: 0 0 0 2px var(--touch-color, var(--icon-mapear-light)), 0 6px 18px -6px var(--touch-color, var(--icon-mapear-light)); }
-  100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+  0% { background: var(--surface-2); }
+  25% { background: var(--n-300); }
+  100% { background: var(--surface-2); }
 }
-.record-card.is-touched { animation: record-touch 620ms cubic-bezier(.22, .8, .28, 1); }
+.record-card.is-touched { animation: record-touch 700ms ease; }
 
 /* Sin motivo: gris neutro con texto claro. Rotura y Vencido toman el
    color de su responsable (IDL/Rappi); Unidades y Otro, el de su
@@ -835,8 +857,9 @@ html, body {
   background: rgba(96, 165, 250, 0.18);
 }
 /* Ancho al contenido (no toda la fila): un comentario de una letra no
-   debe estirar el chip, y uno largo se corta con "…" sin superponerse
-   al resto de la tarjeta. */
+   debe estirar el chip. El texto trunca con "…" en un span propio —
+   la elipsis no aplica de forma confiable directo sobre un contenedor
+   flex, por eso se separa el texto del chip que lo centra. */
 .record-comment-badge {
   flex: 0 1 auto;
   min-width: 0;
@@ -849,9 +872,12 @@ html, body {
   border-radius: var(--r-full);
   font-size: 10px;
   font-weight: 600;
-  text-align: center;
   color: var(--ink-2);
   background: var(--n-200);
+}
+.record-comment-text {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -935,34 +961,49 @@ html, body {
   max-width: 100%;
 }
 
-/* Vencimiento y Cantidad van lado a lado, cada uno con su propia
-   etiqueta arriba (estilo profesional, tipo formulario) — "Listo"
-   ocupa el ancho completo debajo de todo, ya que cierra el flujo
-   entero, no solo uno de los dos campos. */
+/* Vencimiento y Cantidad van en el mismo tipo de contenedor que los
+   datos del producto (.reg-info-grid): celdas centradas separadas por
+   una línea, sin inputs con borde propio — "Listo" ocupa el ancho
+   completo debajo de todo, ya que cierra el flujo entero. */
 .reg-sheet-footer { display: flex; flex-direction: column; gap: var(--sp-3); }
-.reg-fields-row { display: grid; grid-template-columns: 1fr; gap: var(--sp-3); }
-.reg-fields-row.has-vto,
-.reg-fields-row:has(#vtoFieldGroup:not([hidden])) { grid-template-columns: 1fr 1fr; }
-.field-group { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.field-group[hidden] { display: none; }
-.field-label { font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.01em; color: var(--ink-3); }
-.date-input-wrap { display: flex; align-items: stretch; gap: 6px; }
-.date-input-full,
-.qty-input-sm {
-  flex: 1;
-  min-width: 0;
-  text-align: center;
-  padding: 12px 4px;
-  border: none;
+.reg-fields-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  background: var(--surface-2);
   border-radius: var(--r-md);
-  background: var(--bg);
+  overflow: hidden;
+}
+.reg-fields-grid.has-vto { grid-template-columns: 1fr 1fr; }
+.reg-field-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--sp-3) var(--sp-2);
+  border-right: 1px solid var(--line);
+}
+.reg-field-cell:last-child { border-right: none; }
+.reg-field-cell[hidden] { display: none; }
+.reg-field-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.reg-field-input {
+  width: 100%;
+  text-align: center;
+  border: none;
+  outline: none;
+  background: transparent;
   color: var(--ink);
   font-weight: 700;
-  outline: none;
+  font-size: var(--text-md);
+  letter-spacing: 0.02em;
+  padding: 2px 0;
 }
-.date-input-full:focus,
-.qty-input-sm:focus { box-shadow: 0 0 0 3px var(--accent-100); }
-.date-input-wrap .date-calendar-btn { flex-shrink: 0; margin: 0; background: var(--n-100); }
+.reg-field-input:focus { color: var(--accent-500); }
 .reg-sheet-footer .btn-block { width: 100%; }
 .reg-sheet-footer .btn:disabled { opacity: 0.4; pointer-events: none; }
 
@@ -996,8 +1037,6 @@ html, body {
 
 /* --- Datos propios de cada motivo, debajo de los botones --- */
 .reg-extra:empty { display: none; }
-
-.date-calendar-btn { flex-shrink: 0; background: var(--n-100); }
 
 .rotura-options { display: flex; gap: var(--sp-2); }
 .rotura-pill {
