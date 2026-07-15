@@ -26,7 +26,7 @@ function mapeoCardHTML(m) {
         <div class="mapeo-info">
           <span class="mapeo-title">${escapeHtml(m.title)}</span>
           <span class="mapeo-meta">${count} código${count === 1 ? '' : 's'} · ${formatDateTime(m.updatedAt)}</span>
-          ${m.updatedBy ? `<span class="mapeo-editor">Editado por ${escapeHtml(m.updatedBy)}</span>` : ''}
+          ${m.updatedBy ? `<span class="mapeo-editor">Editado por <strong>${escapeHtml(m.updatedBy)}</strong></span>` : ''}
         </div>
       </button>
       <div class="mapeo-actions">
@@ -49,7 +49,16 @@ export async function renderList(outlet, { onNew }) {
 
   outlet.innerHTML = `
     <div class="action-hero">
-      <button class="btn btn-primary btn-block" id="newMapeoBtn">${icon('camera', 20)} Nuevo mapeo</button>
+      <div class="mapeo-toolbar">
+        <button class="btn btn-primary btn-block" id="newMapeoBtn">Nuevo mapeo</button>
+        ${mapeos.length ? `<button type="button" class="btn-icon" id="mapeoSearchToggle" title="Buscar mapeo por título">${icon('search', 20)}</button>` : ''}
+      </div>
+      ${mapeos.length ? `
+        <div class="searchbar" id="mapeoSearchBar" hidden>
+          ${icon('search', 18)}
+          <input type="search" id="mapeoSearchInput" placeholder="Buscar mapeo por título…" autocomplete="off" />
+        </div>
+      ` : ''}
       ${mapeos.length
         ? `<div class="mapeo-list">${mapeos.map(mapeoCardHTML).join('')}</div>`
         : `
@@ -65,6 +74,32 @@ export async function renderList(outlet, { onNew }) {
   `;
 
   outlet.querySelector('#newMapeoBtn').addEventListener('click', onNew);
+
+  // Buscador de mapeos por título — filtra las tarjetas ya renderizadas
+  // en vivo, sin volver a pedirle nada al store.
+  const searchToggle = outlet.querySelector('#mapeoSearchToggle');
+  const searchBar = outlet.querySelector('#mapeoSearchBar');
+  const searchInput = outlet.querySelector('#mapeoSearchInput');
+  if (searchToggle) {
+    function filterCards(q) {
+      outlet.querySelectorAll('.mapeo-card').forEach((card) => {
+        const title = card.querySelector('.mapeo-title')?.textContent.toLowerCase() || '';
+        card.style.display = !q || title.includes(q) ? '' : 'none';
+      });
+    }
+    searchToggle.addEventListener('click', () => {
+      const opening = searchBar.hidden;
+      searchBar.hidden = !opening;
+      searchToggle.classList.toggle('is-active', opening);
+      if (opening) {
+        searchInput.focus();
+      } else {
+        searchInput.value = '';
+        filterCards('');
+      }
+    });
+    searchInput.addEventListener('input', () => filterCards(searchInput.value.trim().toLowerCase()));
+  }
 
   outlet.querySelectorAll('.mapeo-open').forEach((btn) => {
     btn.addEventListener('click', () => openEditor({ mapeoId: Number(btn.dataset.id), onClose: refreshRef }));

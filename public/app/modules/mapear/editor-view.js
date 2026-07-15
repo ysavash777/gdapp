@@ -61,10 +61,12 @@ function descSizeClass(text) {
   return 'is-sm';
 }
 
-// Rotura y Vencido se colorean por responsable (IDL/Rappi), no por
-// motivo — Unidades y Otro siguen su propio color de motivo.
+// Rotura se colorea por responsable (IDL/Rappi) porque puede ser
+// cualquiera de los dos. Vencido siempre es IDL, así que no tiene
+// sentido colorearlo por responsable — queda con su propio color de
+// motivo (lila), igual que Unidades y Otro.
 function motivoColorClass(c) {
-  if (c.condition === 'rotura' || c.condition === 'vencido') {
+  if (c.condition === 'rotura') {
     return c.roturaResponsible ? `resp-${c.roturaResponsible}` : 'is-empty';
   }
   return c.condition ? `cond-${c.condition}` : 'is-empty';
@@ -78,14 +80,16 @@ function recordCardHTML(c, flashId) {
   let secondaryBadge = '';
   if (c.condition === 'unidades' && c.expiryDate) {
     secondaryBadge = `<span class="record-fecha-badge">Vto ${escapeHtml(c.expiryDate)}</span>`;
-  } else if ((c.condition === 'rotura' || c.condition === 'vencido') && c.roturaResponsible) {
+  } else if (c.condition === 'rotura' && c.roturaResponsible) {
     secondaryBadge = `<span class="record-resp-badge resp-${c.roturaResponsible}">${c.roturaResponsible === 'rappi' ? 'Rappi' : 'IDL'}</span>`;
+  } else if (c.condition === 'vencido') {
+    secondaryBadge = `<span class="record-resp-badge cond-vencido">IDL</span>`;
   } else if (c.condition === 'otro' && c.customReason) {
-    secondaryBadge = `<span class="record-comment-badge">${escapeHtml(c.customReason)}</span>`;
+    secondaryBadge = `<span class="record-comment-badge" title="${escapeHtml(c.customReason)}">${escapeHtml(c.customReason)}</span>`;
   }
 
   return `
-    <button class="record-card ${c.id === flashId ? 'is-touched' : ''}" data-code-id="${c.id}">
+    <button class="record-card ${colorClass} ${c.id === flashId ? 'is-touched' : ''}" data-code-id="${c.id}">
       <div class="record-qty ${colorClass} ${qtySizeClass(c.quantity)}">
         <span class="record-qty-num">${c.quantity}</span>
         <span class="record-qty-label">unidades</span>
@@ -311,8 +315,12 @@ export async function openEditor({ mapeoId, onClose }) {
   cameraBox.addEventListener('click', () => {
     if (cameraOn) {
       stopCamera();
+      // Solo frena la animación de la línea de escaneo — nada más del
+      // recuadro (video, gradiente) cambia por apagar la cámara a mano.
+      cameraBox.classList.add('is-off');
       showHint('Cámara apagada. Tocá para reactivarla.');
     } else {
+      cameraBox.classList.remove('is-off');
       startCamera();
     }
   });
@@ -469,9 +477,21 @@ export async function openEditor({ mapeoId, onClose }) {
         </div>
         <div class="reg-extra" id="regExtra"></div>
         <div class="reg-sheet-footer">
-          <span class="qty-label">Cantidad</span>
-          <input type="number" min="1" placeholder="1" id="qtyInput" class="qty-input-sm" />
-          <button type="button" class="btn btn-primary is-compact" id="regDone" disabled>Listo</button>
+          <div class="reg-fields-row">
+            <div class="field-group" id="vtoFieldGroup" hidden>
+              <span class="field-label">Vencimiento</span>
+              <div class="date-input-wrap">
+                <input type="text" inputmode="numeric" placeholder="DD/MM/AA" id="dateInput" class="date-input-full" autocomplete="off" />
+                <button type="button" class="btn-icon date-calendar-btn" id="dateCalendarBtn" title="Elegir con calendario">${icon('calendar', 18)}</button>
+                <input type="date" class="date-native" id="dateNative" hidden />
+              </div>
+            </div>
+            <div class="field-group">
+              <span class="field-label">Cantidad</span>
+              <input type="number" min="1" placeholder="1" id="qtyInput" class="qty-input-sm" />
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary btn-block" id="regDone" disabled>Listo</button>
         </div>
       </div>
     `;
@@ -489,86 +509,91 @@ export async function openEditor({ mapeoId, onClose }) {
       codes = updated.codes;
     }
 
-    function finishQuantity() {
+    // La cantidad se confirma recién al cerrar el flujo (botón "Listo"
+    // o Enter, que equivale a tocarlo) — nunca antes, así los dos
+    // caminos quedan idénticos y ninguno pisa lo que se escribió.
+    async function finishQuantity() {
       quantity = Math.max(1, Number(qtyInput.value) || 1);
       qtyInput.value = quantity;
-      commit({ quantity });
+      await commit({ quantity });
     }
-    qtyInput.addEventListener('change', finishQuantity);
-    // Enter cierra el flujo completo (equivale a tocar "Listo") — es el
-    // último salto de la cadena DD → MM → AA/responsable/texto → cantidad.
     qtyInput.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter') return;
       e.preventDefault();
-      finishQuantity();
       if (!doneBtn.disabled) doneBtn.click();
     });
 
-    // Cada motivo pide datos distintos, renderizados debajo de los
-    // botones: fecha opcional (unidades), responsable (rotura y
-    // vencido) o texto libre (otro). Los saltos automáticos de foco
-    // (sin que el usuario presione Enter) solo ocurren al registrar
-    // un código nuevo — al editar uno existente no se mueve el foco.
+    // El campo de vencimiento vive fijo en el footer (junto a Cantidad,
+    // no dentro de #regExtra) — solo se muestra/oculta y se completa
+    // según el motivo, nunca se recrea, así no pierde el listener.
+    const fieldsRow = backdrop.querySelector('.reg-fields-row');
+    const vtoFieldGroup = backdrop.querySelector('#vtoFieldGroup');
+    const dateInput = backdrop.querySelector('#dateInput');
+    const dateCalendarBtn = backdrop.querySelector('#dateCalendarBtn');
+    const dateNative = backdrop.querySelector('#dateNative');
+    let dateDigits = ''; // hasta 6 dígitos sin validar: DDMMAA
+
+    function renderDateValue() {
+      const dd = dateDigits.slice(0, 2);
+      const mm = dateDigits.slice(2, 4);
+      const aa = dateDigits.slice(4, 6);
+      let out = dd;
+      if (dateDigits.length > 2) out += '/' + mm;
+      if (dateDigits.length > 4) out += '/' + aa;
+      dateInput.value = out;
+    }
+    function commitDate() {
+      const dd = dateDigits.slice(0, 2);
+      const mm = dateDigits.slice(2, 4);
+      const aa = dateDigits.slice(4, 6);
+      commit({ expiryDate: dateDigits ? [dd, mm, aa].map((p) => p || '--').join('/') : null });
+    }
+    // Nunca 00 ni fuera de rango: si un segmento se completa fuera de
+    // rango, se borra entero (y lo que sigue) en vez de forzarlo al
+    // tope — no autocompletar con 1 o 31.
+    dateInput.addEventListener('input', () => {
+      const digits = dateInput.value.replace(/\D/g, '').slice(0, 6);
+      let dd = digits.slice(0, 2);
+      let rest = digits.slice(2);
+      if (dd.length === 2 && (Number(dd) < 1 || Number(dd) > 31)) { dd = ''; rest = ''; }
+      let mm = rest.slice(0, 2);
+      let aa = rest.slice(2, 4);
+      if (mm.length === 2 && (Number(mm) < 1 || Number(mm) > 12)) { mm = ''; aa = ''; }
+      dateDigits = dd + mm + aa;
+      renderDateValue();
+      commitDate();
+    });
+    dateInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      qtyInput.focus();
+    });
+    dateCalendarBtn.addEventListener('click', () => {
+      if (dateNative.showPicker) dateNative.showPicker();
+      else dateNative.click();
+    });
+    dateNative.addEventListener('change', () => {
+      const [yyyy, mo, da] = dateNative.value.split('-');
+      if (!yyyy) return;
+      dateDigits = da + mo + yyyy.slice(2);
+      renderDateValue();
+      commitDate();
+    });
+
+    // Cada motivo pide datos distintos: fecha opcional (unidades, en
+    // el footer junto a Cantidad), responsable (rotura y vencido) o
+    // texto libre (otro) debajo de los botones. Los saltos automáticos
+    // de foco (sin que el usuario presione Enter) solo ocurren al
+    // registrar un código nuevo — al editar uno existente no se mueve
+    // el foco.
     function renderExtra() {
+      vtoFieldGroup.hidden = condition !== 'unidades';
+      fieldsRow.classList.toggle('has-vto', condition === 'unidades');
       if (condition === 'unidades') {
-        extraEl.innerHTML = `
-          <div class="date-field">
-            <span class="date-label">Fecha vto</span>
-            <div class="date-segments">
-              <input type="text" inputmode="numeric" maxlength="2" placeholder="DD" class="date-seg" id="dateDd" />
-              <span class="date-sep">/</span>
-              <input type="text" inputmode="numeric" maxlength="2" placeholder="MM" class="date-seg" id="dateMm" />
-              <span class="date-sep">/</span>
-              <input type="text" inputmode="numeric" maxlength="2" placeholder="AA" class="date-seg" id="dateAa" />
-            </div>
-            <button type="button" class="btn-icon date-calendar-btn" id="dateCalendarBtn" title="Elegir con calendario">${icon('calendar', 18)}</button>
-            <input type="date" class="date-native" id="dateNative" hidden />
-          </div>
-        `;
         const [dd, mm, aa] = (entry.expiryDate || '').split('/');
-        const ddInput = extraEl.querySelector('#dateDd');
-        const mmInput = extraEl.querySelector('#dateMm');
-        const aaInput = extraEl.querySelector('#dateAa');
-        const nativeInput = extraEl.querySelector('#dateNative');
-        ddInput.value = dd && dd !== '--' ? dd : '';
-        mmInput.value = mm && mm !== '--' ? mm : '';
-        aaInput.value = aa && aa !== '--' ? aa : '';
-
-        function commitDate() {
-          const parts = [ddInput.value, mmInput.value, aaInput.value];
-          commit({ expiryDate: parts.some(Boolean) ? parts.map((p) => p || '--').join('/') : null });
-        }
-        // Nunca 00 ni fuera de rango: si se excede, se borra el campo
-        // en vez de forzarlo al tope (no autocompletar con 1 o 31).
-        function clampSegment(input, max) {
-          input.value = input.value.replace(/\D/g, '').slice(0, 2);
-          const num = Number(input.value);
-          if (input.value && (num < 1 || num > max)) input.value = '';
-        }
-        ddInput.addEventListener('input', () => { clampSegment(ddInput, 31); commitDate(); });
-        mmInput.addEventListener('input', () => { clampSegment(mmInput, 12); commitDate(); });
-        aaInput.addEventListener('input', () => {
-          aaInput.value = aaInput.value.replace(/\D/g, '').slice(0, 2);
-          commitDate();
-        });
-        ddInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); mmInput.focus(); } });
-        mmInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); aaInput.focus(); } });
-        aaInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); qtyInput.focus(); } });
-
-        extraEl.querySelector('#dateCalendarBtn').addEventListener('click', () => {
-          if (nativeInput.showPicker) nativeInput.showPicker();
-          else nativeInput.click();
-        });
-        nativeInput.addEventListener('change', () => {
-          const [yyyy, mo, da] = nativeInput.value.split('-');
-          if (!yyyy) return;
-          ddInput.value = da;
-          mmInput.value = mo;
-          aaInput.value = yyyy.slice(2);
-          commitDate();
-        });
-
-        if (isNew) ddInput.focus();
+        dateDigits = [dd, mm, aa].map((p) => (p && p !== '--' ? p : '')).join('');
+        renderDateValue();
+        if (isNew) dateInput.focus();
       } else if (condition === 'rotura') {
         extraEl.innerHTML = `
           <div class="rotura-options">
@@ -660,6 +685,13 @@ export async function openEditor({ mapeoId, onClose }) {
       renderCodes();
     }
 
+    // "Listo" (o Enter, que lo dispara) es el único camino que confirma
+    // la cantidad escrita — cerrar con la cruz nunca la guarda.
+    async function confirmAndClose() {
+      await finishQuantity();
+      closeSheet();
+    }
+
     async function discardEntry() {
       const updated = await store.removeCode(mapeo.id, entry.id, actor());
       codes = updated.codes;
@@ -669,7 +701,8 @@ export async function openEditor({ mapeoId, onClose }) {
     // Un código recién detectado todavía no fue confirmado: cerrar con
     // la cruz equivale a no registrarlo. Uno ya existente, en cambio,
     // solo se está revisando — cerrar no borra nada (para eso está el
-    // tacho, que solo aparece en el modo de edición).
+    // tacho, que solo aparece en el modo de edición) ni confirma la
+    // cantidad (para eso está "Listo").
     async function discardIfNew() {
       if (isNew) {
         await discardEntry();
@@ -682,7 +715,7 @@ export async function openEditor({ mapeoId, onClose }) {
     backdrop.addEventListener('click', (e) => {
       if (e.target === backdrop) discardIfNew();
     });
-    backdrop.querySelector('#regDone').addEventListener('click', closeSheet);
+    backdrop.querySelector('#regDone').addEventListener('click', confirmAndClose);
 
     const deleteBtn = backdrop.querySelector('#regDelete');
     if (deleteBtn) {
