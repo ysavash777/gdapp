@@ -991,8 +991,40 @@ html, body {
   text-transform: uppercase;
   color: var(--ink-3);
 }
+/* El box de ingreso tiene su propio negro (distinto del gris de la
+   celda que lo rodea) — así se lee como un campo editable, no como
+   texto suelto. El número siempre blanco, nunca cambia de color al
+   enfocar (antes quedaba en azul, poco legible sobre el negro). */
 .reg-field-input {
   width: 100%;
+  text-align: center;
+  border: none;
+  outline: none;
+  background: var(--bg);
+  color: var(--ink);
+  border-radius: var(--r-sm);
+  font-weight: 700;
+  font-size: var(--text-md);
+  letter-spacing: 0.02em;
+  padding: 9px 4px;
+}
+.reg-field-input:focus { box-shadow: 0 0 0 3px var(--accent-100); }
+
+/* Vencimiento son 3 inputs reales (DD, MM, AA) — cada uno con su
+   propio foco y validación — pero comparten un mismo box negro
+   continuo con "/" entre medio, para verse igual que un campo único. */
+.reg-date-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: var(--bg);
+  border-radius: var(--r-sm);
+  padding: 9px 4px;
+}
+.reg-date-seg {
+  width: 2ch;
+  flex: 0 0 auto;
   text-align: center;
   border: none;
   outline: none;
@@ -1001,9 +1033,10 @@ html, body {
   font-weight: 700;
   font-size: var(--text-md);
   letter-spacing: 0.02em;
-  padding: 2px 0;
+  padding: 0;
 }
-.reg-field-input:focus { color: var(--accent-500); }
+.reg-date-seg:focus { color: var(--ink); }
+.reg-date-sep { color: var(--ink-3); font-weight: 700; }
 .reg-sheet-footer .btn-block { width: 100%; }
 .reg-sheet-footer .btn:disabled { opacity: 0.4; pointer-events: none; }
 

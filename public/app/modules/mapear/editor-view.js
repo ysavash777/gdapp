@@ -476,7 +476,13 @@ export async function openEditor({ mapeoId, title, onClose }) {
           <div class="reg-fields-grid" id="regFieldsGrid">
             <div class="reg-field-cell" id="vtoFieldCell" hidden>
               <span class="reg-field-label">Vencimiento</span>
-              <input type="text" inputmode="numeric" id="dateInput" class="reg-field-input" autocomplete="off" />
+              <div class="reg-date-group">
+                <input type="text" inputmode="numeric" maxlength="2" class="reg-date-seg" id="dateDd" autocomplete="off" />
+                <span class="reg-date-sep">/</span>
+                <input type="text" inputmode="numeric" maxlength="2" class="reg-date-seg" id="dateMm" autocomplete="off" />
+                <span class="reg-date-sep">/</span>
+                <input type="text" inputmode="numeric" maxlength="2" class="reg-date-seg" id="dateAa" autocomplete="off" />
+              </div>
             </div>
             <div class="reg-field-cell">
               <span class="reg-field-label">Cantidad</span>
@@ -522,50 +528,45 @@ export async function openEditor({ mapeoId, title, onClose }) {
 
     // El campo de vencimiento vive fijo en el footer (junto a Cantidad,
     // no dentro de #regExtra) — solo se muestra/oculta y se completa
-    // según el motivo, nunca se recrea, así no pierde el listener.
-    // Es un único input de texto, pero con máscara "DD/MM/AA" siempre
-    // visible (con "_" en los dígitos que faltan) — la barra es parte
-    // real del valor, no un placeholder que desaparece al escribir.
+    // según el motivo, nunca se recrea, así no pierde los listeners.
+    // Son 3 inputs reales (DD, MM, AA) separados por "/", cada uno con
+    // su propio foco — visualmente comparten un mismo box negro (ver
+    // .reg-date-group en app.css) para verse como un campo continuo.
     const fieldsGrid = backdrop.querySelector('#regFieldsGrid');
     const vtoFieldCell = backdrop.querySelector('#vtoFieldCell');
-    const dateInput = backdrop.querySelector('#dateInput');
-    let dateDigits = ''; // hasta 6 dígitos sin validar: DDMMAA
+    const ddInput = backdrop.querySelector('#dateDd');
+    const mmInput = backdrop.querySelector('#dateMm');
+    const aaInput = backdrop.querySelector('#dateAa');
 
-    function maskFromDigits(digits) {
-      const dd = digits.slice(0, 2).padEnd(2, '_');
-      const mm = digits.slice(2, 4).padEnd(2, '_');
-      const aa = digits.slice(4, 6).padEnd(2, '_');
-      return `${dd}/${mm}/${aa}`;
-    }
-    function renderDateValue() {
-      dateInput.value = maskFromDigits(dateDigits);
-    }
     function commitDate() {
-      const dd = dateDigits.slice(0, 2);
-      const mm = dateDigits.slice(2, 4);
-      const aa = dateDigits.slice(4, 6);
-      commit({ expiryDate: dateDigits ? [dd, mm, aa].map((p) => p || '--').join('/') : null });
+      const parts = [ddInput.value, mmInput.value, aaInput.value];
+      commit({ expiryDate: parts.some(Boolean) ? parts.map((p) => p || '--').join('/') : null });
     }
-    // Nunca 00 ni fuera de rango: si un segmento se completa fuera de
-    // rango, se borra entero (y lo que sigue) en vez de forzarlo al
-    // tope — no autocompletar con 1 o 31.
-    dateInput.addEventListener('input', () => {
-      const digits = dateInput.value.replace(/\D/g, '').slice(0, 6);
-      let dd = digits.slice(0, 2);
-      let rest = digits.slice(2);
-      if (dd.length === 2 && (Number(dd) < 1 || Number(dd) > 31)) { dd = ''; rest = ''; }
-      let mm = rest.slice(0, 2);
-      let aa = rest.slice(2, 4);
-      if (mm.length === 2 && (Number(mm) < 1 || Number(mm) > 12)) { mm = ''; aa = ''; }
-      dateDigits = dd + mm + aa;
-      renderDateValue();
+    // Nunca 00 ni fuera de rango: si se excede, se borra el campo en
+    // vez de forzarlo al tope (no autocompletar con 1 o 31).
+    function clampSegment(input, max) {
+      input.value = input.value.replace(/\D/g, '').slice(0, 2);
+      const num = Number(input.value);
+      if (input.value && (num < 1 || num > max)) input.value = '';
+    }
+    ddInput.addEventListener('input', () => {
+      clampSegment(ddInput, 31);
       commitDate();
+      if (ddInput.value.length === 2) mmInput.focus();
     });
-    dateInput.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter') return;
-      e.preventDefault();
-      qtyInput.focus();
+    mmInput.addEventListener('input', () => {
+      clampSegment(mmInput, 12);
+      commitDate();
+      if (mmInput.value.length === 2) aaInput.focus();
     });
+    aaInput.addEventListener('input', () => {
+      aaInput.value = aaInput.value.replace(/\D/g, '').slice(0, 2);
+      commitDate();
+      if (aaInput.value.length === 2) qtyInput.focus();
+    });
+    ddInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); mmInput.focus(); } });
+    mmInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); aaInput.focus(); } });
+    aaInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); qtyInput.focus(); } });
 
     // Cada motivo pide datos distintos: fecha opcional (unidades, en
     // el footer junto a Cantidad), responsable (rotura y vencido) o
@@ -578,9 +579,10 @@ export async function openEditor({ mapeoId, title, onClose }) {
       fieldsGrid.classList.toggle('has-vto', condition === 'unidades');
       if (condition === 'unidades') {
         const [dd, mm, aa] = (entry.expiryDate || '').split('/');
-        dateDigits = [dd, mm, aa].map((p) => (p && p !== '--' ? p : '')).join('');
-        renderDateValue();
-        if (isNew) dateInput.focus();
+        ddInput.value = dd && dd !== '--' ? dd : '';
+        mmInput.value = mm && mm !== '--' ? mm : '';
+        aaInput.value = aa && aa !== '--' ? aa : '';
+        if (isNew) ddInput.focus();
       } else if (condition === 'rotura') {
         extraEl.innerHTML = `
           <div class="rotura-options">
