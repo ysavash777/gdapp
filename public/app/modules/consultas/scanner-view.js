@@ -29,26 +29,17 @@ export function openScanner() {
         <button class="btn-icon scan-torch" id="scanTorch" title="Linterna" hidden>${icon('zap', 20)}</button>
       </div>
     </div>
-    <div class="scan-camera" id="scanCamera" title="Tocar para apagar/prender la cámara">
+    <div class="scan-camera cq-camera" id="scanCamera" title="Tocar para apagar/prender la cámara">
       <video id="scanVideo" autoplay playsinline muted></video>
       <div class="scan-line"></div>
       <p class="scan-hint" id="scanHint" hidden></p>
       <div class="scan-camera-gradient"></div>
     </div>
-    <div class="scan-sheet">
-      <div class="scan-sheet-head">
-        <span>Consultar producto</span>
-        <button type="button" class="manual-toggle" id="manualToggle" title="Ingresar código manualmente">${icon('plus', 13)} Manual</button>
-      </div>
-      <form class="scan-manual" id="scanManual" hidden>
+    <div class="scan-sheet cq-sheet">
+      <form class="scan-manual" id="scanManual">
         <input type="text" inputmode="numeric" placeholder="Ingresar código manualmente" id="scanManualInput" autocomplete="off" />
         <button type="submit" class="btn btn-primary" title="Buscar">${icon('search', 18)}</button>
       </form>
-      <div class="empty-state cq-idle">
-        <div class="es-icon">${icon('scan', 26)}</div>
-        <h3>Apuntá y escaneá</h3>
-        <p>Apuntá la cámara a un código de barras para ver la información del producto.</p>
-      </div>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -58,13 +49,11 @@ export function openScanner() {
   const hintEl = overlay.querySelector('#scanHint');
   const torchBtn = overlay.querySelector('#scanTorch');
   const manualForm = overlay.querySelector('#scanManual');
-  const manualToggle = overlay.querySelector('#manualToggle');
 
   let closed = false;
   let activeSheetBackdrop = null;
 
   async function lookupCode(rawValue) {
-    manualForm.hidden = true;
     if (navigator.vibrate) navigator.vibrate(35);
     const product = await findProduct(rawValue);
     openResultSheet(rawValue, product);
@@ -91,11 +80,6 @@ export function openScanner() {
   }
   window.addEventListener('popstate', cleanup);
   overlay.querySelector('#scannerClose').addEventListener('click', () => history.back());
-
-  manualToggle.addEventListener('click', () => {
-    manualForm.hidden = !manualForm.hidden;
-    if (!manualForm.hidden) overlay.querySelector('#scanManualInput').focus();
-  });
 
   manualForm.addEventListener('submit', async (e) => {
     e.preventDefault();

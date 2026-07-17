@@ -309,7 +309,12 @@ function renderSubpage(title, fillContent) {
   const outlet = document.getElementById('outlet');
   outlet.innerHTML = `
     <div class="subpage">
-      ${title ? `<h2 class="subpage-title">${title}</h2>` : ''}
+      ${title ? `
+        <div class="subpage-title-row">
+          <h2 class="subpage-title">${title}</h2>
+          <div class="subpage-title-actions" id="subpageTitleActions"></div>
+        </div>
+      ` : ''}
       <div class="subpage-body" id="subpageBody"></div>
     </div>
   `;

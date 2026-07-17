@@ -371,13 +371,21 @@ html, body {
   flex-direction: column;
   padding-top: env(safe-area-inset-top);
 }
-.subpage-title {
+.subpage-title-row {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
   margin-bottom: var(--sp-4);
+}
+.subpage-title {
   font-size: var(--text-lg);
   font-weight: 700;
   letter-spacing: -0.025em;
 }
+.subpage-title-actions { flex-shrink: 0; display: flex; align-items: center; gap: var(--sp-2); }
+.subpage-title-actions:empty { display: none; }
 .subpage-body { flex: 1; min-height: 0; overflow-y: auto; }
 
 /* --- Login embebido a pantalla completa, sin la tarjeta de escritorio.
@@ -397,11 +405,11 @@ html, body {
   padding: var(--sp-5) var(--sp-5) calc(env(safe-area-inset-bottom) + var(--sp-5));
 }
 
-/* Botón de login en lila sólido (en el resto de la app, ese color
-   queda solo para los iconos — aquí es la excepción) y un poco más
-   alto que el resto de los botones. */
-#authForm .btn-primary { background: var(--accent-500); color: var(--ink); padding: 15px 18px; }
-#authForm .btn-primary:hover { background: var(--accent-600); }
+/* Botón de login en lila sólido (mismo tono que Consultar grupo —
+   en el resto de la app ese color queda solo para los iconos, aquí
+   es la excepción) y un poco más alto que el resto de los botones. */
+#authForm .btn-primary { background: var(--icon-consultas); color: #17122b; padding: 15px 18px; }
+#authForm .btn-primary:hover { background: var(--icon-consultas-light); }
 
 /* Inputs sin borde: el color de fondo ya los distingue del negro
    del panel, no hace falta el contorno. */
@@ -439,25 +447,10 @@ html, body {
 }
 .action-hero .btn { padding: 14px 18px; border-radius: var(--r-lg); font-size: var(--text-md); }
 
-/* Botón principal + buscador (ícono SVG, no dibujado en CSS) al lado,
-   misma altura que el botón. */
-.mapeo-toolbar { display: flex; align-items: stretch; gap: var(--sp-2); }
-.mapeo-toolbar .btn-block { flex: 1; }
-.mapeo-toolbar .btn-icon { flex-shrink: 0; width: auto; padding: 0 16px; background: var(--surface); border-radius: var(--r-lg); }
-.mapeo-toolbar .btn-icon.is-active { color: var(--icon-mapear); background: var(--icon-mapear-light); }
-
-/* El buscador de mapeos queda colapsado (alto 0) hasta que se toca el
-   botón de lupa — se abre/cierra con una transición corta en vez de
-   aparecer de golpe. Sin icono propio adentro: la lupa del botón ya
-   cumple ese rol, no hace falta repetirla. */
-.mapeo-search-wrap {
-  max-height: 0;
-  opacity: 0;
-  overflow: hidden;
-  transition: max-height 180ms ease, opacity 140ms ease;
-}
-.mapeo-search-wrap.is-open { max-height: 56px; opacity: 1; }
-.mapeo-search-wrap .searchbar { margin-bottom: 0; }
+/* Icono "+" en la fila del título de Mapear: mismo menú desplegable
+   que las opciones de cada tarjeta (.mapeo-menu), anclado a este botón
+   en vez de a una tarjeta puntual. */
+.mapeo-add-wrap { position: relative; flex-shrink: 0; }
 
 /* --- Botón primario: neutro (blanco/gris), el lila es solo de los iconos --- */
 .btn-primary {
@@ -724,6 +717,13 @@ html, body {
 }
 .scan-manual input:focus { box-shadow: 0 0 0 3px var(--accent-100); }
 .scan-manual .btn { padding: 0 16px; }
+
+/* Consultar grupo no tiene lista de registros debajo (cada consulta
+   es independiente, no queda nada guardado) — la cámara ocupa casi
+   toda la pantalla y el ingreso manual queda como una franja fija y
+   compacta al pie, sin el contenedor de registros de Mapear. */
+.cq-camera { flex: 1; min-height: 0; }
+.cq-sheet { flex: 0 0 auto; }
 
 /* --- Registros: dos columnas fijas (Unidades | Info) — el mismo alto
    para todas las tarjetas sin importar cuánto texto tenga cada una.
@@ -1023,10 +1023,6 @@ html, body {
   font-size: var(--text-sm);
 }
 .cq-location-chip.is-empty { color: var(--ink-3); font-weight: 600; }
-
-/* El estado inicial ("apuntá y escaneá") ocupa el resto del sheet,
-   centrado, en vez de quedar pegado arriba con un hueco vacío abajo. */
-.cq-idle { flex: 1; justify-content: center; }
 
 /* Vencimiento y Cantidad van en el mismo tipo de contenedor que los
    datos del producto (.reg-info-grid): celdas centradas separadas por

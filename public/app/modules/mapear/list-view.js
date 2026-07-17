@@ -49,59 +49,65 @@ export async function renderList(outlet, { onNew }) {
 
   outlet.innerHTML = `
     <div class="action-hero">
-      <div class="mapeo-toolbar">
-        <button class="btn btn-primary btn-block" id="newMapeoBtn">Nuevo mapeo</button>
-        ${mapeos.length ? `<button type="button" class="btn-icon" id="mapeoSearchToggle" title="Buscar mapeo">${icon('search', 20)}</button>` : ''}
+      <div class="searchbar">
+        ${icon('search', 18)}
+        <input type="search" id="mapeoSearchInput" placeholder="Buscar mapeo..." autocomplete="off" />
       </div>
-      ${mapeos.length ? `
-        <div class="mapeo-search-wrap" id="mapeoSearchWrap">
-          <div class="searchbar">
-            <input type="search" id="mapeoSearchInput" placeholder="Buscar por nombre, fecha, usuario…" autocomplete="off" />
-          </div>
-        </div>
-      ` : ''}
       ${mapeos.length
         ? `<div class="mapeo-list">${mapeos.map(mapeoCardHTML).join('')}</div>`
         : `
           <div class="card">
             <div class="empty-state">
               <div class="es-icon">${icon('scan', 26)}</div>
-              <h3>Sin mapeos todavía</h3>
-              <p>Cada mapeo que inicies con la cámara va a quedar listado aquí, con sus códigos, cantidad y condición.</p>
+              <h3>Aún no hay datos</h3>
+              <p>Los mapeos que crees van a aparecer acá.</p>
             </div>
           </div>
         `}
     </div>
   `;
 
-  outlet.querySelector('#newMapeoBtn').addEventListener('click', () => openCreateModal(onNew));
+  // Icono "+" en la fila del título (junto a "Mapear"): abre el menú
+  // para elegir cómo empezar un mapeo — crear uno nuevo escaneando, o
+  // (a futuro) importarlo ya armado.
+  const titleActions = document.getElementById('subpageTitleActions');
+  if (titleActions) {
+    titleActions.innerHTML = `
+      <div class="mapeo-add-wrap">
+        <button type="button" class="btn-icon" id="mapeoAddBtn" title="Agregar mapeo">${icon('plus', 20)}</button>
+        <div class="mapeo-menu" id="mapeoAddMenu" hidden>
+          <button class="user-menu-item" data-action="create">${icon('scan', 16)} Crear mapeo</button>
+          <button class="user-menu-item" data-action="import">${icon('download', 16)} Importar mapeo</button>
+        </div>
+      </div>
+    `;
+    const addBtn = titleActions.querySelector('#mapeoAddBtn');
+    const addMenu = titleActions.querySelector('#mapeoAddMenu');
+    addBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      addMenu.hidden = !addMenu.hidden;
+    });
+    addMenu.querySelector('[data-action="create"]').addEventListener('click', () => {
+      addMenu.hidden = true;
+      openCreateModal(onNew);
+    });
+    addMenu.querySelector('[data-action="import"]').addEventListener('click', () => {
+      addMenu.hidden = true;
+      showToast('La importación estará disponible próximamente.');
+    });
+  }
 
   // Buscador de mapeos por cualquier dato visible en su tarjeta (título,
-  // fecha, cantidad de códigos, usuario que lo editó) — colapsado hasta
-  // que se toca la lupa, con una transición corta al abrir/cerrar.
-  const searchToggle = outlet.querySelector('#mapeoSearchToggle');
-  const searchWrap = outlet.querySelector('#mapeoSearchWrap');
+  // fecha, cantidad de códigos, usuario que lo editó) — siempre abierto,
+  // sin toggle: filtra en vivo a medida que se escribe.
   const searchInput = outlet.querySelector('#mapeoSearchInput');
-  if (searchToggle) {
-    function filterCards(q) {
-      outlet.querySelectorAll('.mapeo-card').forEach((card) => {
-        const haystack = card.textContent.toLowerCase();
-        card.style.display = !q || haystack.includes(q) ? '' : 'none';
-      });
-    }
-    searchToggle.addEventListener('click', () => {
-      const opening = !searchWrap.classList.contains('is-open');
-      searchWrap.classList.toggle('is-open', opening);
-      searchToggle.classList.toggle('is-active', opening);
-      if (opening) {
-        searchInput.focus();
-      } else {
-        searchInput.value = '';
-        filterCards('');
-      }
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    outlet.querySelectorAll('.mapeo-card').forEach((card) => {
+      const haystack = card.textContent.toLowerCase();
+      card.style.display = !q || haystack.includes(q) ? '' : 'none';
     });
-    searchInput.addEventListener('input', () => filterCards(searchInput.value.trim().toLowerCase()));
-  }
+  });
 
   outlet.querySelectorAll('.mapeo-open').forEach((btn) => {
     btn.addEventListener('click', () => openEditor({ mapeoId: Number(btn.dataset.id), onClose: refreshRef }));
@@ -133,8 +139,10 @@ export async function renderList(outlet, { onNew }) {
 // Cierra cualquier menú de opciones abierto al tocar fuera de él.
 document.addEventListener('click', (e) => {
   if (!outletRef) return;
-  if (e.target.closest('.mapeo-more') || e.target.closest('.mapeo-menu')) return;
+  if (e.target.closest('.mapeo-more') || e.target.closest('.mapeo-add-wrap') || e.target.closest('.mapeo-menu')) return;
   outletRef.querySelectorAll('.mapeo-menu').forEach((m) => { m.hidden = true; });
+  const titleActions = document.getElementById('subpageTitleActions');
+  if (titleActions) titleActions.querySelectorAll('.mapeo-menu').forEach((m) => { m.hidden = true; });
 });
 
 function showToast(text) {
@@ -189,7 +197,7 @@ function openCreateModal(onNew) {
     bodyHTML: `
       <div class="field">
         <label>Nombre del mapeo</label>
-        <input type="text" id="createTitleInput" placeholder="Ej: Depósito A - Pasillo 3" autocomplete="off" />
+        <input type="text" id="createTitleInput" placeholder="Ingresá un nombre" autocomplete="off" />
       </div>
     `,
     footHTML: `
