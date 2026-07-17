@@ -286,6 +286,18 @@ html, body {
 }
 .tool-card.is-locked .tc-icon { background: var(--n-300); color: var(--ink-3); }
 
+/* --- Con sesión iniciada, "sin permiso" no muestra qué herramienta es:
+   icono y texto quedan como bloques grises fijos (sin shimmer — es un
+   estado permanente, no una carga). Opacidad un poco más alta que el
+   resto de las bloqueadas porque acá no hay icono/texto real dando
+   contraste, sería casi invisible al 0.45. --- */
+.tool-card.is-locked.is-skeleton { opacity: 0.6; }
+.tool-card.is-skeleton .tc-body { display: flex; flex-direction: column; gap: 7px; }
+.skeleton-shape { background: var(--n-300); border-radius: var(--r-full); }
+.skeleton-line { display: block; height: 9px; width: 85%; }
+.skeleton-line.skeleton-title { height: 12px; width: 60%; }
+.skeleton-line.is-short { width: 45%; }
+
 /* --- Cada herramienta desbloqueada destaca con su propio color de
    fondo (mismo que usa como acento en el resto de la app), texto
    blanco para contraste y su icono en la variante más clara de esa
@@ -969,7 +981,7 @@ html, body {
 .reg-fields-grid {
   display: grid;
   grid-template-columns: 1fr;
-  background: var(--surface-2);
+  background: var(--bg);
   border-radius: var(--r-md);
   overflow: hidden;
 }
