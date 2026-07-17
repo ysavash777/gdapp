@@ -228,44 +228,14 @@ html, body {
 /* --- Inicio sin sesión: una sola herramienta es pública, así que no
    tiene sentido un "catálogo" con 3 huecos bloqueados al lado. Tampoco
    alcanza con centrar esa única tarjeta: deja huecos enormes arriba y
-   abajo. La invitación a loguearse se arma como un segundo bloque
-   real —mismo tratamiento que .card, con su propio contenido— que
-   ocupa el resto de la pantalla igual que lo haría cualquier otra
-   tarjeta del catálogo (mismo flex:1 que usan las de .home-layout). --- */
-.hg-login-card {
-  flex: 1 1 0;
-  min-height: 120px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
-  gap: var(--sp-3);
-  padding: var(--sp-5);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-}
-.hg-login-icon {
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-full);
-  background: var(--accent-100);
-  color: var(--accent-300);
-}
-.hg-login-body h3 {
-  font-size: var(--text-base);
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  margin-bottom: 3px;
-}
-.hg-login-body p {
-  font-size: var(--text-sm);
-  color: var(--ink-2);
-  line-height: 1.4;
-}
-.hg-login-card .btn { width: 100%; margin-top: 2px; }
+   abajo. La invitación a loguearse reutiliza .tool-card/.tc-top/
+   .tc-body tal cual (mismo tamaño de icono y tipografía que Consultar
+   grupo) para que las dos tarjetas compartan exactamente el mismo
+   formato — icono arriba, texto abajo — y solo se agrega el botón,
+   que empuja título+descripción al fondo junto con él. --- */
+.hg-login-card .tc-icon { background: var(--surface-2); color: var(--ink-2); }
+.hg-login-card .tc-body { margin-top: auto; }
+.hg-login-card .btn { width: 100%; margin-top: var(--sp-3); }
 
 /* --- Tarjeta de herramienta: icono arriba-izquierda, texto abajo,
    usando el alto completo en vez de centrar todo en una fila. --- */

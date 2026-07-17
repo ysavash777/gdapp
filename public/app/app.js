@@ -124,13 +124,6 @@ function sortedByTitle(entries) {
   return [...entries].sort((a, b) => a[1].title.localeCompare(b[1].title, 'es'));
 }
 
-// "Mapear, Negadas y Vacíos" — para nombrar en la invitación a
-// loguearse qué hay del otro lado, sin hardcodear la lista.
-function joinWithY(items) {
-  if (items.length <= 1) return items.join('');
-  return `${items.slice(0, -1).join(', ')} y ${items.at(-1)}`;
-}
-
 function enabledTools() {
   return sortedByTitle(Object.entries(TOOLS).filter(isEnabled));
 }
@@ -266,21 +259,23 @@ function renderHome() {
   // de una sola tarjeta real se leía como relleno, no como catálogo.
   // Tampoco alcanza con centrar esa única tarjeta en la pantalla: deja
   // huecos enormes arriba y abajo, poco profesional. En su lugar, el
-  // inicio de sesión se presenta como un segundo bloque real (no una
-  // tarjeta de herramienta falsa) que nombra lo que hay del otro lado
-  // del login, ocupando el espacio con contenido genuino.
+  // inicio de sesión se presenta como un segundo bloque con el mismo
+  // formato exacto que una tarjeta de herramienta (.tool-card/.tc-top/
+  // .tc-body: icono arriba, texto abajo) — mismo tamaño de icono y
+  // tipografía, ocupando el espacio con contenido real en vez de relleno.
   if (!user) {
-    const lockedTitles = joinWithY(disabled.map(([, t]) => t.title));
     outlet.innerHTML = `
       <div class="home-layout home-guest">
         ${enabled.map(([key, t]) => toolCardHTML(key, t)).join('')}
-        <div class="hg-login-card">
-          <div class="hg-login-icon">${icon('key', 20)}</div>
-          <div class="hg-login-body">
-            <h3>¿Formás parte del equipo?</h3>
-            <p>Inicia sesión para acceder a ${lockedTitles}.</p>
+        <div class="tool-card hg-login-card">
+          <div class="tc-top">
+            <div class="tc-icon">${icon('key', 18)}</div>
           </div>
-          <button class="btn btn-primary btn-block" id="loginCta">Iniciar sesión</button>
+          <div class="tc-body">
+            <h3>¿Sos del equipo de gestión de stock?</h3>
+            <p>Inicia sesión para acceder a más herramientas.</p>
+          </div>
+          <button type="button" class="btn btn-primary btn-block" id="loginCta">Iniciar sesión</button>
         </div>
         <p class="app-footer">GStock 1.0.0</p>
       </div>
