@@ -26,7 +26,20 @@ const DATA_FILE = path.join(DATA_DIR, 'inventory.json');
 
 let rows = [];       // [{ _row_id, ...columnas saneadas }]
 let haystacks = [];  // haystacks[i] = texto en minúsculas de rows[i], para buscar rápido
-let meta = { lastUpdatedAt: null, rowCount: 0, bodega: null, columns: [], durationMs: null };
+
+// status: 'empty' (nunca se corrió con éxito) | 'ok' (última corrida OK)
+// | 'error' (la última corrida falló — rowCount/lastUpdatedAt quedan
+// con el último dato bueno que haya, si lo hay, para no perderlo solo
+// porque el intento más reciente no salió).
+let meta = {
+  status: 'empty',
+  lastUpdatedAt: null,
+  rowCount: 0,
+  bodega: null,
+  columns: [],
+  durationMs: null,
+  lastError: null,
+};
 
 function sanitizeKey(key) {
   return String(key)
@@ -69,7 +82,7 @@ function restore() {
     if (!fs.existsSync(DATA_FILE)) return;
     const saved = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
     rows = saved.rows || [];
-    meta = saved.meta || meta;
+    meta = { ...meta, ...(saved.meta || {}) };
     haystacks = rows.map(buildHaystack);
   } catch (e) {
     console.error('[inventory.store] No se pudo restaurar el caché en disco:', e.message);
@@ -91,11 +104,27 @@ function replaceAll(rawRows, { bodega, durationMs } = {}) {
   rows = newRows;
   haystacks = newHaystacks;
   meta = {
+    status: 'ok',
     lastUpdatedAt: new Date().toISOString(),
     rowCount: rows.length,
     bodega: bodega ?? meta.bodega,
     columns,
     durationMs: durationMs ?? null,
+    lastError: null,
+  };
+  persist();
+  return meta;
+}
+
+// Registra que la corrida más reciente falló, sin tocar los datos de
+// la última corrida exitosa (si hay) — el card de estado pasa a
+// "error" para avisar que hay que reintentar, pero no se pierde lo
+// que ya estaba cargado.
+function recordError(error) {
+  meta = {
+    ...meta,
+    status: 'error',
+    lastError: { code: error?.code || 'UNKNOWN', message: error?.message || null, at: new Date().toISOString() },
   };
   persist();
   return meta;
@@ -139,4 +168,4 @@ function list({ q = '', page = 1, pageSize = 50, sortBy = null, sortDir = 1 } = 
   return { items, total, page: safePage, pageSize: safePageSize, totalPages };
 }
 
-module.exports = { replaceAll, getMeta, list };
+module.exports = { replaceAll, recordError, getMeta, list };

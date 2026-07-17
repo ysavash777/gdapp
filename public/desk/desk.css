@@ -97,6 +97,59 @@
   width: 100%;
 }
 
+/* --- Bases de datos: una tarjeta por fuente (Referencia, Variables,
+   Coordenadas, Líneas picking) — mismo tamaño/forma para las cuatro,
+   aunque solo Referencia funcione hoy. El estado es un ícono, sin
+   texto (ver .db-status-icon), para no repetir en palabras lo que ya
+   dice el color/forma del ícono. --- */
+.db-source-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--sp-4);
+}
+.db-source-card { display: flex; flex-direction: column; gap: var(--sp-4); }
+.db-source-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.db-source-name { display: flex; align-items: center; gap: var(--sp-3); }
+.db-source-name .tc-icon-sm {
+  width: 34px; height: 34px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: var(--r-md);
+  background: var(--n-100);
+  color: var(--ink-2);
+}
+.db-source-name h3 { font-size: var(--text-base); margin: 0; }
+
+.db-status-icon {
+  width: 30px; height: 30px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: var(--r-full);
+}
+.db-status-icon.is-ok { background: var(--ok-bg); color: var(--ok); }
+.db-status-icon.is-error { background: var(--danger-bg); color: var(--danger); }
+.db-status-icon.is-empty { background: var(--n-100); color: var(--ink-3); }
+
+.db-source-metrics { display: flex; gap: var(--sp-5); }
+.db-source-metrics .metric .num { font-size: var(--text-lg); }
+
+/* --- Aviso flotante breve (p. ej. "disponible próximamente") --- */
+.exit-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  background: var(--n-800);
+  color: var(--bg);
+  padding: 10px 18px;
+  border-radius: var(--r-full);
+  font-size: var(--text-sm);
+  z-index: 50;
+  animation: exit-toast-in 160ms ease;
+}
+@keyframes exit-toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
+
 @media (max-width: 900px) {
   .shell { grid-template-columns: 72px 1fr; }
   .sb-brand .name, .sb-link span, .sb-section, .sb-user .u-meta { display: none; }

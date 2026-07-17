@@ -83,45 +83,53 @@ async function refresh() {
   const startedAt = Date.now();
   runningInMemory = true;
   let session = null;
+  let result;
 
   try {
     if (!config.COPERNICO_EMAIL || !config.COPERNICO_PASSWORD) {
-      return { ok: false, error: 'MISSING_CREDENTIALS' };
+      result = { ok: false, error: 'MISSING_CREDENTIALS' };
+    } else {
+      try {
+        session = await loginWithRecovery();
+      } catch (err) {
+        result = { ok: false, error: err.code || 'LOGIN_FAILED', message: err.message };
+      }
+
+      if (session) {
+        // A partir de acá ya consumimos una licencia — el lock queda
+        // escrito hasta el logout final, incluso si el fetch falla,
+        // para que una corrida futura pueda detectar y liberar esta
+        // sesión si el proceso se cae en el medio.
+        writeLock({ token: session.token, uid: session.uid, startedAt });
+
+        try {
+          const rawRows = await copernico.fetchReferencia(session.token, config.COPERNICO_BODEGA);
+          const meta = inventoryStore.replaceAll(rawRows, {
+            bodega: config.COPERNICO_BODEGA,
+            durationMs: Date.now() - startedAt,
+          });
+          result = { ok: true, meta };
+        } catch (err) {
+          result = { ok: false, error: err.code || 'FETCH_FAILED', message: err.message };
+        }
+      }
     }
-
-    try {
-      session = await loginWithRecovery();
-    } catch (err) {
-      return { ok: false, error: err.code || 'LOGIN_FAILED', message: err.message };
-    }
-
-    // A partir de acá ya consumimos una licencia — el lock queda
-    // escrito hasta el logout final, incluso si el fetch falla, para
-    // que una corrida futura pueda detectar y liberar esta sesión si
-    // el proceso se cae en el medio.
-    writeLock({ token: session.token, uid: session.uid, startedAt });
-
-    let rawRows;
-    try {
-      rawRows = await copernico.fetchReferencia(session.token, config.COPERNICO_BODEGA);
-    } catch (err) {
-      return { ok: false, error: err.code || 'FETCH_FAILED', message: err.message };
-    }
-
-    const meta = inventoryStore.replaceAll(rawRows, {
-      bodega: config.COPERNICO_BODEGA,
-      durationMs: Date.now() - startedAt,
-    });
-
-    return { ok: true, meta };
   } finally {
     // El logout corre siempre, pase lo que pase arriba — es lo que
     // libera la licencia. Un logout fallido no debe ocultar el
     // resultado real de la corrida (ok o el error que ya se detectó).
-    if (session) await copernico.logout(session.token, session.uid);
-    writeLock(null);
+    //
+    // Si el logout falla, a propósito NO se borra el lock: sin él, la
+    // próxima corrida no tendría con qué uid/token forzar el cierre de
+    // esta sesión colgada en loginWithRecovery(), y quedaría reintentando
+    // login a ciegas para siempre contra una licencia que nunca se libera.
+    const loggedOut = session ? await copernico.logout(session.token, session.uid) : true;
+    if (loggedOut) writeLock(null);
     runningInMemory = false;
   }
+
+  if (!result.ok) inventoryStore.recordError({ code: result.error, message: result.message });
+  return result;
 }
 
 module.exports = { refresh, isRunning };
