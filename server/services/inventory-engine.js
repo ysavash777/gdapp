@@ -18,6 +18,14 @@
       (el motor habría quedado "trabado" del lado de Copernico con la
       licencia tomada) — en ese caso, el primer paso es forzar un
       logout con el último uid conocido antes de reintentar el login.
+   3. El "logout forzado" no necesita un token vigente: la API de
+      Copernico solo pide el id numérico de usuario (ver el botón
+      "Cerrar sesión en Copernico" del prototipo original). Ese id es
+      el mismo siempre para esta cuenta, así que se guarda una vez y
+      para siempre en known-uid.json apenas se ve — permite recuperar
+      una sesión colgada incluso si quedó así antes de que este motor
+      existiera, sin depender de que el lock de una corrida puntual
+      todavía tenga el dato.
    ============================================================ */
 
 const fs = require('fs');
@@ -27,6 +35,14 @@ const copernico = require('./copernico-client');
 const inventoryStore = require('../store/inventory.store');
 
 const LOCK_FILE = path.join(__dirname, '..', 'data', 'refresh.lock');
+// El id numérico de usuario que devuelve el JWT no es propio de una
+// sesión — es el mismo siempre para esta cuenta. Por eso se guarda
+// aparte del lock de corrida (que se limpia en cada finally) y nunca
+// se borra: es lo único que permite forzar un logout "desde afuera"
+// (POST /users/api/logout solo necesita ese id, no un token vigente)
+// cuando la sesión activa quedó colgada de antes de que este archivo
+// existiera o de una corrida cuyo lock ya se perdió.
+const UID_FILE = path.join(__dirname, '..', 'data', 'known-uid.json');
 
 let runningInMemory = false;
 
@@ -48,30 +64,51 @@ function writeLock(state) {
   }
 }
 
+function readKnownUid() {
+  try {
+    return JSON.parse(fs.readFileSync(UID_FILE, 'utf8')).uid ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function rememberUid(uid) {
+  if (!uid) return;
+  try {
+    fs.mkdirSync(path.dirname(UID_FILE), { recursive: true });
+    fs.writeFileSync(UID_FILE, JSON.stringify({ uid }));
+  } catch (e) {
+    console.error('[inventory-engine] No se pudo guardar el uid conocido:', e.message);
+  }
+}
+
 function isRunning() {
   return runningInMemory;
 }
 
 // Login con un único reintento acotado: si Copernico dice que ya hay
-// una sesión activa (por ejemplo porque un refresh anterior se cortó
-// a mitad de camino sin llegar a hacer logout), usamos el uid que
-// haya quedado registrado en el lock persistido para forzar el cierre
-// de esa sesión colgada y probar login una sola vez más. Nunca más de
-// un reintento — si vuelve a fallar, se informa el error tal cual.
+// una sesión activa, se fuerza su cierre con el id de usuario más
+// confiable que tengamos a mano (primero el del lock de la corrida
+// interrumpida más reciente, si existe; si no, el último uid conocido
+// de cualquier login exitoso anterior) y se prueba login una sola vez
+// más. Nunca más de un reintento — si vuelve a fallar, se informa el
+// error tal cual, sin insistir de nuevo.
 async function loginWithRecovery() {
   try {
-    return await copernico.login(config.COPERNICO_EMAIL, config.COPERNICO_PASSWORD);
+    const session = await copernico.login(config.COPERNICO_EMAIL, config.COPERNICO_PASSWORD);
+    rememberUid(session.uid);
+    return session;
   } catch (err) {
     if (err.code !== 'ALREADY_LOGGED_IN') throw err;
 
     const stale = readLock();
-    if (stale?.uid) {
-      await copernico.logout(stale.token, stale.uid);
+    const recoveryUid = stale?.uid || readKnownUid();
+    if (recoveryUid) {
+      await copernico.logout(stale?.token, recoveryUid);
     }
-    // Un solo reintento — si la sesión activa es de otro dispositivo
-    // real (no una nuestra colgada), esto vuelve a fallar y se informa
-    // como tal, sin insistir de nuevo.
-    return await copernico.login(config.COPERNICO_EMAIL, config.COPERNICO_PASSWORD);
+    const session = await copernico.login(config.COPERNICO_EMAIL, config.COPERNICO_PASSWORD);
+    rememberUid(session.uid);
+    return session;
   }
 }
 
