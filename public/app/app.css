@@ -225,6 +225,34 @@ html, body {
   overflow: hidden;
 }
 
+/* --- Inicio sin sesión: una sola herramienta es pública, así que no
+   tiene sentido un "catálogo" con 3 huecos bloqueados al lado —  se
+   arma como una pantalla de propósito único, centrada, con el login
+   como salida hacia el resto. La tarjeta ya no estira su alto para
+   llenar la pantalla (a diferencia del catálogo con sesión, acá sería
+   un bloque gigante y vacío) y el pie de versión queda fijo abajo. --- */
+.home-guest { justify-content: flex-start; }
+.hg-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sp-5);
+}
+.hg-body .tool-card { flex: 0 0 auto; min-height: 168px; }
+.hg-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 var(--sp-4);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 550;
+  text-align: center;
+}
+
 /* --- Tarjeta de herramienta: icono arriba-izquierda, texto abajo,
    usando el alto completo en vez de centrar todo en una fila. --- */
 .tool-card {

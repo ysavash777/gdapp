@@ -254,11 +254,34 @@ function renderHome() {
   const disabled = disabledTools();
   const outlet = document.getElementById('outlet');
 
+  // Sin sesión hoy existe una sola herramienta real (Consultar grupo,
+  // pública) — llenar la pantalla con 3 skeletons "bloqueados" al lado
+  // de una sola tarjeta real se leía como relleno, no como catálogo.
+  // En vez de simular un menú que no existe todavía, se arma una
+  // pantalla de propósito único: la herramienta pública centrada, con
+  // el inicio de sesión como su salida natural hacia el resto.
+  if (!user) {
+    outlet.innerHTML = `
+      <div class="home-layout home-guest">
+        <div class="hg-body">
+          ${enabled.map(([key, t]) => toolCardHTML(key, t)).join('')}
+          <div class="hg-divider">${icon('key', 15)}<span>Inicia sesión para acceder al resto de las herramientas</span></div>
+          <button class="btn btn-primary btn-block login-cta" id="loginCta">Iniciar sesión</button>
+        </div>
+        <p class="app-footer">GStock 1.0.0</p>
+      </div>
+    `;
+    outlet.querySelectorAll('.tool-card[data-key]').forEach((btn) => {
+      btn.addEventListener('click', () => pushRoute(btn.dataset.key));
+    });
+    outlet.querySelector('#loginCta').addEventListener('click', () => pushRoute('login'));
+    return;
+  }
+
   outlet.innerHTML = `
     <div class="home-layout">
       ${enabled.map(([key, t]) => toolCardHTML(key, t)).join('')}
       ${disabled.map(() => lockedCardHTML()).join('')}
-      ${!user ? `<button class="btn btn-primary btn-block login-cta" id="loginCta">Iniciar sesión</button>` : ''}
       <p class="app-footer">GStock 1.0.0</p>
     </div>
   `;
@@ -266,9 +289,6 @@ function renderHome() {
   outlet.querySelectorAll('.tool-card[data-key]').forEach((btn) => {
     btn.addEventListener('click', () => pushRoute(btn.dataset.key));
   });
-
-  const cta = outlet.querySelector('#loginCta');
-  if (cta) cta.addEventListener('click', () => pushRoute('login'));
 }
 
 // Herramientas y login comparten esta plantilla: sin cabecera ni
