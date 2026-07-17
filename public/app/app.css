@@ -53,8 +53,8 @@
   --icon-consultas-light: #c4b5fd;
   --icon-mapear: #2dd4bf;          /* turquesa: foco, claridad */
   --icon-mapear-light: #5eead4;
-  --icon-negadas: #fb923c;         /* naranja suave: atención sin rojo, mismo escalón que el lila */
-  --icon-negadas-light: #fdba74;
+  --icon-vencimientos: #fb923c;    /* naranja suave: atención sin rojo, mismo escalón que el lila */
+  --icon-vencimientos-light: #fdba74;
   --icon-vacios: #60a5fa;          /* azul suave: neutro, informativo, distinto del acento general */
   --icon-vacios-light: #93c5fd;
 
@@ -317,12 +317,12 @@ html, body {
 .tool-card[data-key]:not(.is-locked) { color: #fff; }
 .tool-card[data-key="consultas"]:not(.is-locked) { background: var(--icon-consultas); }
 .tool-card[data-key="mapear"]:not(.is-locked)    { background: var(--icon-mapear); }
-.tool-card[data-key="negadas"]:not(.is-locked)   { background: var(--icon-negadas); }
+.tool-card[data-key="vencimientos"]:not(.is-locked) { background: var(--icon-vencimientos); }
 .tool-card[data-key="vacios"]:not(.is-locked)    { background: var(--icon-vacios); }
 
 .tool-card[data-key="consultas"]:not(.is-locked) .tc-icon { background: var(--icon-consultas-light); }
 .tool-card[data-key="mapear"]:not(.is-locked) .tc-icon    { background: var(--icon-mapear-light); }
-.tool-card[data-key="negadas"]:not(.is-locked) .tc-icon   { background: var(--icon-negadas-light); }
+.tool-card[data-key="vencimientos"]:not(.is-locked) .tc-icon { background: var(--icon-vencimientos-light); }
 .tool-card[data-key="vacios"]:not(.is-locked) .tc-icon    { background: var(--icon-vacios-light); }
 
 .tool-card[data-key]:not(.is-locked) .tc-body h3 { color: #fff; }
@@ -451,6 +451,24 @@ html, body {
    que las opciones de cada tarjeta (.mapeo-menu), anclado a este botón
    en vez de a una tarjeta puntual. */
 .mapeo-add-wrap { position: relative; flex-shrink: 0; }
+
+/* El buscador de mapeos ya recibe su espaciado del gap de .action-hero
+   (mismo que separa el título de arriba) — su propio margin-bottom
+   (heredado de .searchbar genérico) lo duplicaba, abriendo un hueco
+   más grande hacia la lista que el que hay hacia el título. */
+.action-hero .searchbar { margin-bottom: 0; }
+
+/* --- Modal compacto: variante de .modal para diálogos de un solo
+   campo (crear/renombrar/eliminar mapeo) — el modal genérico (pensado
+   para formularios largos en /desk) se ve con demasiado aire vacío en
+   estos casos simples. Menos ancho y menos padding, sin volverse
+   angosto de más. --- */
+.modal.compact-modal { max-width: 320px; }
+.compact-modal .modal-head { padding: var(--sp-4) var(--sp-4) var(--sp-3); border-bottom: none; }
+.compact-modal .modal-head h3 { font-size: var(--text-base); font-weight: 700; }
+.compact-modal .modal-body { padding: 0 var(--sp-4) var(--sp-4); gap: var(--sp-3); }
+.compact-modal .modal-foot { padding: 0 var(--sp-4) var(--sp-4); border-top: none; gap: var(--sp-2); }
+.compact-modal .modal-foot .btn { padding: 10px 16px; }
 
 /* --- Botón primario: neutro (blanco/gris), el lila es solo de los iconos --- */
 .btn-primary {
@@ -1128,7 +1146,7 @@ html, body {
   text-align: center;
   transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
 }
-.cond-pill.cond-rotura.is-selected { background: var(--icon-negadas-light); border-color: var(--icon-negadas-light); color: var(--bg); }
+.cond-pill.cond-rotura.is-selected { background: var(--icon-vencimientos-light); border-color: var(--icon-vencimientos-light); color: var(--bg); }
 .cond-pill.cond-vencido.is-selected { background: var(--icon-consultas-light); border-color: var(--icon-consultas-light); color: var(--bg); }
 .cond-pill.cond-unidades.is-selected { background: var(--icon-vacios-light); border-color: var(--icon-vacios-light); color: var(--bg); }
 .cond-pill.cond-otro.is-selected { background: var(--icon-mapear-light); border-color: var(--icon-mapear-light); color: var(--bg); }

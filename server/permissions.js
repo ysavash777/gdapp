@@ -11,7 +11,7 @@ const CATALOG = [
   { key: 'mapeos', label: 'Mapeos', scope: 'web' },
   { key: 'basesdatos', label: 'Bases de datos', scope: 'web' },
   { key: 'mapear', label: 'Mapear', scope: 'app' },
-  { key: 'negadas', label: 'Negadas', scope: 'app' },
+  { key: 'vencimientos', label: 'Vencimientos', scope: 'app' },
   { key: 'vacios', label: 'Vacíos', scope: 'app' },
   { key: 'consultas', label: 'Consultas', scope: 'app' },
 ];

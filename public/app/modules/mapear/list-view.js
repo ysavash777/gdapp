@@ -161,7 +161,7 @@ function openModal({ headTitle, bodyHTML, footHTML, onMount, onSubmit }) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
-    <div class="modal">
+    <div class="modal compact-modal">
       <div class="modal-head">
         <h3>${headTitle}</h3>
         <button class="btn-icon" data-close>${icon('x', 18)}</button>

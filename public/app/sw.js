@@ -4,7 +4,7 @@
    intenta lo fresco; sin red, sirve lo guardado).
    ============================================================ */
 
-const CACHE = 'gdapp-shell-v5';
+const CACHE = 'gdapp-shell-v6';
 
 const SHELL = [
   '/app',
@@ -34,7 +34,7 @@ const SHELL = [
   '/app/modules/consultas/index.js',
   '/app/modules/consultas/store.js',
   '/app/modules/consultas/scanner-view.js',
-  '/app/modules/negadas.js',
+  '/app/modules/vencimientos.js',
   '/app/modules/vacios.js',
 ];
 

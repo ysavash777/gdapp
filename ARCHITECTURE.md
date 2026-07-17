@@ -90,7 +90,7 @@ public/
                                grilla EAN/Referencia/Grupo, ubicaciones de guardado).
       store.js                 findProduct(code) — hoy siempre devuelve null (sin base conectada);
                                misma forma que tendrá la API real.
-    modules/negadas.js     Herramienta Negadas.
+    modules/vencimientos.js Herramienta Vencimientos.
     modules/vacios.js      Herramienta Vacíos.
 ```
 
@@ -109,5 +109,5 @@ public/
    operativo, que no necesita cuenta. Sin sesión aparece igual arriba, en color; el resto se ve en BW
    como aviso de que hace falta loguearse (equipo de inventario).
 8. **Usuarios de prueba** (sembrados en memoria, se pierden al reiniciar el servidor):
-   `admin / admin1234` (todos los permisos) · `operador / operador1234` (mapeos, mapear, negadas, vacíos) ·
+   `admin / admin1234` (todos los permisos) · `operador / operador1234` (mapeos, mapear, vencimientos, vacíos) ·
    `consulta / consulta1234` (basesdatos, consultas).

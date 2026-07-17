@@ -33,8 +33,8 @@ function seed(username, password, role, avatar, permissions) {
   return user;
 }
 
-seed('admin', 'admin1234', 'admin', 1, ['usuarios', 'mapeos', 'basesdatos', 'mapear', 'negadas', 'vacios', 'consultas']);
-seed('operador', 'operador1234', 'user', 3, ['mapeos', 'mapear', 'negadas', 'vacios']);
+seed('admin', 'admin1234', 'admin', 1, ['usuarios', 'mapeos', 'basesdatos', 'mapear', 'vencimientos', 'vacios', 'consultas']);
+seed('operador', 'operador1234', 'user', 3, ['mapeos', 'mapear', 'vencimientos', 'vacios']);
 seed('consulta', 'consulta1234', 'user', 5, ['basesdatos', 'consultas']);
 
 function toPublic(user) {
