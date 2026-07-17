@@ -59,11 +59,19 @@ export function render(outlet) {
   mount(root);
 }
 
+// Sin datos de progreso real (Copernico no informa avance, solo
+// responde entero al final), así que el relleno se calibra contra la
+// última corrida exitosa conocida — no es una barra "de mentira" que
+// da vueltas para siempre, es una estimación que avanza una sola vez
+// de 0 a ~92% y se completa de golpe cuando la corrida real termina
+// (antes o después de lo estimado).
+const DEFAULT_ESTIMATE_MS = 30_000;
+
 async function mount(root) {
   const state = {
     refreshing: false,
     error: null,
-    referencia: { status: 'empty', lastUpdatedAt: null, rowCount: 0 },
+    referencia: { status: 'empty', lastUpdatedAt: null, rowCount: 0, durationMs: null },
   };
 
   drawShell();
@@ -73,6 +81,29 @@ async function mount(root) {
     state.referencia.status = meta.status;
     state.referencia.lastUpdatedAt = meta.lastUpdatedAt;
     state.referencia.rowCount = meta.rowCount;
+    if (meta.durationMs) state.referencia.durationMs = meta.durationMs;
+  }
+
+  function startProgress() {
+    const fill = root.querySelector('.db-refresh-btn-fill');
+    if (!fill) return;
+    const estimateMs = state.referencia.durationMs || DEFAULT_ESTIMATE_MS;
+    fill.style.transition = 'none';
+    fill.style.width = '0%';
+    void fill.offsetWidth; // fuerza reflow: sin esto, el navegador puede fusionar este cambio con el de abajo y saltar directo a 92%, sin animar
+    fill.style.transition = `width ${estimateMs}ms linear`;
+    fill.style.width = '92%';
+  }
+
+  function finishProgress() {
+    const fill = root.querySelector('.db-refresh-btn-fill');
+    if (!fill) return;
+    fill.style.transition = 'width 250ms ease';
+    fill.style.width = '100%';
+    setTimeout(() => {
+      fill.style.transition = 'none';
+      fill.style.width = '0%';
+    }, 300);
   }
 
   async function loadStatus() {
@@ -93,6 +124,7 @@ async function mount(root) {
       // termine. Nunca dispara una corrida nueva por su cuenta.
       state.refreshing = true;
       drawButton();
+      startProgress();
       await pollUntilDone();
     } else {
       drawButton();
@@ -110,6 +142,7 @@ async function mount(root) {
         break;
       }
     }
+    finishProgress();
     state.refreshing = false;
     drawButton();
     drawCards();
@@ -121,6 +154,7 @@ async function mount(root) {
     state.error = null;
     drawButton();
     drawCards();
+    startProgress();
     try {
       const data = await apiFetch('/api/database/refresh', { method: 'POST' });
       applyMeta(data.meta);
@@ -128,6 +162,7 @@ async function mount(root) {
       state.referencia.status = 'error';
       state.error = err;
     }
+    finishProgress();
     state.refreshing = false;
     drawButton();
     drawCards();
@@ -141,6 +176,7 @@ async function mount(root) {
           <p class="ph-sub muted">Fuentes de datos de Copernico WMS disponibles para la operación.</p>
         </div>
         <button class="btn btn-primary db-refresh-btn" id="btnRefresh">
+          <span class="db-refresh-btn-tint"></span>
           <span class="db-refresh-btn-fill"></span>
           <span class="db-refresh-btn-content">${icon('refresh', 18)} Actualizar DB</span>
         </button>

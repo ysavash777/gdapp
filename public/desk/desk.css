@@ -139,22 +139,38 @@
 .db-source-metrics { display: flex; gap: var(--sp-5); }
 .db-source-metrics .metric .num { font-size: var(--text-lg); }
 
-/* --- Botón "Actualizar DB": mientras carga, una franja más clara que
-   el fondo del botón recorre de lado a lado en loop (progreso
-   indeterminado, sin número ni %, porque no conocemos el % real de
-   una consulta que corre en Copernico) y el ícono gira sin parar. --- */
+/* --- Botón "Actualizar DB": mientras carga, el botón entero se
+   aclara un escalón (deja claro que está bloqueado, no solo el
+   cursor) y adentro crece un relleno de 0% a ~92% calibrado contra la
+   duración de la última corrida (JS, ver startProgress/finishProgress),
+   sin loop ni número: cuando la corrida real termina, salta a 100%
+   una vez y desaparece. El ícono gira mientras tanto.
+
+   Los dos efectos son overlays propios (spans), no un cambio del
+   background del <button> — Chrome ignora el background por clase
+   de un <button disabled> (solo respeta el suyo propio / inline),
+   así que cambiarle el color al botón en sí nunca se ve. Un overlay
+   blanco translúcido por encima aclara el color real de fondo sin
+   depender de qué color tenga el botón. --- */
 .db-refresh-btn { position: relative; overflow: hidden; }
-.db-refresh-btn-content { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px; }
-.db-refresh-btn-fill { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
-.db-refresh-btn.is-loading .db-refresh-btn-fill {
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.16) 45%, rgba(255, 255, 255, 0.16) 55%, transparent 100%);
-  background-size: 60% 100%;
-  background-repeat: no-repeat;
-  animation: db-refresh-sweep 1.3s ease-in-out infinite;
+.db-refresh-btn-content { position: relative; z-index: 2; display: inline-flex; align-items: center; gap: 8px; }
+.db-refresh-btn-tint {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.14);
+  opacity: 0;
+  transition: opacity 160ms ease;
 }
-@keyframes db-refresh-sweep {
-  0% { background-position: -60% 0; }
-  100% { background-position: 160% 0; }
+.db-refresh-btn.is-loading .db-refresh-btn-tint { opacity: 1; }
+.db-refresh-btn-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 0%;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.22);
 }
 .db-refresh-btn.is-loading .db-refresh-btn-content svg { animation: db-icon-spin 900ms linear infinite; }
 @keyframes db-icon-spin { to { transform: rotate(360deg); } }
