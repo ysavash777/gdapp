@@ -1,14 +1,16 @@
 /* ============================================================
    Módulo Desk · Bases de datos
-   Una tarjeta por fuente de datos. Hoy solo "Referencia" funciona
-   (dispara/consulta el motor de server/services/inventory-engine.js);
-   Variables, Coordenadas y Líneas picking son la misma tarjeta sin
-   acción real todavía, para que la pantalla ya muestre la forma final.
+   Un solo botón "Actualizar DB" para todas las fuentes — hoy solo
+   dispara el motor de "Referencia" (server/services/inventory-engine.js)
+   porque es la única configurada, pero el control es uno solo para
+   toda la pantalla: cuando Variables/Coordenadas/Líneas picking tengan
+   su propio motor, este mismo botón las va a disparar a todas.
 
-   Nunca se muestran las filas traídas acá — solo la cantidad y el
-   horario de actualización (el detalle de los datos vive del lado
-   del servidor, listo para consultarse desde otro módulo el día que
-   haga falta, sin que el navegador tenga que cargarlo).
+   Cada tarjeta es solo una vidriera de estado (ícono, sin texto) —
+   nunca tienen su propia acción. Tampoco se muestran las filas
+   traídas acá, solo la cantidad y el horario (el detalle vive en el
+   servidor, listo para consultarse desde otro módulo sin que el
+   navegador tenga que cargarlo).
    ============================================================ */
 
 import { icon } from '/shared/js/icons.js';
@@ -24,6 +26,7 @@ const ERROR_MESSAGES = {
   LOGIN_FAILED: 'No se pudo iniciar sesión en Copernico.',
   FETCH_FAILED: 'Copernico no devolvió los datos de referencia.',
   NETWORK: 'No se pudo conectar con Copernico. Revisá la conexión.',
+  TIMEOUT: 'Copernico no respondió a tiempo. Probá de nuevo en un momento.',
   FORBIDDEN: 'No tienes permiso para esta acción.',
   UNAUTHORIZED: 'Tu sesión expiró. Vuelve a iniciar sesión.',
 };
@@ -58,40 +61,75 @@ export function render(outlet) {
 
 async function mount(root) {
   const state = {
-    referencia: { status: 'empty', lastUpdatedAt: null, rowCount: 0, refreshing: false, error: null },
+    refreshing: false,
+    error: null,
+    referencia: { status: 'empty', lastUpdatedAt: null, rowCount: 0 },
   };
 
   drawShell();
   await loadStatus();
 
+  function applyMeta(meta) {
+    state.referencia.status = meta.status;
+    state.referencia.lastUpdatedAt = meta.lastUpdatedAt;
+    state.referencia.rowCount = meta.rowCount;
+  }
+
   async function loadStatus() {
+    let running = false;
     try {
       const data = await apiFetch('/api/database/status');
-      state.referencia.status = data.meta.status;
-      state.referencia.lastUpdatedAt = data.meta.lastUpdatedAt;
-      state.referencia.rowCount = data.meta.rowCount;
+      applyMeta(data.meta);
+      running = data.running;
     } catch {
       // Sin conexión al status: se queda con el último estado local
       // conocido (por defecto "Sin datos") en vez de romper la vista.
     }
     drawCards();
+    if (running) {
+      // Alguien más (otra pestaña/persona) ya disparó una corrida —
+      // el botón se muestra ocupado igual, en vez de dejar pensar que
+      // se puede tocar de nuevo, y se refleja cuando esa corrida ajena
+      // termine. Nunca dispara una corrida nueva por su cuenta.
+      state.refreshing = true;
+      drawButton();
+      await pollUntilDone();
+    } else {
+      drawButton();
+    }
+  }
+
+  async function pollUntilDone() {
+    while (root.isConnected) {
+      await new Promise((r) => setTimeout(r, 2000));
+      if (!root.isConnected) return;
+      try {
+        const data = await apiFetch('/api/database/status');
+        if (!data.running) { applyMeta(data.meta); break; }
+      } catch {
+        break;
+      }
+    }
+    state.refreshing = false;
+    drawButton();
+    drawCards();
   }
 
   async function handleRefresh() {
-    if (state.referencia.refreshing) return;
-    state.referencia.refreshing = true;
-    state.referencia.error = null;
+    if (state.refreshing) return;
+    state.refreshing = true;
+    state.error = null;
+    drawButton();
     drawCards();
     try {
       const data = await apiFetch('/api/database/refresh', { method: 'POST' });
-      state.referencia.status = data.meta.status;
-      state.referencia.lastUpdatedAt = data.meta.lastUpdatedAt;
-      state.referencia.rowCount = data.meta.rowCount;
+      applyMeta(data.meta);
     } catch (err) {
       state.referencia.status = 'error';
-      state.referencia.error = err;
+      state.error = err;
     }
-    state.referencia.refreshing = false;
+    state.refreshing = false;
+    drawButton();
     drawCards();
   }
 
@@ -102,30 +140,33 @@ async function mount(root) {
           <h1>Bases de datos</h1>
           <p class="ph-sub muted">Fuentes de datos de Copernico WMS disponibles para la operación.</p>
         </div>
+        <button class="btn btn-primary db-refresh-btn" id="btnRefresh">
+          <span class="db-refresh-btn-fill"></span>
+          <span class="db-refresh-btn-content">${icon('refresh', 18)} Actualizar DB</span>
+        </button>
       </div>
+      <p class="form-error" id="refreshError" style="display:none;"></p>
       <div class="db-source-grid" id="sourceGrid"></div>
     `;
+    root.querySelector('#btnRefresh').addEventListener('click', handleRefresh);
+  }
+
+  function drawButton() {
+    const btn = root.querySelector('#btnRefresh');
+    if (!btn) return;
+    btn.disabled = state.refreshing;
+    btn.classList.toggle('is-loading', state.refreshing);
+
+    const errEl = root.querySelector('#refreshError');
+    if (errEl) {
+      errEl.textContent = state.error ? errorMessage(state.error) : '';
+      errEl.style.display = state.error ? '' : 'none';
+    }
   }
 
   function sourceCardHTML(src) {
-    if (!src.active) {
-      return `
-        <div class="card db-source-card" data-key="${src.key}">
-          <div class="db-source-head">
-            <div class="db-source-name">
-              <div class="tc-icon-sm">${icon(src.icon, 18)}</div>
-              <h3>${src.label}</h3>
-            </div>
-            <div class="db-status-icon is-empty" title="${STATUS_ICON.empty.title}">${icon(STATUS_ICON.empty.name, 16)}</div>
-          </div>
-          <button class="btn btn-ghost btn-block" data-action="stub">${icon('refresh', 16)} Actualizar</button>
-        </div>
-      `;
-    }
-
-    const s = state.referencia;
-    const busy = s.refreshing;
-    const st = STATUS_ICON[busy ? 'empty' : s.status] || STATUS_ICON.empty;
+    const s = src.active ? state.referencia : { status: 'empty', lastUpdatedAt: null, rowCount: 0 };
+    const st = STATUS_ICON[s.status] || STATUS_ICON.empty;
     const hasData = s.rowCount > 0;
 
     return `
@@ -135,9 +176,7 @@ async function mount(root) {
             <div class="tc-icon-sm">${icon(src.icon, 18)}</div>
             <h3>${src.label}</h3>
           </div>
-          <div class="db-status-icon ${st.cls}" title="${busy ? 'Actualizando…' : st.title}">
-            ${icon(busy ? 'refresh' : st.name, 16)}
-          </div>
+          <div class="db-status-icon ${st.cls}" title="${st.title}">${icon(st.name, 16)}</div>
         </div>
         <div class="db-source-metrics">
           <div class="metric">
@@ -149,10 +188,6 @@ async function mount(root) {
             <span class="lbl">Actualizado</span>
           </div>
         </div>
-        ${s.error ? `<p class="form-error" style="margin:0;">${escapeHtml(errorMessage(s.error))}</p>` : ''}
-        <button class="btn btn-primary btn-block" data-action="refresh" ${busy ? 'disabled' : ''}>
-          ${icon('refresh', 16)} ${busy ? 'Actualizando…' : 'Actualizar'}
-        </button>
       </div>
     `;
   }
@@ -161,23 +196,5 @@ async function mount(root) {
     const grid = root.querySelector('#sourceGrid');
     if (!grid) return;
     grid.innerHTML = SOURCES.map(sourceCardHTML).join('');
-
-    grid.querySelector('[data-key="referencia"] [data-action="refresh"]')
-      ?.addEventListener('click', handleRefresh);
-
-    grid.querySelectorAll('[data-action="stub"]').forEach((btn) => {
-      btn.addEventListener('click', () => showToast('Esta fuente estará disponible próximamente.'));
-    });
-  }
-
-  function showToast(text) {
-    const old = document.getElementById('dbToast');
-    if (old) old.remove();
-    const toast = document.createElement('div');
-    toast.id = 'dbToast';
-    toast.className = 'exit-toast';
-    toast.textContent = text;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 2200);
   }
 }

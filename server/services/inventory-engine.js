@@ -73,7 +73,7 @@ function readKnownUid() {
 }
 
 function rememberUid(uid) {
-  if (!uid) return;
+  if (uid == null) return;
   try {
     fs.mkdirSync(path.dirname(UID_FILE), { recursive: true });
     fs.writeFileSync(UID_FILE, JSON.stringify({ uid }));
@@ -102,8 +102,11 @@ async function loginWithRecovery() {
     if (err.code !== 'ALREADY_LOGGED_IN') throw err;
 
     const stale = readLock();
-    const recoveryUid = stale?.uid || readKnownUid();
-    if (recoveryUid) {
+    // ?? en vez de || : un uid real de 0 es improbable pero sería un
+    // valor válido, y || lo descartaría por "falsy" como si no hubiera
+    // ninguno guardado.
+    const recoveryUid = stale?.uid ?? readKnownUid();
+    if (recoveryUid != null) {
       await copernico.logout(stale?.token, recoveryUid);
     }
     const session = await copernico.login(config.COPERNICO_EMAIL, config.COPERNICO_PASSWORD);
@@ -133,6 +136,7 @@ async function refresh() {
       }
 
       if (session) {
+        const loggedInAt = Date.now();
         // A partir de acá ya consumimos una licencia — el lock queda
         // escrito hasta el logout final, incluso si el fetch falla,
         // para que una corrida futura pueda detectar y liberar esta
@@ -141,12 +145,21 @@ async function refresh() {
 
         try {
           const rawRows = await copernico.fetchReferencia(session.token, config.COPERNICO_BODEGA);
+          const fetchedAt = Date.now();
           const meta = inventoryStore.replaceAll(rawRows, {
             bodega: config.COPERNICO_BODEGA,
-            durationMs: Date.now() - startedAt,
+            durationMs: fetchedAt - startedAt,
           });
+          // Diagnóstico de dónde se va el tiempo — la duración total
+          // depende casi por completo del login+consulta contra el
+          // servidor de Copernico (fuera de nuestro control); esto lo
+          // deja visible en los logs en vez de ser una suposición.
+          console.log(
+            `[inventory-engine] login: ${loggedInAt - startedAt}ms · consulta: ${fetchedAt - loggedInAt}ms · total: ${fetchedAt - startedAt}ms · filas: ${rawRows.length}`
+          );
           result = { ok: true, meta };
         } catch (err) {
+          console.log(`[inventory-engine] login: ${loggedInAt - startedAt}ms · consulta falló a los: ${Date.now() - loggedInAt}ms · error: ${err.code || 'FETCH_FAILED'}`);
           result = { ok: false, error: err.code || 'FETCH_FAILED', message: err.message };
         }
       }

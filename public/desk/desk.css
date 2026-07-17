@@ -128,8 +128,36 @@
 .db-status-icon.is-error { background: var(--danger-bg); color: var(--danger); }
 .db-status-icon.is-empty { background: var(--n-100); color: var(--ink-3); }
 
+/* El tic verde "entra" con un pequeño rebote en vez de aparecer de
+   golpe — sutil, una sola vez por render, nada en loop. */
+.db-status-icon.is-ok svg { animation: db-check-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes db-check-pop {
+  from { transform: scale(0.5); opacity: 0.3; }
+  to { transform: scale(1); opacity: 1; }
+}
+
 .db-source-metrics { display: flex; gap: var(--sp-5); }
 .db-source-metrics .metric .num { font-size: var(--text-lg); }
+
+/* --- Botón "Actualizar DB": mientras carga, una franja más clara que
+   el fondo del botón recorre de lado a lado en loop (progreso
+   indeterminado, sin número ni %, porque no conocemos el % real de
+   una consulta que corre en Copernico) y el ícono gira sin parar. --- */
+.db-refresh-btn { position: relative; overflow: hidden; }
+.db-refresh-btn-content { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px; }
+.db-refresh-btn-fill { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.db-refresh-btn.is-loading .db-refresh-btn-fill {
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.16) 45%, rgba(255, 255, 255, 0.16) 55%, transparent 100%);
+  background-size: 60% 100%;
+  background-repeat: no-repeat;
+  animation: db-refresh-sweep 1.3s ease-in-out infinite;
+}
+@keyframes db-refresh-sweep {
+  0% { background-position: -60% 0; }
+  100% { background-position: 160% 0; }
+}
+.db-refresh-btn.is-loading .db-refresh-btn-content svg { animation: db-icon-spin 900ms linear infinite; }
+@keyframes db-icon-spin { to { transform: rotate(360deg); } }
 
 /* --- Aviso flotante breve (p. ej. "disponible próximamente") --- */
 .exit-toast {
