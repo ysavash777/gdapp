@@ -1,5 +1,7 @@
 /* ============================================================
-   Mapear · Selector de motor de escaneo.
+   App · Selector de motor de escaneo — compartido por cualquier
+   herramienta que escanee códigos con la cámara (Mapear, Consultar
+   grupo, y las que vengan), a través de scanner/camera.js.
 
    Dos motores, cada uno en su propio archivo para poder debuguearlos
    por separado sin pisarse:
@@ -7,7 +9,7 @@
      ios-engine.js        ZXing por software (iOS Safari, que no tiene
                           BarcodeDetector)
 
-   editor-view.js no sabe cuál de los dos está corriendo: solo pide
+   Quien lo use no sabe cuál de los dos está corriendo: solo pide
    pickEngine() y usa el resultado a través del mismo contrato
    (detectFrame(videoEl) → código o null). Así, si un motor falla, el
    otro archivo ni se toca.

@@ -34,7 +34,7 @@ import { renderAuth } from '/shared/js/auth-view.js';
 import * as mapear from '/app/modules/mapear/index.js';
 import * as negadas from '/app/modules/negadas.js';
 import * as vacios from '/app/modules/vacios.js';
-import * as consultas from '/app/modules/consultas.js';
+import * as consultas from '/app/modules/consultas/index.js';
 
 const TOOLS = {
   consultas: { ...consultas, icon: 'search' },

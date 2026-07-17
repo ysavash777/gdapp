@@ -1,19 +1,11 @@
 /* ============================================================
-   Módulo App · Mapear — formato y catálogo de condición,
-   compartidos entre list-view.js y editor-view.js.
+   Módulo App · Mapear — catálogo de condición, compartido entre
+   list-view.js y editor-view.js. El formato genérico (fecha/hora,
+   escape de HTML) vive en /shared/js/format.js y se reexporta acá
+   para no tener que tocar los imports existentes.
    ============================================================ */
 
-export function formatDateTime(ts) {
-  return new Date(ts).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
-
-export function formatTime(ts) {
-  return new Date(ts).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
-export function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
+export { formatDateTime, formatTime, escapeHtml } from '/shared/js/format.js';
 
 // Condición del producto encontrado al escanear (rotura, conteo de
 // unidades, vencimiento u otro motivo) — no es un estado del mapeo,

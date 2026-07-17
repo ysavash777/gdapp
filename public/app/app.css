@@ -985,6 +985,49 @@ html, body {
   max-width: 100%;
 }
 
+/* --- Consultar grupo: ficha de solo lectura tras escanear — misma
+   base visual que el sheet de Mapear (reg-sheet/reg-info-grid), sin
+   motivo/cantidad porque acá no hay nada que confirmar. --- */
+.cq-desc { display: flex; flex-direction: column; gap: 3px; }
+.cq-desc-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.cq-desc-value { font-size: var(--text-sm); color: var(--ink); line-height: 1.4; }
+.cq-locations { display: flex; flex-direction: column; gap: var(--sp-2); }
+.cq-locations-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.cq-location-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.cq-location-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: var(--text-sm);
+}
+.cq-location-chip.is-empty { color: var(--ink-3); font-weight: 600; }
+
+/* El estado inicial ("apuntá y escaneá") ocupa el resto del sheet,
+   centrado, en vez de quedar pegado arriba con un hueco vacío abajo. */
+.cq-idle { flex: 1; justify-content: center; }
+
 /* Vencimiento y Cantidad van en el mismo tipo de contenedor que los
    datos del producto (.reg-info-grid): celdas centradas separadas por
    una línea, sin inputs con borde propio — "Listo" ocupa el ancho

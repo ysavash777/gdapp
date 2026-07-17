@@ -6,7 +6,7 @@
    frame "a mano" con la librería ZXing (github.com/zxing-js), la
    misma que usan la mayoría de los escáneres web robustos para este
    caso. Se carga solo cuando este motor se selecciona (ver
-   scan-engines/index.js) — nunca se descarga en Android.
+   scanner/engines/index.js) — nunca se descarga en Android.
 
    El bundle usado acá (/shared/js/vendor/zxing.bundle.js) es un
    empaquetado propio de @zxing/browser + @zxing/library en un único

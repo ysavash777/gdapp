@@ -18,21 +18,20 @@
    al registrar un código nuevo — al reabrir uno existente para
    editarlo, nunca se mueve el foco solo.
 
-   La lectura del código corre sobre uno de dos motores intercambiables
-   (ver scan-engines/): BarcodeDetector nativo en Android/Chrome, o
-   ZXing por software en iOS Safari (que no tiene esa API). Este
-   archivo no sabe cuál de los dos está activo — solo pide uno con
-   pickEngine() y lo usa siempre igual (detectFrame(videoEl)).
+   La cámara y la lectura del código (dos motores intercambiables:
+   BarcodeDetector nativo en Android/Chrome, o ZXing por software en
+   iOS Safari) corren sobre scanner/camera.js, compartido con
+   Consultar grupo — este archivo no sabe cuál motor está activo, ni
+   maneja el stream: solo escucha los códigos que le llegan por
+   onCode.
    ============================================================ */
 
 import { icon } from '/shared/js/icons.js';
 import * as store from './store.js';
 import { escapeHtml, CONDITIONS, conditionLabel } from './format.js';
 import { currentUser } from '/shared/js/session.js';
-import { pickEngine } from './scan-engines/index.js';
+import { createCameraScanner } from '../../scanner/camera.js';
 
-const DETECT_INTERVAL_MS = 350;
-const SAME_CODE_DEBOUNCE_MS = 1200;
 const GENERIC_DESCRIPTION = 'Producto sin descripción';
 
 // Se recuerda entre registros (no entre sesiones) quién fue el último
@@ -183,15 +182,6 @@ export async function openEditor({ mapeoId, title, onClose }) {
   const manualToggle = overlay.querySelector('#manualToggle');
 
   let codes = mapeo.codes;
-  let stream = null;
-  let track = null;
-  let torchOn = false;
-  let cameraOn = false;
-  let engine = null;
-  let detectTimer = null;
-  let lastCode = null;
-  let lastAt = 0;
-  let detectionPaused = false;
   let closed = false;
   let activeFilter = '';
   let searchQuery = '';
@@ -230,16 +220,11 @@ export async function openEditor({ mapeoId, title, onClose }) {
     renderCodes();
   }
 
-  // El debounce por "mismo código" es solo para la cámara: mientras un
-  // código sigue en cuadro, el loop de detección lo vuelve a leer cada
-  // ciclo y no hay que reingresarlo. El ingreso manual es una acción
-  // deliberada del usuario — siempre se registra, aunque sea el mismo
-  // código que el último.
-  async function registerCode(rawValue, { debounce = false } = {}) {
-    const now = Date.now();
-    if (debounce && rawValue === lastCode && now - lastAt < SAME_CODE_DEBOUNCE_MS) return;
-    lastCode = rawValue;
-    lastAt = now;
+  // El ingreso manual es una acción deliberada del usuario — siempre
+  // se registra, aunque sea el mismo código que el último (a
+  // diferencia de la cámara, que debounce internamente en
+  // scanner/camera.js mientras un código sigue en cuadro).
+  async function registerCode(rawValue) {
     // Si quedó una búsqueda abierta, no debe tapar ni confundirse con
     // la ventana de registro que está por abrirse.
     closeSearch();
@@ -250,88 +235,10 @@ export async function openEditor({ mapeoId, title, onClose }) {
     openRegisterSheet(codes.find((c) => c.id === updated.codes.at(-1).id), { isNew: true });
   }
 
-  function showHint(text) {
-    hintEl.textContent = text;
-    hintEl.hidden = false;
-  }
-
-  async function startCamera() {
-    hintEl.hidden = true;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      });
-    } catch {
-      showHint('No se pudo acceder a la cámara. Usá el ingreso manual.');
-      return;
-    }
-    if (closed) {
-      stream.getTracks().forEach((t) => t.stop());
-      return;
-    }
-    cameraOn = true;
-
-    videoEl.srcObject = stream;
-    track = stream.getVideoTracks()[0];
-    const caps = track.getCapabilities ? track.getCapabilities() : {};
-    torchBtn.hidden = !caps.torch;
-
-    try {
-      engine = await pickEngine();
-    } catch {
-      engine = null;
-    }
-    if (!engine) {
-      showHint('Este dispositivo no soporta lectura automática. Usá el ingreso manual.');
-      return;
-    }
-
-    detectTimer = setInterval(async () => {
-      if (closed || detectionPaused || !engine) return;
-      const code = await engine.detectFrame(videoEl);
-      if (code) await registerCode(code, { debounce: true });
-    }, DETECT_INTERVAL_MS);
-  }
-
-  function stopCamera() {
-    cameraOn = false;
-    clearInterval(detectTimer);
-    detectTimer = null;
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
-      stream = null;
-    }
-    track = null;
-  }
-
-  // Tocar el recuadro de la cámara la apaga/prende por completo — un
-  // escape a mano para resolver bugs de cámara sin reiniciar la app,
-  // sin exponer un botón dedicado para algo que no se usa seguido.
-  cameraBox.addEventListener('click', () => {
-    if (cameraOn) {
-      stopCamera();
-      // Solo frena la animación de la línea de escaneo — nada más del
-      // recuadro (video, gradiente) cambia por apagar la cámara a mano.
-      cameraBox.classList.add('is-off');
-      showHint('Cámara apagada. Tocá para reactivarla.');
-    } else {
-      cameraBox.classList.remove('is-off');
-      startCamera();
-    }
+  const scanner = createCameraScanner({
+    videoEl, cameraBox, torchBtn, hintEl,
+    onCode: (code) => registerCode(code),
   });
-
-  // Mientras la ventana de registro está abierta, la cámara se ve
-  // "apagada" (video congelado, sin barra) para no distraer — sin
-  // soltar el stream, así se reanuda al instante al cerrarla.
-  function pauseCameraView() {
-    videoEl.pause();
-    cameraBox.classList.add('is-paused');
-  }
-  function resumeCameraView() {
-    cameraBox.classList.remove('is-paused');
-    if (cameraOn) videoEl.play().catch(() => {});
-  }
 
   // La ventana flotante de registro vive fuera de `overlay` (en
   // document.body, para poder tapar toda la pantalla) — si el editor
@@ -355,7 +262,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
       if (activeSheetDiscard) activeSheetDiscard();
     }
     document.removeEventListener('click', onDocClick);
-    stopCamera();
+    scanner.destroy();
     window.removeEventListener('popstate', onPopState);
     overlay.remove();
     if (!closedByPop) history.back();
@@ -363,19 +270,6 @@ export async function openEditor({ mapeoId, title, onClose }) {
   }
 
   overlay.querySelector('#editorClose').addEventListener('click', close);
-
-  async function setTorch(on) {
-    if (!track || torchOn === on) return;
-    try {
-      await track.applyConstraints({ advanced: [{ torch: on }] });
-      torchOn = on;
-      torchBtn.classList.toggle('is-active', torchOn);
-    } catch {
-      /* el navegador anunció soporte pero no lo aplicó */
-    }
-  }
-
-  torchBtn.addEventListener('click', () => setTorch(!torchOn));
 
   // Filtro por motivo: menú chico anclado al ícono, cierra al elegir
   // una opción o al tocar fuera.
@@ -439,9 +333,9 @@ export async function openEditor({ mapeoId, title, onClose }) {
   });
 
   function openRegisterSheet(entry, { isNew }) {
-    detectionPaused = true;
-    setTorch(false);
-    pauseCameraView();
+    scanner.setPaused(true);
+    scanner.setTorch(false);
+    scanner.pauseView();
 
     const backdrop = document.createElement('div');
     backdrop.className = 'reg-sheet-backdrop';
@@ -659,8 +553,8 @@ export async function openEditor({ mapeoId, title, onClose }) {
 
     function cleanupSheet() {
       backdrop.remove();
-      detectionPaused = false;
-      resumeCameraView();
+      scanner.setPaused(false);
+      scanner.resumeView();
       activeSheetBackdrop = null;
       activeSheetDiscard = null;
     }
@@ -716,5 +610,5 @@ export async function openEditor({ mapeoId, title, onClose }) {
   }
 
   renderCodes();
-  startCamera();
+  scanner.start();
 }

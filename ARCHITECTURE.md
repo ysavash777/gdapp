@@ -53,20 +53,14 @@ public/
     manifest.webmanifest   Manifiesto PWA (start_url /app).
     sw.js                  Service worker (cache básico app-shell).
     icons/icon.png         Icono de la app (favicon, ícono de instalación PWA y splash al abrirla).
-    modules/mapear/        Herramienta Mapear (escáner de cámara), dividida por pantalla. Un mapeo no
-                           tiene estado "finalizado": título y contenido se pueden reeditar siempre.
-      index.js               Entrada (title, description, render) — solo orquesta list-view/editor-view.
-      store.js                Datos, hoy en memoria pero con forma de API (list/get/create/rename/remove/
-                               addCode/updateCode/removeCode, todas async) — cuando exista
-                               server/routes/mapeos.js (validando el código contra esa base al escanear),
-                               solo se reescribe este archivo.
-      list-view.js             Listado de mapeos + menú de opciones por fila (renombrar, descargar —
-                               pendiente de implementar—, eliminar con confirmación).
-      editor-view.js            Escáner de cámara + edición de un mapeo, nuevo o existente: cada código
-                               tiene cantidad, condición (rotura/unidades/vencido/otro) y descripción
-                               editables, con ingreso manual como respaldo. La lectura del código no
-                               decodifica nada por su cuenta — se la delega a scan-engines/.
-      scan-engines/             Dos motores de lectura intercambiables, cada uno en su archivo:
+    scanner/                Cámara + lectura de códigos, compartido por cualquier herramienta que
+                           escanee (hoy Mapear y Consultar grupo) — para no duplicar el manejo de
+                           stream/torch/loop de detección en cada una.
+      camera.js               createCameraScanner(): stream de cámara, torch, pausar/reanudar vista,
+                               loop de detección con debounce por "mismo código" — expone
+                               start/destroy/pauseView/resumeView/setPaused/setTorch. Quien lo usa solo
+                               recibe códigos ya leídos por onCode(rawValue).
+      engines/                Dos motores de lectura intercambiables, cada uno en su archivo:
         index.js                  pickEngine() elige uno según la plataforma y lo cachea.
         android-engine.js         BarcodeDetector nativo (Chrome/Edge/Android) — sin dependencias.
         ios-engine.js             ZXing por software para iOS Safari (no tiene BarcodeDetector),
@@ -74,10 +68,30 @@ public/
                                  Usa /shared/js/vendor/zxing.bundle.js — bundle propio generado con
                                  `npm run build:zxing` (ver build/zxing-entry.js), comiteado como
                                  cualquier otro estático porque el resto de la app no tiene build step.
-      format.js                 Fecha/hora, catálogo de condición y utilidades compartidas.
+    modules/mapear/         Herramienta Mapear, dividida por pantalla. Un mapeo no tiene estado
+                           "finalizado": título y contenido se pueden reeditar siempre.
+      index.js               Entrada (title, description, render) — solo orquesta list-view/editor-view.
+      store.js                Datos, hoy en memoria pero con forma de API (list/get/create/rename/remove/
+                               addCode/updateCode/removeCode, todas async) — cuando exista
+                               server/routes/mapeos.js (validando el código contra esa base al escanear),
+                               solo se reescribe este archivo.
+      list-view.js             Listado de mapeos + menú de opciones por fila (renombrar, descargar —
+                               pendiente de implementar—, eliminar con confirmación).
+      editor-view.js            Cámara (vía scanner/camera.js) + edición de un mapeo, nuevo o existente:
+                               cada código tiene cantidad, condición (rotura/unidades/vencido/otro) y
+                               descripción editables, con ingreso manual como respaldo.
+      format.js                 Catálogo de condición — el formato genérico (fecha/hora, escape de
+                               HTML) se reexporta desde /shared/js/format.js.
+    modules/consultas/      Herramienta Consultar grupo: escáner de cámara de solo lectura, sin
+                           listado ni persistencia — cada código escaneado dispara una búsqueda y
+                           muestra el resultado, sin guardar nada.
+      index.js               Entrada — abre el escáner directo, no hay paso intermedio.
+      scanner-view.js          Cámara (vía scanner/camera.js) + ficha de resultado (descripción,
+                               grilla EAN/Referencia/Grupo, ubicaciones de guardado).
+      store.js                 findProduct(code) — hoy siempre devuelve null (sin base conectada);
+                               misma forma que tendrá la API real.
     modules/negadas.js     Herramienta Negadas.
     modules/vacios.js      Herramienta Vacíos.
-    modules/consultas.js   Herramienta Consultas.
 ```
 
 ## Reglas

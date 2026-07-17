@@ -4,7 +4,7 @@
    intenta lo fresco; sin red, sirve lo guardado).
    ============================================================ */
 
-const CACHE = 'gdapp-shell-v4';
+const CACHE = 'gdapp-shell-v5';
 
 const SHELL = [
   '/app',
@@ -19,17 +19,23 @@ const SHELL = [
   '/shared/styles/components.css',
   '/shared/styles/auth.css',
   '/shared/js/icons.js',
+  '/shared/js/format.js',
   '/shared/js/avatars.js',
   '/shared/js/session.js',
   '/shared/js/auth-view.js',
+  '/app/scanner/camera.js',
+  '/app/scanner/engines/index.js',
+  '/app/scanner/engines/android-engine.js',
   '/app/modules/mapear/index.js',
   '/app/modules/mapear/store.js',
   '/app/modules/mapear/list-view.js',
   '/app/modules/mapear/editor-view.js',
   '/app/modules/mapear/format.js',
+  '/app/modules/consultas/index.js',
+  '/app/modules/consultas/store.js',
+  '/app/modules/consultas/scanner-view.js',
   '/app/modules/negadas.js',
   '/app/modules/vacios.js',
-  '/app/modules/consultas.js',
 ];
 
 self.addEventListener('install', (e) => {
