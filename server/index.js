@@ -16,6 +16,7 @@ app.use(deviceRedirect);
 // API
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
+app.use('/api/database', require('./routes/database'));
 
 // Estáticos
 const PUBLIC = path.join(__dirname, '..', 'public');

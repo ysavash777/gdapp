@@ -18,6 +18,26 @@ server/
   routes/auth.js           API: login / logout / me. Sin auto-registro: las cuentas las crea un admin
                            desde Gestión de usuarios. Usa store/users.store.js.
   routes/users.js          API: listar (con búsqueda+paginación), crear, editar, cambiar contraseña, eliminar.
+  routes/database.js       API del módulo Bases de datos: POST /refresh dispara una corrida del motor,
+                           GET /status y GET /rows (paginado+búsqueda+orden) leen el resultado. Exige el
+                           permiso 'basesdatos', no un rol fijo.
+  services/copernico-client.js  Cliente HTTP de bajo nivel contra la API de Copernico WMS (login/consultar
+                           referencia/logout). Clasifica errores de login (LICENSE_LIMIT, ALREADY_LOGGED_IN,
+                           INVALID_CREDENTIALS...) por el texto del mensaje — la API no trae códigos propios.
+  services/inventory-engine.js  Orquesta una corrida completa (login → fetch → logout) con un lock en
+                           memoria + en disco: nunca corren dos corridas en simultáneo y el motor nunca se
+                           auto-invoca — el único disparador es refresh(), llamado por routes/database.js.
+                           Si detecta que quedó una sesión colgada de una corrida anterior (proceso caído a
+                           mitad de camino), la cierra con el uid del lock persistido y reintenta el login
+                           una sola vez — nunca en loop.
+  store/inventory.store.js  Filas del inventario "referencia", genéricas (cada fila guarda las claves que
+                           trajo la API, saneadas a snake_case — no hay un esquema fijo de columnas porque
+                           Copernico puede agregar/renombrar alguna). Vive en memoria + espejo en disco
+                           (server/data/inventory.json, gitignored) para sobrevivir un restart. Cuando exista
+                           Supabase, solo se reescribe replaceAll() para hacer el upsert por lotes ahí — el
+                           resto de la app sigue llamando a list()/getMeta() igual.
+  .env                     COPERNICO_EMAIL / COPERNICO_PASSWORD / COPERNICO_BODEGA del usuario consultor —
+                           gitignored, nunca se envía al navegador. config.js lo carga a mano al arrancar.
 
 public/
   shared/                  Todo lo compartido entre desk y app.
@@ -38,7 +58,10 @@ public/
     desk.js                Router hash + montaje de módulos.
     modules/usuarios.js    Gestión de usuarios (modificar, contraseña, eliminar, permisos).
     modules/mapeos.js      Mapeos.
-    modules/basesdatos.js  Bases de datos.
+    modules/basesdatos.js  Bases de datos: botón "Actualizar DB" (dispara /api/database/refresh),
+                           tarjeta de estado (última actualización, filas, bodega) y una tabla paginada
+                           en servidor de /api/database/rows — el navegador nunca carga las ~12.000 filas
+                           de una sola vez, solo la página visible.
 
   app/                     PWA móvil.
     index.html             Shell HTML (header opcional + outlet).
