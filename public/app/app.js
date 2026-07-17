@@ -186,36 +186,19 @@ function toolCardHTML(key, t) {
   `;
 }
 
-// Sin sesión, la tarjeta bloqueada muestra la herramienta real (icono,
-// título, descripción) en blanco y negro — es una vitrina de lo que
-// existe, para invitar a loguearse. Con sesión ya iniciada, en cambio,
-// "bloqueada" significa que ese usuario no tiene permiso: ahí no se
-// revela qué herramienta es, todo texto e icono se reemplaza por un
-// skeleton estático (sin animación, es un estado permanente, no una
-// carga en curso).
-function lockedCardHTML(t, isUnlocked) {
-  if (isUnlocked) {
-    return `
-      <div class="tool-card is-locked is-skeleton">
-        <div class="tc-top">
-          <div class="tc-icon skeleton-shape"></div>
-        </div>
-        <div class="tc-body">
-          <span class="skeleton-shape skeleton-line skeleton-title"></span>
-          <span class="skeleton-shape skeleton-line"></span>
-          <span class="skeleton-shape skeleton-line is-short"></span>
-        </div>
-      </div>
-    `;
-  }
+// "Bloqueada" nunca revela qué herramienta es (con o sin sesión): todo
+// icono y texto se reemplaza por un skeleton estático (sin animación,
+// es un estado permanente, no una carga en curso).
+function lockedCardHTML() {
   return `
-    <div class="tool-card is-locked">
+    <div class="tool-card is-locked is-skeleton">
       <div class="tc-top">
-        <div class="tc-icon">${icon(t.icon, 18)}</div>
+        <div class="tc-icon skeleton-shape"></div>
       </div>
       <div class="tc-body">
-        <h3>${t.title}</h3>
-        <p>${t.description || ''}</p>
+        <span class="skeleton-shape skeleton-line skeleton-title"></span>
+        <span class="skeleton-shape skeleton-line"></span>
+        <span class="skeleton-shape skeleton-line is-short"></span>
       </div>
     </div>
   `;
@@ -274,7 +257,7 @@ function renderHome() {
   outlet.innerHTML = `
     <div class="home-layout">
       ${enabled.map(([key, t]) => toolCardHTML(key, t)).join('')}
-      ${disabled.map(([, t]) => lockedCardHTML(t, !!user)).join('')}
+      ${disabled.map(() => lockedCardHTML()).join('')}
       ${!user ? `<button class="btn btn-primary btn-block login-cta" id="loginCta">Iniciar sesión</button>` : ''}
       <p class="app-footer">GStock 1.0.0</p>
     </div>
