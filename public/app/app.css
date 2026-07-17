@@ -1006,7 +1006,9 @@ html, body {
 /* El box de ingreso tiene su propio negro (distinto del gris de la
    celda que lo rodea) — así se lee como un campo editable, no como
    texto suelto. El número siempre blanco, nunca cambia de color al
-   enfocar (antes quedaba en azul, poco legible sobre el negro). */
+   enfocar (antes quedaba en azul, poco legible sobre el negro). Sin
+   ningún anillo/borde al enfocar tampoco — solo el cursor titilando,
+   nada más marca que el campo está activo. */
 .reg-field-input {
   width: 100%;
   text-align: center;
@@ -1020,7 +1022,7 @@ html, body {
   letter-spacing: 0.02em;
   padding: 9px 4px;
 }
-.reg-field-input:focus { box-shadow: 0 0 0 3px var(--accent-100); }
+.reg-field-input:focus { box-shadow: none; }
 
 /* Vencimiento son 3 inputs reales (DD, MM, AA) — cada uno con su
    propio foco y validación — pero comparten un mismo box negro
