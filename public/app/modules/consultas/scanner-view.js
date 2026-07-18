@@ -116,18 +116,6 @@ export function openScanner() {
     return 'is-sm';
   }
 
-  // El rango solo tiene que decir "pasillo + módulo" (ej. "MFCA30",
-  // "B40"), nunca la posición/piso completo (ej. "MFCA300104",
-  // "B400101") — mostrar hasta el módulo ya deja claro qué tramo
-  // cubre, sin la posición exacta que la ubicación SUGERIDA sí
-  // necesita completa. El formato real es prefijo de letras + 6
-  // dígitos, donde los primeros 2 son el módulo — si no matchea (dato
-  // con otra forma), se muestra tal cual en vez de romper.
-  function simplifyLocation(loc) {
-    const m = String(loc).match(/^(\D+)(\d{2})/);
-    return m ? `${m[1]}${m[2]}` : loc;
-  }
-
   // Todos los chips de ubicación miden lo mismo sin importar cuántos
   // caracteres tengan ("B4" vs "MFCA58") — se achica la fuente en vez
   // de dejar que la caja crezca, para que la fila de rangos quede
@@ -270,9 +258,9 @@ export function openScanner() {
               ${ranges.map((r) => `
                 <div class="cq-aisle-row">
                   <span class="cq-level-tag cq-level-tag--${r.level === 'Picking' ? 'picking' : 'altura'}">${r.level}</span>
-                  ${chipHTML(simplifyLocation(r.from))}
+                  ${chipHTML(r.from)}
                   <span class="cq-range-arrow">${icon('arrowRight', 15)}</span>
-                  ${chipHTML(simplifyLocation(r.to))}
+                  ${chipHTML(r.to)}
                 </div>
               `).join('')}
             </div>

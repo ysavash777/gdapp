@@ -49,22 +49,25 @@ server/
                            GRUPO" — ese valor cubre 8000+ productos y cruzarlo daría un rango sin sentido),
                            cruza contra Coordenadas por la columna "tipo_producto" (confirmado con datos
                            reales que es el mismo código de grupo/familia que "codgrupoprm" de Variables) —
-                           agrupa las ubicaciones de ese grupo por "pasillo" (aisleOf(): el prefijo sin
-                           dígitos, ej. "B" en "B400101" — un mismo grupo casi siempre vive en varios
-                           pasillos no contiguos, confirmado con datos reales: BEB1 está repartido en B/C/D/E)
-                           Y ADEMÁS por nivel EXACTO (levelOf(): columna "piso", "01"/"1"/"00" es Picking, cada
-                           piso de estantería de ahí en más es su propio "Nivel N" — nunca un "Altura"
-                           genérico que los mezcle: confirmado con datos reales que el grupo "PM" reparte su
-                           mismo pasillo en 5 pisos distintos, cada uno a una altura física distinta) y
-                           devuelve solo el extremo de abajo y el de arriba DE CADA COMBINACIÓN PASILLO+NIVEL
-                           (nunca la lista completa, que puede ser 1500+, ni un solo rango que mezclaría
-                           picking con cualquier nivel o dos niveles entre sí), en orden "natural" (ver
-                           naturalCompare — un sort alfabético puro rompe con ubicaciones de distinto largo
-                           dentro de un mismo pasillo, ej. "FMFCAU" tiene códigos de 10 y 11 caracteres), más
-                           hasta DOS ubicaciones sugeridas — una para Picking y otra para Altura (la mejor
-                           entre TODOS los niveles de estantería combinados, no una por cada Nivel N exacto):
-                           la del grupo con menos filas de Referencia encima en cada categoría (la mejor
-                           aproximación disponible a "más vacía" con los datos que hay conectados). Exige el
+                           agrupa las ubicaciones de ese grupo por PASILLO Y NIVEL usando las columnas REALES
+                           de Coordenadas, nunca cortando la ubicación completa por regex: "fila_piso" es el
+                           pasillo (pese al nombre confuso — no es una fila numérica, ej. "MFCA" o "B"),
+                           "columna_piso" es el módulo, y "piso" es el nivel (levelOf(): "01"/"1"/"00" es
+                           Picking, cada piso de estantería de ahí en más es su propio "Nivel N" — nunca un
+                           "Altura" genérico que los mezcle: confirmado con datos reales que el grupo "PM"
+                           reparte su mismo pasillo en 5 pisos distintos). Bug real ya corregido: el ancho de
+                           columna_piso VARÍA por pasillo (2 dígitos para "B"/"PM", 3 para "MFCA" —
+                           confirmado con datos reales: "089"/"091"/"024") — la primera versión asumía
+                           siempre 2 dígitos y cortaba mal los módulos de 3 (mostraba "MFCA09" en vez de
+                           "MFCA095"); ahora usa columna_piso directo, sin adivinar. aisleRanges() devuelve
+                           solo el extremo de abajo y el de arriba (columna_piso comparada como número, no
+                           como texto) DE CADA COMBINACIÓN PASILLO+NIVEL (nunca la lista completa, que puede
+                           ser 1500+, ni un solo rango que mezclaría picking con cualquier nivel o dos niveles
+                           entre sí), más hasta DOS ubicaciones sugeridas — una para Picking y otra para
+                           Altura (la mejor entre TODOS los niveles de estantería combinados, no una por cada
+                           Nivel N exacto): la del grupo con menos filas de Referencia encima en cada
+                           categoría (la mejor aproximación disponible a "más vacía" con los datos que hay
+                           conectados), con la posición COMPLETA (ubicacion) sin tocar. Exige el
                            permiso 'consultas'.
   services/copernico-client.js  Cliente HTTP de bajo nivel contra la API de Copernico WMS: login/logout +
                            fetchDataset() genérico (usado por fetchReferencia/fetchCoordenadas/fetchVariables,
@@ -255,14 +258,16 @@ public/
                                pisos de estantería distintos, ej. Nivel 2 y Nivel 3, mandan cada uno su
                                propia fila — confirmado con datos reales, ej. el grupo "PM" reparte su mismo
                                pasillo en 5 pisos, cada uno a una altura física distinta), cada fila con su
-                               propio extremo de abajo -> de arriba SIMPLIFICADO a pasillo+módulo
-                               (simplifyLocation(), ej. "MFCA300104" -> "MFCA30" — al rango solo le hace
-                               falta decir qué tramo cubre, no la posición exacta), su etiqueta
-                               Picking/Nivel N y un ícono de flecha real (arrowRight) — nunca la lista
-                               completa. Los chips de ubicación (.cq-location-chip) tienen ancho FIJO (no
-                               mínimo): chipSizeClass() achica la fuente en escalones is-md/is-sm en vez de
-                               dejar crecer la caja, para que dos chips de distinto largo ("B4" vs "MFCA58")
-                               midan exactamente lo mismo. Todo ese cálculo vive server-side en
+                               propio extremo de abajo -> de arriba ya simplificado a pasillo+módulo (el
+                               server lo manda armado con fila_piso+columna_piso — el front ya no adivina
+                               nada por regex, así que un ancho de módulo de 2 o 3 dígitos nunca se corta
+                               mal), su etiqueta Picking/Nivel N y un ícono de flecha real (arrowRight) —
+                               nunca la lista completa. Los chips de ubicación (.cq-location-chip) tienen
+                               ancho FIJO (no mínimo, y `flex: 0 0 64px` — sin eso, flex-shrink:1 por defecto
+                               deja que el contenido empuje el ancho más allá del fijo): chipSizeClass()
+                               achica la fuente en escalones is-md/is-sm en vez de dejar crecer la caja, para
+                               que dos chips de distinto largo ("B4" vs "MFCA095") midan exactamente lo
+                               mismo. Todo ese cálculo vive server-side en
                                routes/consultas.js.
                                El sheet se abre AL TOQUE, con placeholders tipo "hueso" (.cq-skeleton, con
                                shimmer) en cada campo — el cruce contra Coordenadas/Referencia no es

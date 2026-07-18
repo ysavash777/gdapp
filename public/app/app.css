@@ -1064,8 +1064,10 @@ html, body {
   align-items: center;
   justify-content: center;
   width: 64px;
+  flex: 0 0 64px; /* dentro de .cq-aisle-row (flex): sin esto, flex-shrink:1 por defecto deja que el contenido de texto empuje el ancho más allá de los 64px fijos */
   height: 30px;
   padding: 0 6px;
+  box-sizing: border-box;
   border-radius: var(--r-md);
   background: var(--surface-2);
   color: var(--ink);
