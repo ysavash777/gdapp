@@ -12,6 +12,7 @@
 const LOGIN_URL = 'https://services.copernicowms.com/users/api/login';
 const LOGOUT_URL = 'https://services.copernicowms.com/users/api/logout';
 const REFERENCIA_URL = 'https://services.copernicowms.com/backweb25/inventario/obtenerrefsxcaja';
+const COORDENADAS_URL = 'https://services.copernicowms.com/backweb25/layout/coordenadas';
 
 // Sin esto, un fetch que Copernico deja "colgado" sin responder nunca
 // falla ni se resuelve — el motor quedaría marcado como "corriendo"
@@ -110,18 +111,22 @@ async function login(email, password) {
   return { token, uid: decodeUid(token) };
 }
 
-async function fetchReferencia(token, bodega) {
+// Lógica compartida por cualquier endpoint de "traer un dataset
+// completo" (referencia, coordenadas, y las que vengan) — mismo
+// timeout que cubre la descarga entera (no solo la conexión inicial,
+// ver el comentario de login() sobre por qué el .json() vive dentro
+// del try) y misma heurística para encontrar el array real dentro de
+// la respuesta, sea que la API lo devuelva pelado o envuelto en
+// {data:[...]} / {result:[...]} / etc.
+async function fetchDataset(label, url, token, bodega) {
   let resp, data;
   try {
-    resp = await fetch(`${REFERENCIA_URL}?bodega=${encodeURIComponent(bodega)}`, {
+    resp = await fetch(`${url}?bodega=${encodeURIComponent(bodega)}`, {
       method: 'GET',
       headers: { Accept: 'application/json, */*', Authorization: token },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    if (!resp.ok) throw new CopernicoError('FETCH_FAILED', `Error ${resp.status} al consultar referencia.`);
-    // El timeout cubre toda la descarga, no solo la conexión inicial —
-    // por eso el .json() (que es donde de verdad se lee el cuerpo de
-    // ~10 MB) vive en el mismo try que el fetch(), igual que en login().
+    if (!resp.ok) throw new CopernicoError('FETCH_FAILED', `Error ${resp.status} al consultar ${label}.`);
     data = await resp.json();
   } catch (e) {
     if (e instanceof CopernicoError) throw e;
@@ -133,6 +138,14 @@ async function fetchReferencia(token, bodega) {
   }
   for (const k in data) if (Array.isArray(data[k])) return data[k];
   return [];
+}
+
+function fetchReferencia(token, bodega) {
+  return fetchDataset('referencia', REFERENCIA_URL, token, bodega);
+}
+
+function fetchCoordenadas(token, bodega) {
+  return fetchDataset('coordenadas', COORDENADAS_URL, token, bodega);
 }
 
 // Se llama siempre al terminar una corrida (haya salido bien o mal la
@@ -159,4 +172,4 @@ async function logout(token, uid) {
   }
 }
 
-module.exports = { login, fetchReferencia, logout, CopernicoError };
+module.exports = { login, fetchReferencia, fetchCoordenadas, logout, CopernicoError };

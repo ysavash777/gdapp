@@ -1,5 +1,12 @@
 /* ============================================================
-   Motor de actualización de la base de datos (referencia Copernico).
+   Motor de actualización de la base de datos (Copernico WMS).
+
+   Un solo botón dispara TODAS las fuentes configuradas (ver SOURCES
+   más abajo): un login, una consulta por fuente en secuencia, un
+   solo logout — nunca un login por fuente. Si una fuente falla, las
+   demás igual se intentan (ya se pagó el costo de la licencia con el
+   login); el resultado final trae el detalle de cada una por separado
+   para que cada tarjeta del desk muestre su propio estado.
 
    Reglas duras de este archivo:
    1. NUNCA se auto-invoca. No hay setInterval, setTimeout recurrente
@@ -33,6 +40,15 @@ const path = require('path');
 const config = require('../config');
 const copernico = require('./copernico-client');
 const inventoryStore = require('../store/inventory.store');
+const coordenadasStore = require('../store/coordenadas.store');
+
+// Cada fuente sabe cómo pedirse (fetch) y dónde guardarse (store) —
+// agregar una nueva (Variables, Líneas picking...) es sumar una
+// entrada acá, nada más de este archivo cambia.
+const SOURCES = [
+  { key: 'referencia', fetch: copernico.fetchReferencia, store: inventoryStore },
+  { key: 'coordenadas', fetch: copernico.fetchCoordenadas, store: coordenadasStore },
+];
 
 const LOCK_FILE = path.join(__dirname, '..', 'data', 'refresh.lock');
 // El id numérico de usuario que devuelve el JWT no es propio de una
@@ -138,30 +154,40 @@ async function refresh() {
       if (session) {
         const loggedInAt = Date.now();
         // A partir de acá ya consumimos una licencia — el lock queda
-        // escrito hasta el logout final, incluso si el fetch falla,
-        // para que una corrida futura pueda detectar y liberar esta
-        // sesión si el proceso se cae en el medio.
+        // escrito hasta el logout final, incluso si alguna consulta
+        // falla, para que una corrida futura pueda detectar y liberar
+        // esta sesión si el proceso se cae en el medio.
         writeLock({ token: session.token, uid: session.uid, startedAt });
 
-        try {
-          const rawRows = await copernico.fetchReferencia(session.token, config.COPERNICO_BODEGA);
-          const fetchedAt = Date.now();
-          const meta = inventoryStore.replaceAll(rawRows, {
-            bodega: config.COPERNICO_BODEGA,
-            durationMs: fetchedAt - startedAt,
-          });
-          // Diagnóstico de dónde se va el tiempo — la duración total
-          // depende casi por completo del login+consulta contra el
-          // servidor de Copernico (fuera de nuestro control); esto lo
-          // deja visible en los logs en vez de ser una suposición.
-          console.log(
-            `[inventory-engine] login: ${loggedInAt - startedAt}ms · consulta: ${fetchedAt - loggedInAt}ms · total: ${fetchedAt - startedAt}ms · filas: ${rawRows.length}`
-          );
-          result = { ok: true, meta };
-        } catch (err) {
-          console.log(`[inventory-engine] login: ${loggedInAt - startedAt}ms · consulta falló a los: ${Date.now() - loggedInAt}ms · error: ${err.code || 'FETCH_FAILED'}`);
-          result = { ok: false, error: err.code || 'FETCH_FAILED', message: err.message };
+        // Una fuente que falla no frena a las demás — ya se pagó el
+        // costo de la licencia con este login, así que tiene sentido
+        // intentar todas antes de soltarla. Cada una registra su
+        // propio resultado en su propio store (por eso cada tarjeta
+        // del desk puede estar en un estado distinto a la vez).
+        // `sources` siempre guarda el meta "pelado" de cada store (el
+        // mismo objeto que devuelve GET /status) — nunca envuelto en
+        // {ok, meta}/{ok, error}. Como replaceAll() deja status:'ok' y
+        // recordError() deja status:'error', el propio meta ya dice
+        // si esa fuente salió bien, sin necesitar una forma distinta
+        // en la respuesta de refresh() vs. la de status().
+        const perSource = {};
+        for (const src of SOURCES) {
+          const sourceStartedAt = Date.now();
+          try {
+            const rawRows = await src.fetch(session.token, config.COPERNICO_BODEGA);
+            perSource[src.key] = src.store.replaceAll(rawRows, {
+              bodega: config.COPERNICO_BODEGA,
+              durationMs: Date.now() - sourceStartedAt,
+            });
+            console.log(`[inventory-engine] ${src.key}: ${Date.now() - sourceStartedAt}ms · filas: ${rawRows.length}`);
+          } catch (err) {
+            console.log(`[inventory-engine] ${src.key}: falló a los ${Date.now() - sourceStartedAt}ms · error: ${err.code || 'FETCH_FAILED'}`);
+            perSource[src.key] = src.store.recordError({ code: err.code || 'FETCH_FAILED', message: err.message });
+          }
         }
+
+        console.log(`[inventory-engine] login: ${loggedInAt - startedAt}ms · total: ${Date.now() - startedAt}ms`);
+        result = { ok: Object.values(perSource).some((m) => m.status !== 'error'), sources: perSource };
       }
     }
   } finally {
@@ -178,7 +204,13 @@ async function refresh() {
     runningInMemory = false;
   }
 
-  if (!result.ok) inventoryStore.recordError({ code: result.error, message: result.message });
+  // Falla a nivel login (nunca se llegó a intentar ninguna fuente):
+  // se refleja en TODAS las fuentes configuradas, para que ninguna
+  // tarjeta quede mostrando "sin datos" cuando en realidad la
+  // corrida sí se intentó y falló.
+  if (!result.sources) {
+    for (const src of SOURCES) src.store.recordError({ code: result.error, message: result.message });
+  }
   return result;
 }
 

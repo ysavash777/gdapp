@@ -18,22 +18,27 @@ server/
   routes/auth.js           API: login / logout / me. Sin auto-registro: las cuentas las crea un admin
                            desde Gestión de usuarios. Usa store/users.store.js.
   routes/users.js          API: listar (con búsqueda+paginación), crear, editar, cambiar contraseña, eliminar.
-  routes/database.js       API del módulo Bases de datos: POST /refresh dispara una corrida del motor,
-                           GET /status y GET /rows (paginado+búsqueda+orden) leen el resultado. Exige el
-                           permiso 'basesdatos', no un rol fijo.
-  services/copernico-client.js  Cliente HTTP de bajo nivel contra la API de Copernico WMS (login/consultar
-                           referencia/logout). Clasifica errores de login (LICENSE_LIMIT, ALREADY_LOGGED_IN,
-                           INVALID_CREDENTIALS...) por el texto del mensaje — la API no trae códigos propios.
-  services/inventory-engine.js  Orquesta una corrida completa (login → fetch → logout) con un lock en
+  routes/database.js       API del módulo Bases de datos: POST /refresh dispara una corrida del motor
+                           (todas las fuentes configuradas), GET /status trae el estado de cada una y
+                           GET /rows?source=referencia|coordenadas (paginado+búsqueda+orden) lee sus filas.
+                           Exige el permiso 'basesdatos', no un rol fijo.
+  services/copernico-client.js  Cliente HTTP de bajo nivel contra la API de Copernico WMS: login/logout +
+                           fetchDataset() genérico (usado por fetchReferencia/fetchCoordenadas, mismo
+                           timeout y misma heurística para encontrar el array de filas en la respuesta).
+                           Clasifica errores de login (LICENSE_LIMIT, ALREADY_LOGGED_IN, INVALID_CREDENTIALS...)
+                           por el texto del mensaje — la API no trae códigos propios.
+  services/inventory-engine.js  Orquesta una corrida completa: un login, una consulta por cada fuente en
+                           SOURCES (hoy referencia + coordenadas) en secuencia, un solo logout — nunca un
+                           login por fuente. Si una fuente falla, las demás igual se intentan. Lock en
                            memoria + en disco: nunca corren dos corridas en simultáneo y el motor nunca se
                            auto-invoca — el único disparador es refresh(), llamado por routes/database.js.
                            Si detecta que quedó una sesión colgada de una corrida anterior (proceso caído a
                            mitad de camino), la cierra con el uid del lock persistido y reintenta el login
                            una sola vez — nunca en loop.
-  store/inventory.store.js  Filas del inventario "referencia", genéricas (cada fila guarda las claves que
-                           trajo la API, saneadas a snake_case — no hay un esquema fijo de columnas porque
-                           Copernico puede agregar/renombrar alguna). Vive en memoria + espejo en disco
-                           (server/data/inventory.json, gitignored) para sobrevivir un restart. Cuando exista
+  store/create-data-source-store.js  Fábrica: misma lógica de columnas genéricas + status (empty/ok/error)
+                           + persistencia en disco + paginado, instanciada por cada fuente (inventory.store.js
+                           = 'referencia', coordenadas.store.js = 'coordenadas'). Agregar una fuente nueva es
+                           una línea nueva `require('./create-data-source-store')('nombre')`. Cuando exista
                            Supabase, solo se reescribe replaceAll() para hacer el upsert por lotes ahí — el
                            resto de la app sigue llamando a list()/getMeta() igual.
   .env                     COPERNICO_EMAIL / COPERNICO_PASSWORD / COPERNICO_BODEGA del usuario consultor —
@@ -58,10 +63,13 @@ public/
     desk.js                Router hash + montaje de módulos.
     modules/usuarios.js    Gestión de usuarios (modificar, contraseña, eliminar, permisos).
     modules/mapeos.js      Mapeos.
-    modules/basesdatos.js  Bases de datos: botón "Actualizar DB" (dispara /api/database/refresh),
-                           tarjeta de estado (última actualización, filas, bodega) y una tabla paginada
-                           en servidor de /api/database/rows — el navegador nunca carga las ~12.000 filas
-                           de una sola vez, solo la página visible.
+    modules/basesdatos.js  Bases de datos: un solo botón "Actualizar DB" (dispara /api/database/refresh
+                           para todas las fuentes) y una tarjeta por fuente (Referencia, Coordenadas,
+                           Variables, Líneas picking — solo las dos primeras tienen motor real hoy) con
+                           filas + horario en números y un ícono de estado (actualizado/error/sin datos,
+                           sin texto). Nunca muestra las filas en sí — ese detalle vive en el servidor,
+                           listo para consultarse desde otro módulo (/api/database/rows?source=...) sin
+                           que el navegador tenga que cargarlo.
 
   app/                     PWA móvil.
     index.html             Shell HTML (header opcional + outlet).

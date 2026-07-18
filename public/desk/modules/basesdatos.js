@@ -1,10 +1,10 @@
 /* ============================================================
    Módulo Desk · Bases de datos
-   Un solo botón "Actualizar DB" para todas las fuentes — hoy solo
-   dispara el motor de "Referencia" (server/services/inventory-engine.js)
-   porque es la única configurada, pero el control es uno solo para
-   toda la pantalla: cuando Variables/Coordenadas/Líneas picking tengan
-   su propio motor, este mismo botón las va a disparar a todas.
+   Un solo botón "Actualizar DB" para todas las fuentes — hoy dispara
+   el motor de "Referencia" y "Coordenadas" (server/services/inventory-engine.js,
+   un solo login, una consulta por fuente, un solo logout). Variables
+   y Líneas picking todavía no tienen motor propio: la tarjeta ya
+   existe con la forma final, pero no hace nada al tocarla.
 
    Cada tarjeta es solo una vidriera de estado (ícono, sin texto) —
    nunca tienen su propia acción. Tampoco se muestran las filas
@@ -24,7 +24,7 @@ const ERROR_MESSAGES = {
   MISSING_CREDENTIALS: 'Faltan las credenciales del usuario consultor en el servidor.',
   INVALID_CREDENTIALS: 'Las credenciales del usuario consultor son inválidas.',
   LOGIN_FAILED: 'No se pudo iniciar sesión en Copernico.',
-  FETCH_FAILED: 'Copernico no devolvió los datos de referencia.',
+  FETCH_FAILED: 'Copernico no devolvió los datos de esta fuente.',
   NETWORK: 'No se pudo conectar con Copernico. Revisá la conexión.',
   TIMEOUT: 'Copernico no respondió a tiempo. Probá de nuevo en un momento.',
   FORBIDDEN: 'No tienes permiso para esta acción.',
@@ -43,12 +43,15 @@ const STATUS_ICON = {
   empty: { name: 'inbox', cls: 'is-empty', title: 'Sin datos' },
 };
 
+const EMPTY_SOURCE = { status: 'empty', lastUpdatedAt: null, rowCount: 0, durationMs: null };
+
 const SOURCES = [
   { key: 'referencia', label: 'Referencia', icon: 'database', active: true },
   { key: 'variables', label: 'Variables', icon: 'layers', active: false },
-  { key: 'coordenadas', label: 'Coordenadas', icon: 'pin', active: false },
+  { key: 'coordenadas', label: 'Coordenadas', icon: 'pin', active: true },
   { key: 'lineas_picking', label: 'Líneas picking', icon: 'grid', active: false },
 ];
+const ACTIVE_SOURCES = SOURCES.filter((s) => s.active);
 
 export const title = 'Bases de datos';
 
@@ -61,37 +64,47 @@ export function render(outlet) {
 
 // Sin datos de progreso real (Copernico no informa avance, solo
 // responde entero al final), así que el relleno se calibra contra la
-// última corrida exitosa conocida — no es una barra "de mentira" que
-// da vueltas para siempre, es una estimación que avanza una sola vez
-// de 0 a ~92% y se completa de golpe cuando la corrida real termina
-// (antes o después de lo estimado).
+// suma de las últimas corridas exitosas conocidas — no es una barra
+// "de mentira" que da vueltas para siempre, es una estimación que
+// avanza una sola vez de 0 a ~92% y se completa de golpe cuando la
+// corrida real termina (antes o después de lo estimado).
 const DEFAULT_ESTIMATE_MS = 30_000;
 
 async function mount(root) {
   const state = {
     refreshing: false,
     error: null,
-    referencia: { status: 'empty', lastUpdatedAt: null, rowCount: 0, durationMs: null },
+    sources: Object.fromEntries(ACTIVE_SOURCES.map((s) => [s.key, { ...EMPTY_SOURCE }])),
   };
 
   drawShell();
   await loadStatus();
 
-  function applyMeta(meta) {
-    state.referencia.status = meta.status;
-    state.referencia.lastUpdatedAt = meta.lastUpdatedAt;
-    state.referencia.rowCount = meta.rowCount;
-    if (meta.durationMs) state.referencia.durationMs = meta.durationMs;
+  function applySources(sourcesMeta) {
+    for (const key in sourcesMeta) {
+      if (!state.sources[key]) continue;
+      const meta = sourcesMeta[key];
+      state.sources[key] = {
+        status: meta.status,
+        lastUpdatedAt: meta.lastUpdatedAt,
+        rowCount: meta.rowCount,
+        durationMs: meta.durationMs || state.sources[key].durationMs,
+      };
+    }
+  }
+
+  function estimateMs() {
+    const known = ACTIVE_SOURCES.map((s) => state.sources[s.key].durationMs).filter(Boolean);
+    return known.length ? known.reduce((a, b) => a + b, 0) : DEFAULT_ESTIMATE_MS * ACTIVE_SOURCES.length;
   }
 
   function startProgress() {
     const fill = root.querySelector('.db-refresh-btn-fill');
     if (!fill) return;
-    const estimateMs = state.referencia.durationMs || DEFAULT_ESTIMATE_MS;
     fill.style.transition = 'none';
     fill.style.width = '0%';
     void fill.offsetWidth; // fuerza reflow: sin esto, el navegador puede fusionar este cambio con el de abajo y saltar directo a 92%, sin animar
-    fill.style.transition = `width ${estimateMs}ms linear`;
+    fill.style.transition = `width ${estimateMs()}ms linear`;
     fill.style.width = '92%';
   }
 
@@ -110,7 +123,7 @@ async function mount(root) {
     let running = false;
     try {
       const data = await apiFetch('/api/database/status');
-      applyMeta(data.meta);
+      applySources(data.sources);
       running = data.running;
     } catch {
       // Sin conexión al status: se queda con el último estado local
@@ -137,7 +150,7 @@ async function mount(root) {
       if (!root.isConnected) return;
       try {
         const data = await apiFetch('/api/database/status');
-        if (!data.running) { applyMeta(data.meta); break; }
+        if (!data.running) { applySources(data.sources); break; }
       } catch {
         break;
       }
@@ -157,9 +170,12 @@ async function mount(root) {
     startProgress();
     try {
       const data = await apiFetch('/api/database/refresh', { method: 'POST' });
-      applyMeta(data.meta);
+      applySources(data.sources);
     } catch (err) {
-      state.referencia.status = 'error';
+      // El error puede ser previo a intentar cualquier fuente (login
+      // falló) — el servidor ya marcó todas como "error" en su propio
+      // store; acá solo se refleja lo mismo de inmediato en la UI.
+      for (const key in state.sources) state.sources[key].status = 'error';
       state.error = err;
     }
     finishProgress();
@@ -201,7 +217,7 @@ async function mount(root) {
   }
 
   function sourceCardHTML(src) {
-    const s = src.active ? state.referencia : { status: 'empty', lastUpdatedAt: null, rowCount: 0 };
+    const s = src.active ? state.sources[src.key] : EMPTY_SOURCE;
     const st = STATUS_ICON[s.status] || STATUS_ICON.empty;
     const hasData = s.rowCount > 0;
 
