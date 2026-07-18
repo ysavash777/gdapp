@@ -217,6 +217,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
   const unsubscribeSync = store.subscribe(mapeo.id, (freshCodes) => {
     codes = freshCodes;
     renderCodes();
+    if (activeSheetRefreshDescription) activeSheetRefreshDescription();
   });
 
   function visibleCodes() {
@@ -278,6 +279,12 @@ export async function openEditor({ mapeoId, title, onClose }) {
   // huérfana en el DOM.
   let activeSheetBackdrop = null;
   let activeSheetDiscard = null;
+  // Si el sheet de registro está abierto cuando el motor de sync
+  // termina de completar la descripción (ver más abajo, la búsqueda
+  // contra Referencia recién resuelve del lado del servidor, no en el
+  // momento de escanear), esto redibuja solo esa línea sin tocar nada
+  // más del sheet.
+  let activeSheetRefreshDescription = null;
 
   function onDocClick(e) {
     if (!filterMenu.hidden && !e.target.closest('#filterToggle') && !e.target.closest('#filterMenu')) {
@@ -443,6 +450,16 @@ export async function openEditor({ mapeoId, title, onClose }) {
       </div>
     `;
     document.body.appendChild(backdrop);
+
+    // La descripción llega recién cuando el motor de sync confirma el
+    // alta (la búsqueda contra Referencia corre del lado del
+    // servidor, no en el momento de escanear) — si para entonces este
+    // sheet sigue abierto, hay que actualizar el texto ya puesto en
+    // vez de dejarlo en "Producto sin descripción" para siempre.
+    activeSheetRefreshDescription = () => {
+      const descEl = backdrop.querySelector('.cq-desc-value');
+      if (descEl) descEl.textContent = currentEntry().description || GENERIC_DESCRIPTION;
+    };
 
     let quantity = entry.quantity;
     let condition = entry.condition;
@@ -612,6 +629,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
       scanner.resumeView();
       activeSheetBackdrop = null;
       activeSheetDiscard = null;
+      activeSheetRefreshDescription = null;
     }
 
     // El registro recién tocado (nuevo o editado) sube al tope de la
