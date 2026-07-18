@@ -5,6 +5,7 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 const { PORT } = require('./config');
 const { deviceRedirect } = require('./middleware/device');
+const inventoryEngine = require('./services/inventory-engine');
 
 const app = express();
 app.use(express.json());
@@ -29,6 +30,15 @@ app.use('/app', express.static(path.join(PUBLIC, 'app')));
 app.get('/desk/*', (_req, res) => res.sendFile(path.join(PUBLIC, 'desk', 'index.html')));
 app.get('/app/*', (_req, res) => res.sendFile(path.join(PUBLIC, 'app', 'index.html')));
 
-app.listen(PORT, () => {
-  console.log(`GDapp escuchando en http://localhost:${PORT}`);
-});
+// Antes de aceptar tráfico: trae de Supabase la última corrida buena
+// de cada fuente (referencia/coordenadas), porque el caché en disco
+// (server/data/*.json) no sobrevive un deploy nuevo en Render — sin
+// esto, el desk se mostraba vacío hasta que alguien apretaba
+// "Actualizar DB" a mano después de cada deploy.
+inventoryEngine.hydrate()
+  .catch((e) => console.error('[index] Hidratación inicial desde Supabase falló:', e.message))
+  .finally(() => {
+    app.listen(PORT, () => {
+      console.log(`GDapp escuchando en http://localhost:${PORT}`);
+    });
+  });

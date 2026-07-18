@@ -68,4 +68,17 @@ async function logSync(source, { status, rowCount, durationMs, errorCode, errorM
   }
 }
 
-module.exports = { replaceTable, logSync, isConfigured };
+// Lee toda la tabla tal cual está en Supabase — lo usa cada store al
+// arrancar el proceso para recuperar la última corrida buena aunque
+// el caché en disco local se haya perdido (deploys nuevos en Render
+// no conservan `server/data/*.json` de una instancia a la siguiente).
+async function loadTable(table) {
+  const supabase = getClient();
+  if (!supabase) return { skipped: true, rows: [] };
+
+  const { data, error } = await supabase.from(table).select('*');
+  if (error) throw new Error(`No se pudo leer ${table}: ${error.message}`);
+  return { skipped: false, rows: data || [] };
+}
+
+module.exports = { replaceTable, logSync, loadTable, isConfigured };

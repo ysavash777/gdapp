@@ -46,8 +46,13 @@ server/
                            una sola vez — nunca en loop.
   store/create-data-source-store.js  Fábrica: misma lógica de columnas genéricas + status (empty/ok/error)
                            + persistencia en disco + paginado, instanciada por cada fuente (inventory.store.js
-                           = 'referencia', coordenadas.store.js = 'coordenadas'). Agregar una fuente nueva es
-                           una línea nueva `require('./create-data-source-store')('nombre')`.
+                           = 'referencia'/'inventario_cajas', coordenadas.store.js = 'coordenadas'/
+                           'layout_coordenadas'). Agregar una fuente nueva es una línea nueva
+                           `require('./create-data-source-store')('nombre', 'tabla_supabase')`.
+                           hydrateFromSupabase() (llamado una sola vez al boot, ver server/index.js) trae la
+                           última corrida buena desde Supabase si el caché en disco está vacío — sin esto el
+                           desk se veía vacío después de cada deploy nuevo en Render (contenedor sin el
+                           server/data/*.json de la corrida anterior) hasta apretar "Actualizar DB" a mano.
   services/supabase-client.js  Cliente Supabase compartido (proyecto "bodega-47-inventario", service_role
                            key). getClient() devuelve null si no está configurada (lo usan inventory/
                            coordenadas, que tienen caché local de respaldo); requireClient() lanza en ese
@@ -56,7 +61,8 @@ server/
   services/supabase-sync.js  Espejo en Supabase de cada fuente de Copernico que trae datos con éxito —
                            reemplaza toda la tabla real (borra + inserta, sin upsert: Copernico no da
                            ninguna clave estable entre corridas) y deja un registro en sync_log. Best-effort:
-                           si falla, se loguea pero no cambia el status local de esa fuente.
+                           si falla, se loguea pero no cambia el status local de esa fuente. loadTable()
+                           es el sentido inverso: lee la tabla completa, usado por hydrateFromSupabase().
   store/mapeos.store.js    Repositorio de mapeos — Supabase (tablas `mapeos` + `mapeo_codes`). Antes vivía
                            entero en la memoria del NAVEGADOR (se perdía todo al recargar la página); ahora
                            es la única fuente real, con codes embebidos vía `select('*, mapeo_codes(*)')`.

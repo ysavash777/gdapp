@@ -4,4 +4,4 @@
    lógica real (genérica, comparte forma con inventory.store.js).
    ============================================================ */
 
-module.exports = require('./create-data-source-store')('coordenadas');
+module.exports = require('./create-data-source-store')('coordenadas', 'layout_coordenadas');

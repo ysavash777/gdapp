@@ -111,6 +111,15 @@ function isRunning() {
   return runningInMemory;
 }
 
+// Se llama una sola vez al arrancar el proceso (server/index.js, antes
+// de escuchar) — no es un refresh: no toca Copernico ni consume una
+// licencia, solo trae de Supabase la última corrida buena de cada
+// fuente para que el desk no se muestre vacío hasta que alguien
+// aprieta "Actualizar DB" a mano.
+async function hydrate() {
+  await Promise.all(SOURCES.map((src) => src.store.hydrateFromSupabase()));
+}
+
 // Login con un único reintento acotado: si Copernico dice que ya hay
 // una sesión activa, se fuerza su cierre con el id de usuario más
 // confiable que tengamos a mano (primero el del lock de la corrida
@@ -244,4 +253,4 @@ async function refresh() {
   return result;
 }
 
-module.exports = { refresh, isRunning };
+module.exports = { refresh, isRunning, hydrate };

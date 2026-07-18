@@ -15,6 +15,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const supabaseSync = require('../services/supabase-sync');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 
@@ -40,7 +41,7 @@ function buildHaystack(row) {
   return Object.values(row).filter((v) => v != null).join(' ').toLowerCase();
 }
 
-function createDataSourceStore(name) {
+function createDataSourceStore(name, supabaseTable) {
   const DATA_FILE = path.join(DATA_DIR, `${name}.json`);
 
   let rows = [];
@@ -126,6 +127,27 @@ function createDataSourceStore(name) {
     return meta;
   }
 
+  // Se llama una vez al arrancar el proceso (ver server/index.js). El
+  // caché en disco (restore(), arriba) solo sobrevive un restart local
+  // — en Render cada deploy es un contenedor nuevo sin ese archivo, así
+  // que sin esto la tarjeta queda "vacía" hasta que alguien aprieta
+  // "Actualizar DB" a mano, aunque Supabase ya tenga la última corrida
+  // buena. Si el disco ya trajo algo (restore() encontró el archivo),
+  // no pisa nada — Supabase es el respaldo, no la fuente de verdad
+  // mientras el proceso esté vivo.
+  async function hydrateFromSupabase() {
+    if (meta.status !== 'empty' || !supabaseTable) return;
+    try {
+      const { skipped, rows: dbRows } = await supabaseSync.loadTable(supabaseTable);
+      if (skipped || !dbRows.length) return;
+      const cleaned = dbRows.map(({ id, synced_at, ...rest }) => rest);
+      replaceAll(cleaned);
+      console.log(`[${name}.store] Hidratado desde Supabase: ${cleaned.length} filas.`);
+    } catch (e) {
+      console.error(`[${name}.store] No se pudo hidratar desde Supabase:`, e.message);
+    }
+  }
+
   function getMeta() {
     return { ...meta };
   }
@@ -172,7 +194,7 @@ function createDataSourceStore(name) {
     return { items, total, page: safePage, pageSize: safePageSize, totalPages };
   }
 
-  return { replaceAll, recordError, getMeta, getRowsForExport, list };
+  return { replaceAll, recordError, getMeta, getRowsForExport, list, hydrateFromSupabase };
 }
 
 module.exports = createDataSourceStore;
