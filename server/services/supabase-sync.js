@@ -72,13 +72,29 @@ async function logSync(source, { status, rowCount, durationMs, errorCode, errorM
 // arrancar el proceso para recuperar la última corrida buena aunque
 // el caché en disco local se haya perdido (deploys nuevos en Render
 // no conservan `server/data/*.json` de una instancia a la siguiente).
+//
+// PostgREST (la API que usa Supabase) nunca devuelve más de PAGE_SIZE
+// filas en un solo select, sin importar cuántas haya en la tabla — sin
+// paginar acá, una tabla real de miles de filas (ej. Referencia) se
+// leía siempre truncada a las primeras PAGE_SIZE, como si esa fuera
+// toda la base. Se pagina con .range() hasta que una página vuelve
+// incompleta (esa es la señal de que ya no queda nada más).
 async function loadTable(table) {
   const supabase = getClient();
   if (!supabase) return { skipped: true, rows: [] };
 
-  const { data, error } = await supabase.from(table).select('*');
-  if (error) throw new Error(`No se pudo leer ${table}: ${error.message}`);
-  return { skipped: false, rows: data || [] };
+  const PAGE_SIZE = 1000;
+  let rows = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase.from(table).select('*').range(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(`No se pudo leer ${table}: ${error.message}`);
+    if (!data || !data.length) break;
+    rows = rows.concat(data);
+    if (data.length < PAGE_SIZE) break;
+    from += data.length;
+  }
+  return { skipped: false, rows };
 }
 
 module.exports = { replaceTable, logSync, loadTable, isConfigured };

@@ -112,7 +112,7 @@ function recordCardHTML(c, flashId) {
   }
 
   return `
-    <button class="record-card ${colorClass} ${c.id === flashId ? 'is-touched' : ''}" data-code-id="${c.id}">
+    <button class="record-card ${colorClass} ${c.clientId === flashId ? 'is-touched' : ''}" data-code-id="${c.clientId}">
       <div class="record-qty ${colorClass} ${qtySizeClass(c.quantity)}">
         <span class="record-qty-num">${c.quantity}</span>
         <span class="record-qty-label">unidades</span>
@@ -264,7 +264,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
     codes = updated.codes;
     renderCodes();
     if (navigator.vibrate) navigator.vibrate(35);
-    openRegisterSheet(codes.find((c) => c.id === updated.codes.at(-1).id), { isNew: true });
+    openRegisterSheet(codes.at(-1).clientId, { isNew: true });
   }
 
   const scanner = createCameraScanner({
@@ -364,11 +364,26 @@ export async function openEditor({ mapeoId, title, onClose }) {
     // El id puede ser numérico (ya confirmado en la base) o un id
     // local temporal en forma de texto (recién escaneado, todavía sin
     // enviar) — nunca forzar a Number(), un id local nunca lo es.
-    const entry = codes.find((c) => String(c.id) === card.dataset.codeId);
-    if (entry) openRegisterSheet(entry, { isNew: false });
+    const entry = codes.find((c) => String(c.clientId) === card.dataset.codeId);
+    if (entry) openRegisterSheet(entry.clientId, { isNew: false });
   });
 
-  function openRegisterSheet(entry, { isNew }) {
+  function openRegisterSheet(clientId, { isNew }) {
+    // `entry` es solo la foto inicial para armar el HTML del sheet —
+    // toda escritura de acá en más pasa por currentEntry(), que
+    // siempre relee el id real y vigente desde `codes`. El id de un
+    // código recién escaneado empieza siendo temporal y el motor de
+    // sincronización lo reemplaza por el real apenas confirma el alta
+    // (puede pasar en menos de un segundo con buena conexión) — si
+    // esta función siguiera usando el `entry` de este momento, un
+    // commit() posterior apuntaría a un id que ya no existe y la
+    // edición se perdería en silencio.
+    let entry = codes.find((c) => c.clientId === clientId);
+    if (!entry) return;
+    function currentEntry() {
+      return codes.find((c) => c.clientId === clientId) || entry;
+    }
+
     scanner.setPaused(true);
     scanner.setTorch(false);
     scanner.pauseView();
@@ -442,7 +457,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
     qtyInput.value = isNew ? '' : entry.quantity;
 
     async function commit(patch) {
-      const updated = await store.updateCode(mapeo.id, entry.id, patch, actor());
+      const updated = await store.updateCode(mapeo.id, currentEntry().id, patch, actor());
       codes = updated.codes;
     }
 
@@ -604,7 +619,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
     // los que no cambiaron quedan donde estaban.
     function closeSheet() {
       cleanupSheet();
-      flashId = entry.id;
+      flashId = clientId;
       renderCodes();
     }
 
@@ -616,7 +631,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
     }
 
     async function discardEntry() {
-      const updated = await store.removeCode(mapeo.id, entry.id, actor());
+      const updated = await store.removeCode(mapeo.id, currentEntry().id, actor());
       codes = updated.codes;
       renderCodes();
     }

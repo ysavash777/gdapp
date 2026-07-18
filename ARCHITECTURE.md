@@ -70,7 +70,10 @@ server/
                            reemplaza toda la tabla real (borra + inserta, sin upsert: Copernico no da
                            ninguna clave estable entre corridas) y deja un registro en sync_log. Best-effort:
                            si falla, se loguea pero no cambia el status local de esa fuente. loadTable()
-                           es el sentido inverso: lee la tabla completa, usado por hydrateFromSupabase().
+                           es el sentido inverso: lee la tabla completa, paginando con .range() de 1000 en
+                           1000 (PostgREST nunca devuelve más de eso en un solo select, sin importar cuántas
+                           filas tenga la tabla real) — usado por hydrateFromSupabase(), que además toma el
+                           `synced_at` real de las filas como lastUpdatedAt en vez de la hora del hidratado.
   store/mapeos.store.js    Repositorio de mapeos — Supabase (tablas `mapeos` + `mapeo_codes`). Antes vivía
                            entero en la memoria del NAVEGADOR (se perdía todo al recargar la página); ahora
                            es la única fuente real, con codes embebidos vía `select('*, mapeo_codes(*)')`.
@@ -146,10 +149,17 @@ public/
                                segundo plano vía sync-engine.js. list()/create()/rename()/remove() (a nivel
                                mapeo) siguen siendo red directa sin caché: solo agregar códigos a un mapeo
                                que ya existe tiene que sobrevivir sin conexión. Cada código carga un
-                               `syncStatus` ('syncing'/'synced'/'offline', solo de UI) y store.js expone
-                               subscribe(mapeoId, cb) para avisar a editor-view.js cuando ese estado cambia
-                               en segundo plano. Misma forma de API que siempre (list/get/create/rename/
-                               remove/addCode/updateCode/removeCode) — list-view.js no cambió.
+                               `syncStatus` ('syncing'/'synced'/'offline', solo de UI) y un `clientId` fijo
+                               para toda su vida (a diferencia de `id`, que empieza siendo temporal y el
+                               motor lo reemplaza por el real apenas confirma el alta) — editor-view.js debe
+                               usar clientId para ubicar un código a lo largo de una edición, nunca guardar
+                               `id` en una variable de vida larga: si el remapeo ocurre mientras el sheet de
+                               registro sigue abierto (con buena conexión puede pasar en menos de un
+                               segundo), un updateCode contra el id viejo tira NOT_FOUND y la edición se
+                               pierde en silencio. store.js expone subscribe(mapeoId, cb) para avisar a
+                               editor-view.js cuando ese estado cambia en segundo plano. Misma forma de API
+                               que siempre (list/get/create/rename/remove/addCode/updateCode/removeCode) —
+                               list-view.js no cambió.
       sync-engine.js           Motor de sincronización: cola (outbox) persistida en localStorage
                                (`gd.mapear.outbox.v1`), un trabajo a la vez — nunca en paralelo, para no
                                saturar el servidor — y solo mientras haya algo pendiente (sin cola no queda

@@ -26,6 +26,17 @@
    llamando exactamente igual. editor-view.js solo suma `subscribe()`
    para enterarse cuando el estado de sincronización de un código
    cambia en segundo plano (para redibujar su ícono).
+
+   Cada código también lleva un `clientId`: un identificador estable
+   que nunca cambia, a diferencia de `id` (que empieza siendo un id
+   temporal de texto y pasa a ser el id real numérico apenas el alta
+   se confirma). editor-view.js debe usar `clientId` para encontrar UN
+   código dado a lo largo de toda su edición (nunca guardar `id` en
+   una variable de larga vida) — si guarda `id` y el remapeo ocurre
+   mientras el usuario todavía está completando el registro (con
+   buena conexión puede pasar en menos de un segundo), un updateCode
+   contra el id viejo ya no encuentra nada y la edición se pierde en
+   silencio.
    ============================================================ */
 
 import { apiFetch } from '/shared/js/api.js';
@@ -75,9 +86,13 @@ function mergeAndCache(id, serverMapeo) {
   const codes = serverMapeo.codes
     .map((c) => {
       const local = cached.codes.find((x) => x.id === c.id);
-      return local && local.syncStatus !== 'synced'
-        ? { ...c, ...local, syncStatus: local.syncStatus }
-        : { ...c, syncStatus: 'synced' };
+      if (local && local.syncStatus !== 'synced') {
+        return { ...c, ...local, syncStatus: local.syncStatus };
+      }
+      // Sin edición local pendiente: clientId es el del último local
+      // conocido si lo había, o el id real (ya estable para siempre)
+      // si esta es la primera vez que se ve este código.
+      return { ...c, clientId: local?.clientId ?? c.id, syncStatus: 'synced' };
     })
     .concat(pendingLocalOnly);
   const merged = { ...serverMapeo, codes };
@@ -172,7 +187,7 @@ export async function get(id) {
 
 export async function create(actor, title) {
   const { mapeo } = await apiFetch('/api/mapeos', { method: 'POST', body: { title } });
-  saveCache(mapeo.id, { mapeo: metaOf(mapeo), codes: mapeo.codes.map((c) => ({ ...c, syncStatus: 'synced' })) });
+  saveCache(mapeo.id, { mapeo: metaOf(mapeo), codes: mapeo.codes.map((c) => ({ ...c, clientId: c.id, syncStatus: 'synced' })) });
   return mapeo;
 }
 
@@ -198,6 +213,7 @@ export async function addCode(mapeoId, rawCode, actor) {
   const localId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const entry = {
     id: localId,
+    clientId: localId,
     code,
     description: '',
     quantity: 1,

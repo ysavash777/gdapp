@@ -140,9 +140,19 @@ function createDataSourceStore(name, supabaseTable) {
     try {
       const { skipped, rows: dbRows } = await supabaseSync.loadTable(supabaseTable);
       if (skipped || !dbRows.length) return;
+      // El horario real de la corrida es `synced_at` de las filas (todas
+      // comparten el mismo valor, puesto por replaceTable) — replaceAll()
+      // por sí sola pondría "ahora" como lastUpdatedAt, que en un
+      // hidratado es la hora del deploy/login, no la de la última
+      // corrida real contra Copernico.
+      const realSyncedAt = dbRows.reduce((max, r) => (r.synced_at && r.synced_at > max ? r.synced_at : max), '');
       const cleaned = dbRows.map(({ id, synced_at, ...rest }) => rest);
       replaceAll(cleaned);
-      console.log(`[${name}.store] Hidratado desde Supabase: ${cleaned.length} filas.`);
+      if (realSyncedAt) {
+        meta = { ...meta, lastUpdatedAt: realSyncedAt };
+        persist();
+      }
+      console.log(`[${name}.store] Hidratado desde Supabase: ${cleaned.length} filas (corrida real: ${realSyncedAt || 'desconocida'}).`);
     } catch (e) {
       console.error(`[${name}.store] No se pudo hidratar desde Supabase:`, e.message);
     }
