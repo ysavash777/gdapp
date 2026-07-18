@@ -31,4 +31,11 @@ module.exports = {
   COPERNICO_EMAIL: process.env.COPERNICO_EMAIL || '',
   COPERNICO_PASSWORD: process.env.COPERNICO_PASSWORD || '',
   COPERNICO_BODEGA: process.env.COPERNICO_BODEGA || '47',
+
+  // Proyecto Supabase donde el motor espeja cada corrida (server/services/
+  // supabase-sync.js). SUPABASE_SERVICE_ROLE_KEY nunca se envía al
+  // navegador — es la única forma de escribir, porque las tablas tienen
+  // RLS activo sin políticas (nadie más puede leer/escribir todavía).
+  SUPABASE_URL: process.env.SUPABASE_URL || '',
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
 };

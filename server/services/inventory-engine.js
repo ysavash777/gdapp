@@ -8,6 +8,13 @@
    login); el resultado final trae el detalle de cada una por separado
    para que cada tarjeta del desk muestre su propio estado.
 
+   Cada fuente que trae datos con éxito también se espeja en Supabase
+   (proyecto "bodega-47-inventario", ver services/supabase-sync.js) —
+   reemplaza toda la tabla real por la corrida actual. Es best-effort:
+   si Supabase falla, se loguea (consola + tabla sync_log) pero no
+   cambia el status local de esa fuente — ese status refleja si
+   Copernico contestó bien, no si además se pudo espejar.
+
    Reglas duras de este archivo:
    1. NUNCA se auto-invoca. No hay setInterval, setTimeout recurrente
       ni cron acá — el único disparador es refresh(), llamado por la
@@ -41,13 +48,15 @@ const config = require('../config');
 const copernico = require('./copernico-client');
 const inventoryStore = require('../store/inventory.store');
 const coordenadasStore = require('../store/coordenadas.store');
+const supabaseSync = require('./supabase-sync');
 
-// Cada fuente sabe cómo pedirse (fetch) y dónde guardarse (store) —
+// Cada fuente sabe cómo pedirse (fetch), dónde guardarse localmente
+// (store) y a qué tabla de Supabase espejarse (supabaseTable) —
 // agregar una nueva (Variables, Líneas picking...) es sumar una
-// entrada acá, nada más de este archivo cambia.
+// entrada acá + la tabla en Supabase, nada más de este archivo cambia.
 const SOURCES = [
-  { key: 'referencia', fetch: copernico.fetchReferencia, store: inventoryStore },
-  { key: 'coordenadas', fetch: copernico.fetchCoordenadas, store: coordenadasStore },
+  { key: 'referencia', fetch: copernico.fetchReferencia, store: inventoryStore, supabaseTable: 'inventario_cajas' },
+  { key: 'coordenadas', fetch: copernico.fetchCoordenadas, store: coordenadasStore, supabaseTable: 'layout_coordenadas' },
 ];
 
 const LOCK_FILE = path.join(__dirname, '..', 'data', 'refresh.lock');
@@ -180,9 +189,30 @@ async function refresh() {
               durationMs: Date.now() - sourceStartedAt,
             });
             console.log(`[inventory-engine] ${src.key}: ${Date.now() - sourceStartedAt}ms · filas: ${rawRows.length}`);
+
+            // El espejo en Supabase es best-effort y no afecta el
+            // status de la tarjeta (eso refleja si Copernico respondió
+            // bien, no si Supabase también) — un problema acá se loguea
+            // y queda en sync_log, pero no tira abajo la corrida ni
+            // hace que la tarjeta se vea en error si Copernico sí
+            // contestó bien.
+            const supabaseStartedAt = Date.now();
+            try {
+              const syncResult = await supabaseSync.replaceTable(src.supabaseTable, src.store.getRowsForExport());
+              if (syncResult.skipped) {
+                console.log(`[inventory-engine] ${src.key} → Supabase: omitido (sin configurar).`);
+              } else {
+                await supabaseSync.logSync(src.key, { status: 'ok', rowCount: rawRows.length, durationMs: Date.now() - supabaseStartedAt });
+                console.log(`[inventory-engine] ${src.key} → Supabase (${src.supabaseTable}): ${Date.now() - supabaseStartedAt}ms`);
+              }
+            } catch (supaErr) {
+              await supabaseSync.logSync(src.key, { status: 'error', errorMessage: supaErr.message, durationMs: Date.now() - supabaseStartedAt });
+              console.error(`[inventory-engine] ${src.key} → Supabase falló:`, supaErr.message);
+            }
           } catch (err) {
             console.log(`[inventory-engine] ${src.key}: falló a los ${Date.now() - sourceStartedAt}ms · error: ${err.code || 'FETCH_FAILED'}`);
             perSource[src.key] = src.store.recordError({ code: err.code || 'FETCH_FAILED', message: err.message });
+            await supabaseSync.logSync(src.key, { status: 'error', errorCode: err.code || 'FETCH_FAILED', errorMessage: err.message });
           }
         }
 

@@ -130,6 +130,14 @@ function createDataSourceStore(name) {
     return { ...meta };
   }
 
+  // Filas ya saneadas (mismas claves que las columnas reales de la
+  // tabla en Supabase), sin el _row_id interno — lo usa el motor para
+  // espejar la corrida actual allá. No pagina: quien lo llama ya sabe
+  // que puede ser un array grande, y solo se usa server-side.
+  function getRowsForExport() {
+    return rows.map(({ _row_id, ...rest }) => rest);
+  }
+
   // Paginado + búsqueda de substring en cualquier columna — nunca
   // devuelve más de `pageSize` filas, así el navegador jamás tiene
   // que cargar miles de filas en memoria de una sola vez.
@@ -164,7 +172,7 @@ function createDataSourceStore(name) {
     return { items, total, page: safePage, pageSize: safePageSize, totalPages };
   }
 
-  return { replaceAll, recordError, getMeta, list };
+  return { replaceAll, recordError, getMeta, getRowsForExport, list };
 }
 
 module.exports = createDataSourceStore;

@@ -38,11 +38,17 @@ server/
   store/create-data-source-store.js  Fábrica: misma lógica de columnas genéricas + status (empty/ok/error)
                            + persistencia en disco + paginado, instanciada por cada fuente (inventory.store.js
                            = 'referencia', coordenadas.store.js = 'coordenadas'). Agregar una fuente nueva es
-                           una línea nueva `require('./create-data-source-store')('nombre')`. Cuando exista
-                           Supabase, solo se reescribe replaceAll() para hacer el upsert por lotes ahí — el
-                           resto de la app sigue llamando a list()/getMeta() igual.
-  .env                     COPERNICO_EMAIL / COPERNICO_PASSWORD / COPERNICO_BODEGA del usuario consultor —
-                           gitignored, nunca se envía al navegador. config.js lo carga a mano al arrancar.
+                           una línea nueva `require('./create-data-source-store')('nombre')`.
+  services/supabase-sync.js  Espejo en Supabase (proyecto "bodega-47-inventario") de cada fuente que trae
+                           datos con éxito — reemplaza toda la tabla real (borra + inserta, sin upsert:
+                           Copernico no da ninguna clave estable entre corridas) y deja un registro en
+                           sync_log. Best-effort: si falla, se loguea pero no cambia el status local de esa
+                           fuente. Si SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY no están configuradas, queda
+                           como no-op silencioso (avisa una vez) — el store local en disco sigue funcionando
+                           igual sin Supabase.
+  .env                     COPERNICO_EMAIL / COPERNICO_PASSWORD / COPERNICO_BODEGA del usuario consultor +
+                           SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY — gitignored, nunca se envían al
+                           navegador. config.js los carga a mano al arrancar.
 
 public/
   shared/                  Todo lo compartido entre desk y app.
