@@ -37,8 +37,11 @@ server/
                            actor de cada mutación lo fija esta ruta desde la sesión autenticada
                            (req.user.username), nunca lo manda el cliente. Usa store/mapeos.store.js, que a
                            su vez consulta store/inventory.store.js al agregar un código: si el código
-                           coincide con la columna "referencia" de esa fuente, su "descripcion" queda como
-                           título del producto (ver store/mapeos.store.js).
+                           (un EAN-13) coincide con la columna "referencia" de esa fuente, su "descripcion"
+                           queda como título del producto y su "ean" (el código corto interno, no el de
+                           barras) se guarda aparte — ambos en columnas propias de `mapeo_codes` (ver
+                           store/mapeos.store.js). "Grupo" queda pendiente: todavía no hay fuente conectada
+                           con esa columna.
   services/copernico-client.js  Cliente HTTP de bajo nivel contra la API de Copernico WMS: login/logout +
                            fetchDataset() genérico (usado por fetchReferencia/fetchCoordenadas, mismo
                            timeout y misma heurística para encontrar el array de filas en la respuesta).

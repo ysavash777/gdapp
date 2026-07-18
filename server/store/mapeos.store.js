@@ -30,6 +30,7 @@ function rowToCode(row) {
     id: row.id,
     code: row.code,
     description: row.description,
+    ean: row.ean,
     quantity: row.quantity,
     condition: row.condition,
     expiryDate: row.expiry_date,
@@ -122,14 +123,14 @@ async function remove(id) {
 
 // Cantidad y condición quedan con valores por defecto al escanear —
 // se completan después sin frenar el ritmo de un escaneo masivo
-// (mismo comportamiento que tenía el store del navegador). La
-// descripción, en cambio, se completa sola en este mismo paso: se
-// busca el código escaneado contra la columna "referencia" de la
-// fuente Referencia (inventory.store, hidratada desde Supabase) y, si
-// hay match, su columna "descripcion" queda como título del producto
-// en la tarjeta y en la ficha de registro — si no hay match (código
-// fuera de catálogo o fuente vacía), queda '' y el front la muestra
-// como "Producto sin descripción".
+// (mismo comportamiento que tenía el store del navegador). Descripción
+// y EAN, en cambio, se completan solos en este mismo paso: se busca el
+// código escaneado (un EAN-13) contra la columna "referencia" de la
+// fuente Referencia (inventory.store, hidratada desde Supabase) — si
+// hay match, "descripcion" queda como título del producto y "ean" (el
+// código corto interno, no el de barras) se muestra en la ficha de
+// registro — si no hay match (código fuera de catálogo o fuente
+// vacía), ambos quedan '' y el front los muestra como "sin datos".
 async function addCode(mapeoId, rawCode, actor) {
   const supabase = requireClient();
   const code = String(rawCode).trim();
@@ -137,8 +138,9 @@ async function addCode(mapeoId, rawCode, actor) {
 
   const match = inventoryStore.findBy('referencia', code);
   const description = match?.descripcion || '';
+  const ean = match?.ean || '';
 
-  const { error: insErr } = await supabase.from('mapeo_codes').insert({ mapeo_id: mapeoId, code, description });
+  const { error: insErr } = await supabase.from('mapeo_codes').insert({ mapeo_id: mapeoId, code, description, ean });
   if (insErr) throw insErr;
 
   return touchAndReturn(mapeoId, actor);

@@ -135,6 +135,7 @@ syncEngine.onEvent((evt) => {
       if (entry) {
         entry.id = newRow.id;
         entry.description = newRow.description;
+        entry.ean = newRow.ean;
         entry.scannedAt = newRow.scannedAt;
         entry.touchedAt = newRow.touchedAt;
         entry.syncStatus = 'synced';
@@ -216,6 +217,7 @@ export async function addCode(mapeoId, rawCode, actor) {
     clientId: localId,
     code,
     description: '',
+    ean: '',
     quantity: 1,
     condition: null,
     expiryDate: null,

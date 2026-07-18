@@ -217,7 +217,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
   const unsubscribeSync = store.subscribe(mapeo.id, (freshCodes) => {
     codes = freshCodes;
     renderCodes();
-    if (activeSheetRefreshDescription) activeSheetRefreshDescription();
+    if (activeSheetRefreshLookup) activeSheetRefreshLookup();
   });
 
   function visibleCodes() {
@@ -280,11 +280,11 @@ export async function openEditor({ mapeoId, title, onClose }) {
   let activeSheetBackdrop = null;
   let activeSheetDiscard = null;
   // Si el sheet de registro está abierto cuando el motor de sync
-  // termina de completar la descripción (ver más abajo, la búsqueda
-  // contra Referencia recién resuelve del lado del servidor, no en el
-  // momento de escanear), esto redibuja solo esa línea sin tocar nada
-  // más del sheet.
-  let activeSheetRefreshDescription = null;
+  // termina de completar descripción y EAN (ver más abajo, la
+  // búsqueda contra Referencia recién resuelve del lado del servidor,
+  // no en el momento de escanear), esto redibuja solo esas dos líneas
+  // sin tocar nada más del sheet.
+  let activeSheetRefreshLookup = null;
 
   function onDocClick(e) {
     if (!filterMenu.hidden && !e.target.closest('#filterToggle') && !e.target.closest('#filterMenu')) {
@@ -413,7 +413,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
         <div class="reg-info-grid">
           <div class="reg-info-cell">
             <span class="reg-info-label">EAN</span>
-            <span class="reg-info-value">-</span>
+            <span class="reg-info-value" data-field="ean">${entry.ean ? escapeHtml(entry.ean) : '-'}</span>
           </div>
           <div class="reg-info-cell">
             <span class="reg-info-label">Referencia</span>
@@ -456,9 +456,12 @@ export async function openEditor({ mapeoId, title, onClose }) {
     // servidor, no en el momento de escanear) — si para entonces este
     // sheet sigue abierto, hay que actualizar el texto ya puesto en
     // vez de dejarlo en "Producto sin descripción" para siempre.
-    activeSheetRefreshDescription = () => {
+    activeSheetRefreshLookup = () => {
+      const fresh = currentEntry();
       const descEl = backdrop.querySelector('.cq-desc-value');
-      if (descEl) descEl.textContent = currentEntry().description || GENERIC_DESCRIPTION;
+      if (descEl) descEl.textContent = fresh.description || GENERIC_DESCRIPTION;
+      const eanEl = backdrop.querySelector('[data-field="ean"]');
+      if (eanEl) eanEl.textContent = fresh.ean || '-';
     };
 
     let quantity = entry.quantity;
@@ -629,7 +632,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
       scanner.resumeView();
       activeSheetBackdrop = null;
       activeSheetDiscard = null;
-      activeSheetRefreshDescription = null;
+      activeSheetRefreshLookup = null;
     }
 
     // El registro recién tocado (nuevo o editado) sube al tope de la
