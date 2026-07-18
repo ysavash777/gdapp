@@ -19,29 +19,9 @@
    no una dependencia dura.
    ============================================================ */
 
-const { createClient } = require('@supabase/supabase-js');
-const config = require('../config');
+const { getClient, requireClient } = require('./supabase-client');
 
 const BATCH_SIZE = 500; // PostgREST tiene límite de tamaño de payload — se inserta en tandas
-
-let client = null;
-let warnedMissingConfig = false;
-
-function getClient() {
-  if (!config.SUPABASE_URL || !config.SUPABASE_SERVICE_ROLE_KEY) {
-    if (!warnedMissingConfig) {
-      console.warn('[supabase-sync] SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY no configuradas — se omite el espejo en Supabase.');
-      warnedMissingConfig = true;
-    }
-    return null;
-  }
-  if (!client) {
-    client = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, {
-      auth: { persistSession: false },
-    });
-  }
-  return client;
-}
 
 function isConfigured() {
   return !!getClient();

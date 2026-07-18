@@ -12,16 +12,25 @@ server/
   middleware/device.js     Detección de dispositivo por User-Agent (redirect / → /desk | /app).
   permissions.js           Catálogo de módulos asignables como permiso, con scope 'web' o 'app'.
                            ÚNICO lugar para añadir uno nuevo (aparece solo en el modal de Usuarios).
-  store/users.store.js     Repositorio de usuarios (hoy en memoria). Login, alta, edición, permisos y borrado
-                           pasan por aquí — cuando exista base de datos, solo se reemplaza el cuerpo de este
-                           archivo; routes/ y el frontend no cambian.
+  middleware/auth.js       requireAuth (exige sesión), requireAdmin (+ role admin), requirePermission(key)
+                           (+ ese permiso en la lista) — las tres consultan Supabase (users/sessions), así
+                           que son async; un error de red/DB se traduce a 401, no a un 500 críptico.
+  store/users.store.js     Repositorio de usuarios — Supabase (tabla `users`). Login, alta, edición, permisos
+                           y borrado pasan por aquí. Misma forma de API desde que vivía en memoria
+                           (list/findById/create/update/...), solo que ahora todas son async.
+  store/sessions.store.js  Repositorio de sesiones — Supabase (tabla `sessions`, token opaco -> user_id).
+                           Antes en memoria: se perdían en cada restart del servidor, forzando relogueo.
   routes/auth.js           API: login / logout / me. Sin auto-registro: las cuentas las crea un admin
-                           desde Gestión de usuarios. Usa store/users.store.js.
+                           desde Gestión de usuarios. Usa store/users.store.js + store/sessions.store.js.
   routes/users.js          API: listar (con búsqueda+paginación), crear, editar, cambiar contraseña, eliminar.
   routes/database.js       API del módulo Bases de datos: POST /refresh dispara una corrida del motor
                            (todas las fuentes configuradas), GET /status trae el estado de cada una y
                            GET /rows?source=referencia|coordenadas (paginado+búsqueda+orden) lee sus filas.
                            Exige el permiso 'basesdatos', no un rol fijo.
+  routes/mapeos.js         API de la herramienta Mapear (permiso 'mapear'): listar/crear/renombrar/eliminar
+                           mapeos + agregar/editar/quitar códigos escaneados. El actor de cada mutación lo
+                           fija esta ruta desde la sesión autenticada (req.user.username), nunca lo manda
+                           el cliente. Usa store/mapeos.store.js.
   services/copernico-client.js  Cliente HTTP de bajo nivel contra la API de Copernico WMS: login/logout +
                            fetchDataset() genérico (usado por fetchReferencia/fetchCoordenadas, mismo
                            timeout y misma heurística para encontrar el array de filas en la respuesta).
@@ -39,13 +48,18 @@ server/
                            + persistencia en disco + paginado, instanciada por cada fuente (inventory.store.js
                            = 'referencia', coordenadas.store.js = 'coordenadas'). Agregar una fuente nueva es
                            una línea nueva `require('./create-data-source-store')('nombre')`.
-  services/supabase-sync.js  Espejo en Supabase (proyecto "bodega-47-inventario") de cada fuente que trae
-                           datos con éxito — reemplaza toda la tabla real (borra + inserta, sin upsert:
-                           Copernico no da ninguna clave estable entre corridas) y deja un registro en
-                           sync_log. Best-effort: si falla, se loguea pero no cambia el status local de esa
-                           fuente. Si SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY no están configuradas, queda
-                           como no-op silencioso (avisa una vez) — el store local en disco sigue funcionando
-                           igual sin Supabase.
+  services/supabase-client.js  Cliente Supabase compartido (proyecto "bodega-47-inventario", service_role
+                           key). getClient() devuelve null si no está configurada (lo usan inventory/
+                           coordenadas, que tienen caché local de respaldo); requireClient() lanza en ese
+                           caso (lo usan users/sessions/mapeos, que no tienen ningún respaldo local — sin
+                           Supabase configurada, login y Mapear no funcionan).
+  services/supabase-sync.js  Espejo en Supabase de cada fuente de Copernico que trae datos con éxito —
+                           reemplaza toda la tabla real (borra + inserta, sin upsert: Copernico no da
+                           ninguna clave estable entre corridas) y deja un registro en sync_log. Best-effort:
+                           si falla, se loguea pero no cambia el status local de esa fuente.
+  store/mapeos.store.js    Repositorio de mapeos — Supabase (tablas `mapeos` + `mapeo_codes`). Antes vivía
+                           entero en la memoria del NAVEGADOR (se perdía todo al recargar la página); ahora
+                           es la única fuente real, con codes embebidos vía `select('*, mapeo_codes(*)')`.
   .env                     COPERNICO_EMAIL / COPERNICO_PASSWORD / COPERNICO_BODEGA del usuario consultor +
                            SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY — gitignored, nunca se envían al
                            navegador. config.js los carga a mano al arrancar.
@@ -108,10 +122,10 @@ public/
     modules/mapear/         Herramienta Mapear, dividida por pantalla. Un mapeo no tiene estado
                            "finalizado": título y contenido se pueden reeditar siempre.
       index.js               Entrada (title, description, render) — solo orquesta list-view/editor-view.
-      store.js                Datos, hoy en memoria pero con forma de API (list/get/create/rename/remove/
-                               addCode/updateCode/removeCode, todas async) — cuando exista
-                               server/routes/mapeos.js (validando el código contra esa base al escanear),
-                               solo se reescribe este archivo.
+      store.js                Cliente de /api/mapeos (server/routes/mapeos.js, Supabase) — antes vivía
+                               entero en un array en memoria del navegador, hoy el servidor es la única
+                               fuente real. Misma forma de API que siempre (list/get/create/rename/remove/
+                               addCode/updateCode/removeCode) — list-view.js/editor-view.js no cambiaron.
       list-view.js             Listado de mapeos + menú de opciones por fila (renombrar, descargar —
                                pendiente de implementar—, eliminar con confirmación).
       editor-view.js            Cámara (vía scanner/camera.js) + edición de un mapeo, nuevo o existente:
@@ -137,14 +151,15 @@ public/
 2. **El tema vive en `tokens.css`.** Ningún color/tipografía hardcodeado fuera de ahí.
 3. **Iconos solo desde `icons.js`** (SVG inline, nunca emojis).
 4. **`shared/` no importa nada de `desk/` ni `app/`.** La dependencia va en una sola dirección.
-5. **API**: la lógica HTTP vive en `server/routes/`; la persistencia vive en `server/store/`. Cuando llegue la
-   base de datos real, solo se reescribe `store/users.store.js` (misma forma: list/findById/create/update/...).
+5. **API**: la lógica HTTP vive en `server/routes/`; la persistencia vive en `server/store/`. Todos los store/
+   (users, sessions, mapeos, inventory/coordenadas, create-data-source-store) hablan con Supabase — nunca
+   directo desde routes/ ni desde el frontend.
 6. **Herramientas de la app son permisos, no pestañas fijas.** La lista de inicio de `/app` separa
    habilitadas (color, arriba) de las que faltan permiso (blanco y negro, sin click, abajo), ambos
    grupos ordenados alfabéticamente.
 7. **"Consultas" es la única herramienta pública** (`PUBLIC_TOOLS` en `app.js`) — pensada para el equipo
    operativo, que no necesita cuenta. Sin sesión aparece igual arriba, en color; el resto se ve en BW
    como aviso de que hace falta loguearse (equipo de inventario).
-8. **Usuarios de prueba** (sembrados en memoria, se pierden al reiniciar el servidor):
+8. **Usuarios de prueba** (sembrados en la tabla `users` de Supabase — sobreviven un restart):
    `admin / admin1234` (todos los permisos) · `operador / operador1234` (mapeos, mapear, vencimientos, vacíos) ·
    `consulta / consulta1234` (basesdatos, consultas).

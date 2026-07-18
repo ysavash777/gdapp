@@ -1,120 +1,59 @@
 /* ============================================================
-   Módulo App · Mapear — capa de datos (hoy en memoria).
+   Módulo App · Mapear — capa de datos.
 
-   Misma forma que tendría un cliente contra la API real: todas las
-   funciones son async y devuelven objetos ya "limpios" (clonados).
-   El día que exista server/routes/mapeos.js + server/store/mapeos.store.js
-   (con el escaneo validando el código contra esa base), solo se
-   reemplaza el cuerpo de estas funciones por llamadas a apiFetch (ver
-   /shared/js/api.js) — list-view.js y editor-view.js no cambian,
-   porque ya trabajan contra esta interfaz.
+   Cliente de /api/mapeos (server/routes/mapeos.js + store/mapeos.store.js,
+   Supabase) — antes vivía entero en un array en memoria del navegador
+   y se perdía todo al recargar la página; ahora el servidor es la
+   única fuente real y esto solo llama a su API.
 
-   Un mapeo no tiene estado "finalizado": se puede reabrir, renombrar
-   y seguir editando su contenido (agregar, corregir o borrar códigos)
-   todas las veces que haga falta. Cada mutación recibe quién la hizo
-   (username) para poder mostrar creador/último editor en el listado.
+   Mismas funciones y misma firma que el store en memoria que
+   reemplaza (incluido el parámetro `actor`, aunque ya no se envía: el
+   servidor lo fija desde la sesión autenticada) — list-view.js y
+   editor-view.js no cambian, porque ya trabajan contra esta interfaz.
    ============================================================ */
 
-let mapeos = [];
-let nextMapeoId = 1;
-let nextCodeId = 1;
-
-function cloneCode(c) {
-  return { ...c };
-}
-
-function cloneMapeo(m) {
-  return { ...m, codes: m.codes.map(cloneCode) };
-}
+import { apiFetch } from '/shared/js/api.js';
 
 export async function list() {
-  return mapeos.map(cloneMapeo).sort((a, b) => b.updatedAt - a.updatedAt);
+  const { items } = await apiFetch('/api/mapeos');
+  return items;
 }
 
 export async function get(id) {
-  const m = mapeos.find((x) => x.id === id);
-  return m ? cloneMapeo(m) : null;
+  try {
+    const { mapeo } = await apiFetch(`/api/mapeos/${id}`);
+    return mapeo;
+  } catch (err) {
+    if (err.message === 'NOT_FOUND') return null;
+    throw err;
+  }
 }
 
 export async function create(actor, title) {
-  const now = Date.now();
-  const id = nextMapeoId++;
-  const trimmed = title && String(title).trim();
-  const mapeo = {
-    id,
-    title: trimmed || `Mapeo #${id}`,
-    createdAt: now,
-    createdBy: actor || null,
-    updatedAt: now,
-    updatedBy: actor || null,
-    codes: [],
-  };
-  mapeos.unshift(mapeo);
-  return cloneMapeo(mapeo);
+  const { mapeo } = await apiFetch('/api/mapeos', { method: 'POST', body: { title } });
+  return mapeo;
 }
 
 export async function rename(id, title, actor) {
-  const mapeo = mapeos.find((x) => x.id === id);
-  if (!mapeo) throw new Error('NOT_FOUND');
-  const trimmed = String(title).trim();
-  if (trimmed) mapeo.title = trimmed;
-  mapeo.updatedAt = Date.now();
-  mapeo.updatedBy = actor || mapeo.updatedBy;
-  return cloneMapeo(mapeo);
+  const { mapeo } = await apiFetch(`/api/mapeos/${id}`, { method: 'PATCH', body: { title } });
+  return mapeo;
 }
 
 export async function remove(id) {
-  mapeos = mapeos.filter((x) => x.id !== id);
+  await apiFetch(`/api/mapeos/${id}`, { method: 'DELETE' });
 }
 
-// La cantidad, condición y descripción quedan con valores por
-// defecto/vacíos al escanear — se completan después (en el momento o
-// más tarde) sin frenar el ritmo de un escaneo masivo. La descripción
-// hoy se escribe a mano; cuando el escaneo valide contra una base
-// real, ese campo puede llegar completo desde ahí.
 export async function addCode(mapeoId, rawCode, actor) {
-  const mapeo = mapeos.find((x) => x.id === mapeoId);
-  if (!mapeo) throw new Error('NOT_FOUND');
-  const code = String(rawCode).trim();
-  if (!code) throw new Error('EMPTY_CODE');
-  const now = Date.now();
-  const entry = {
-    id: nextCodeId++,
-    code,
-    description: '',
-    quantity: 1,
-    condition: null,
-    // Datos específicos de cada motivo — solo se completa el que
-    // corresponde a la condición elegida (ver editor-view.js).
-    expiryDate: null,        // motivo "unidades": vencimiento, opcional
-    roturaResponsible: null, // motivo "rotura" (IDL | Rappi) y "vencido" (siempre IDL)
-    customReason: '',        // motivo "otro": texto libre
-    scannedAt: now,
-    touchedAt: now, // último alta o edición — ordena el listado en vivo
-  };
-  mapeo.codes.push(entry);
-  mapeo.updatedAt = now;
-  mapeo.updatedBy = actor || mapeo.updatedBy;
-  return cloneMapeo(mapeo);
+  const { mapeo } = await apiFetch(`/api/mapeos/${mapeoId}/codes`, { method: 'POST', body: { code: rawCode } });
+  return mapeo;
 }
 
 export async function updateCode(mapeoId, codeId, patch, actor) {
-  const mapeo = mapeos.find((x) => x.id === mapeoId);
-  if (!mapeo) throw new Error('NOT_FOUND');
-  const entry = mapeo.codes.find((c) => c.id === codeId);
-  if (!entry) throw new Error('NOT_FOUND');
-  Object.assign(entry, patch);
-  entry.touchedAt = Date.now();
-  mapeo.updatedAt = Date.now();
-  mapeo.updatedBy = actor || mapeo.updatedBy;
-  return cloneMapeo(mapeo);
+  const { mapeo } = await apiFetch(`/api/mapeos/${mapeoId}/codes/${codeId}`, { method: 'PATCH', body: patch });
+  return mapeo;
 }
 
 export async function removeCode(mapeoId, codeId, actor) {
-  const mapeo = mapeos.find((x) => x.id === mapeoId);
-  if (!mapeo) throw new Error('NOT_FOUND');
-  mapeo.codes = mapeo.codes.filter((c) => c.id !== codeId);
-  mapeo.updatedAt = Date.now();
-  mapeo.updatedBy = actor || mapeo.updatedBy;
-  return cloneMapeo(mapeo);
+  const { mapeo } = await apiFetch(`/api/mapeos/${mapeoId}/codes/${codeId}`, { method: 'DELETE' });
+  return mapeo;
 }

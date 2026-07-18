@@ -1,25 +1,33 @@
 /* ============================================================
-   Repositorio de sesiones (en memoria).
-   Token opaco -> userId. Cuando exista base de datos/Redis, solo
-   se reemplaza el cuerpo de estas funciones.
+   Repositorio de sesiones — Supabase (tabla `sessions`, proyecto
+   "bodega-47-inventario"). Antes vivía en memoria (Map) y se perdía
+   en cada restart del servidor (forzando relogueo apenas Render
+   reiniciaba el proceso, aunque no hubiera pasado nada); misma forma
+   de API que antes (create/getUserId/destroy), solo que ahora son
+   async — routes/auth.js y middleware/auth.js ya las llaman con await.
    ============================================================ */
 
 const crypto = require('crypto');
+const { requireClient } = require('../services/supabase-client');
 
-const tokenToUserId = new Map();
-
-function create(userId) {
+async function create(userId) {
   const token = crypto.randomBytes(32).toString('hex');
-  tokenToUserId.set(token, userId);
+  const supabase = requireClient();
+  const { error } = await supabase.from('sessions').insert({ token, user_id: userId });
+  if (error) throw error;
   return token;
 }
 
-function getUserId(token) {
-  return tokenToUserId.get(token) || null;
+async function getUserId(token) {
+  const supabase = requireClient();
+  const { data, error } = await supabase.from('sessions').select('user_id').eq('token', token).maybeSingle();
+  if (error) throw error;
+  return data ? data.user_id : null;
 }
 
-function destroy(token) {
-  tokenToUserId.delete(token);
+async function destroy(token) {
+  const supabase = requireClient();
+  await supabase.from('sessions').delete().eq('token', token);
 }
 
 module.exports = { create, getUserId, destroy };

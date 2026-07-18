@@ -7,7 +7,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { requireAuth } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/auth');
 const engine = require('../services/inventory-engine');
 const inventoryStore = require('../store/inventory.store');
 const coordenadasStore = require('../store/coordenadas.store');
@@ -19,16 +19,7 @@ const STORES = {
   coordenadas: coordenadasStore,
 };
 
-function requirePermission(key) {
-  return (req, res, next) => {
-    if (!(req.user.permissions || []).includes(key)) {
-      return res.status(403).json({ ok: false, error: 'FORBIDDEN' });
-    }
-    next();
-  };
-}
-
-router.use(requireAuth, requirePermission('basesdatos'));
+router.use(requirePermission('basesdatos'));
 
 // POST /api/database/refresh — dispara una corrida del motor (todas
 // las fuentes configuradas, un solo login) y responde de inmediato,

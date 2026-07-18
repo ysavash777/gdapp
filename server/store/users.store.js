@@ -1,12 +1,13 @@
 /* ============================================================
-   Repositorio de usuarios (en memoria).
-   Misma forma de API que tendrá la capa de base de datos real:
-   list/findById/findByUsername/create/update/updatePassword/remove.
-   Cuando se conecte la BD, solo se reemplaza el cuerpo de estas
-   funciones — routes/ y el frontend no cambian.
+   Repositorio de usuarios — Supabase (tabla `users`, proyecto
+   "bodega-47-inventario"). Antes vivía en memoria (Map) y se perdía
+   en cada restart del servidor; misma forma de API que antes
+   (list/findById/findByUsername/create/update/updatePassword/remove),
+   solo que ahora todas son async — routes/ ya las llama con await.
    ============================================================ */
 
 const crypto = require('crypto');
+const { requireClient } = require('../services/supabase-client');
 
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -20,87 +21,102 @@ function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(check, 'hex'));
 }
 
-// Índices: byId para O(1) lookup por id, idByUsername para O(1) por username.
-const byId = new Map();
-const idByUsername = new Map();
-let nextId = 1;
-
-function seed(username, password, role, avatar, permissions) {
-  const id = nextId++;
-  const user = { id, username, passwordHash: hashPassword(password), role, avatar, permissions };
-  byId.set(id, user);
-  idByUsername.set(username.toLowerCase(), id);
-  return user;
+function rowToUser(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    username: row.username,
+    passwordHash: row.password_hash,
+    role: row.role,
+    avatar: row.avatar,
+    permissions: row.permissions || [],
+  };
 }
 
-seed('admin', 'admin1234', 'admin', 1, ['usuarios', 'mapeos', 'basesdatos', 'mapear', 'vencimientos', 'vacios', 'consultas']);
-seed('operador', 'operador1234', 'user', 3, ['mapeos', 'mapear', 'vencimientos', 'vacios']);
-seed('consulta', 'consulta1234', 'user', 5, ['basesdatos', 'consultas']);
-
 function toPublic(user) {
+  if (!user) return null;
   const { passwordHash, ...pub } = user;
   return pub;
 }
 
-function list({ q = '', page = 1, pageSize = 20 } = {}) {
-  const term = q.trim().toLowerCase();
-  let items = Array.from(byId.values());
-  if (term) items = items.filter((u) => u.username.toLowerCase().includes(term));
-  const total = items.length;
-  const start = (page - 1) * pageSize;
-  const items_ = items.slice(start, start + pageSize).map(toPublic);
-  return { items: items_, total, page, pageSize };
+async function list({ q = '', page = 1, pageSize = 20 } = {}) {
+  const supabase = requireClient();
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase.from('users').select('*', { count: 'exact' });
+  if (q.trim()) query = query.ilike('username', `%${q.trim()}%`);
+  const { data, count, error } = await query.order('id').range(from, to);
+  if (error) throw error;
+
+  return { items: data.map((r) => toPublic(rowToUser(r))), total: count ?? 0, page, pageSize };
 }
 
-function findById(id) {
-  return byId.get(id) || null;
+async function findById(id) {
+  const supabase = requireClient();
+  const { data, error } = await supabase.from('users').select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return rowToUser(data);
 }
 
-function findByUsername(username) {
-  const id = idByUsername.get(String(username).toLowerCase());
-  return id ? byId.get(id) : null;
+async function findByUsername(username) {
+  const supabase = requireClient();
+  const { data, error } = await supabase.from('users').select('*').ilike('username', username).maybeSingle();
+  if (error) throw error;
+  return rowToUser(data);
 }
 
-function create({ username, password, role = 'user', avatar = 1, permissions = [] }) {
+async function create({ username, password, role = 'user', avatar = 1, permissions = [] }) {
   if (!username || !password) throw new Error('MISSING_FIELDS');
-  if (findByUsername(username)) throw new Error('USERNAME_TAKEN');
-  const id = nextId++;
-  const user = { id, username, passwordHash: hashPassword(password), role, avatar, permissions };
-  byId.set(id, user);
-  idByUsername.set(username.toLowerCase(), id);
-  return toPublic(user);
+  if (await findByUsername(username)) throw new Error('USERNAME_TAKEN');
+
+  const supabase = requireClient();
+  const { data, error } = await supabase
+    .from('users')
+    .insert({ username, password_hash: hashPassword(password), role, avatar, permissions })
+    .select()
+    .single();
+  if (error) throw error;
+  return toPublic(rowToUser(data));
 }
 
-function update(id, patch) {
-  const user = byId.get(id);
+async function update(id, patch) {
+  const user = await findById(id);
   if (!user) return null;
 
+  const updates = {};
   if (patch.username && patch.username.toLowerCase() !== user.username.toLowerCase()) {
-    if (findByUsername(patch.username)) throw new Error('USERNAME_TAKEN');
-    idByUsername.delete(user.username.toLowerCase());
-    user.username = patch.username;
-    idByUsername.set(user.username.toLowerCase(), id);
+    if (await findByUsername(patch.username)) throw new Error('USERNAME_TAKEN');
+    updates.username = patch.username;
   }
-  if (patch.role) user.role = patch.role;
-  if (patch.avatar) user.avatar = patch.avatar;
-  if (Array.isArray(patch.permissions)) user.permissions = patch.permissions;
+  if (patch.role) updates.role = patch.role;
+  if (patch.avatar) updates.avatar = patch.avatar;
+  if (Array.isArray(patch.permissions)) updates.permissions = patch.permissions;
 
-  return toPublic(user);
+  if (Object.keys(updates).length === 0) return toPublic(user);
+
+  const supabase = requireClient();
+  const { data, error } = await supabase.from('users').update(updates).eq('id', id).select().single();
+  if (error) throw error;
+  return toPublic(rowToUser(data));
 }
 
-function updatePassword(id, password) {
-  const user = byId.get(id);
-  if (!user) return false;
-  user.passwordHash = hashPassword(password);
-  return true;
+async function updatePassword(id, password) {
+  const supabase = requireClient();
+  const { data, error } = await supabase
+    .from('users')
+    .update({ password_hash: hashPassword(password) })
+    .eq('id', id)
+    .select('id');
+  if (error) throw error;
+  return data.length > 0;
 }
 
-function remove(id) {
-  const user = byId.get(id);
-  if (!user) return false;
-  byId.delete(id);
-  idByUsername.delete(user.username.toLowerCase());
-  return true;
+async function remove(id) {
+  const supabase = requireClient();
+  const { data, error } = await supabase.from('users').delete().eq('id', id).select('id');
+  if (error) throw error;
+  return data.length > 0;
 }
 
 module.exports = {
