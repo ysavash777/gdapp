@@ -116,10 +116,11 @@ export function openScanner() {
     return 'is-sm';
   }
 
-  // La ubicación sugerida solo tiene que decir "pasillo + módulo" (ej.
-  // "MFCA30", "B40"), nunca la posición/nivel completo (ej.
-  // "MFCA300104", "B400101") — eso es demasiado detalle para una
-  // sugerencia rápida. El formato real es prefijo de letras + 6
+  // El rango solo tiene que decir "pasillo + módulo" (ej. "MFCA30",
+  // "B40"), nunca la posición/piso completo (ej. "MFCA300104",
+  // "B400101") — mostrar hasta el módulo ya deja claro qué tramo
+  // cubre, sin la posición exacta que la ubicación SUGERIDA sí
+  // necesita completa. El formato real es prefijo de letras + 6
   // dígitos, donde los primeros 2 son el módulo — si no matchea (dato
   // con otra forma), se muestra tal cual en vez de romper.
   function simplifyLocation(loc) {
@@ -237,7 +238,7 @@ export function openScanner() {
           <div class="cq-suggested-text">
             <span class="cq-suggested-label">Ubicación sugerida</span>
             <span class="cq-suggested-value">
-              ${product.suggestedLocation ? escapeHtml(simplifyLocation(product.suggestedLocation)) : 'Sin datos'}
+              ${product.suggestedLocation ? escapeHtml(product.suggestedLocation) : 'Sin datos'}
               ${product.suggestedLevel ? `<span class="cq-level-tag cq-level-tag--${product.suggestedLevel === 'Picking' ? 'picking' : 'altura'}">${product.suggestedLevel}</span>` : ''}
             </span>
           </div>
@@ -249,9 +250,9 @@ export function openScanner() {
               ${ranges.map((r) => `
                 <div class="cq-aisle-row">
                   <span class="cq-level-tag cq-level-tag--${r.level === 'Picking' ? 'picking' : 'altura'}">${r.level}</span>
-                  <span class="cq-location-chip">${escapeHtml(r.from)}</span>
+                  <span class="cq-location-chip">${escapeHtml(simplifyLocation(r.from))}</span>
                   <span class="cq-range-arrow">${icon('arrowRight', 15)}</span>
-                  <span class="cq-location-chip">${escapeHtml(r.to)}</span>
+                  <span class="cq-location-chip">${escapeHtml(simplifyLocation(r.to))}</span>
                 </div>
               `).join('')}
             </div>

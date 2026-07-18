@@ -240,18 +240,22 @@ public/
                                es la red de seguridad final). Grilla EAN/Referencia/Grupo con la clase extra
                                `cq-info-grid` para compartir el mismo gris (var(--n-200)) que las otras dos
                                cajas del módulo — sin esa clase, .reg-info-grid se queda en el gris de
-                               Mapear (var(--surface-2)), así que el cambio no afecta a ese módulo. Las dos
+                               Mapear (var(--surface-2)), así que el cambio no afecta a ese módulo; las tres
+                               cajas llevan además `width:100%` explícito para quedar simétricas. Las dos
                                cajas: "Ubicación sugerida" (con insignia circular de ícono, mismo lenguaje
-                               visual que .tc-icon del home — el código se simplifica con simplifyLocation()
-                               a solo pasillo+módulo, ej. "MFCA300104" -> "MFCA30", más una etiqueta
-                               Picking/Altura) y el rango de ubicaciones — una fila por combinación
-                               pasillo+nivel (nunca solo por pasillo: un mismo pasillo puede tener zona de
-                               picking a piso y zona de altura en la estantería — confirmado con datos
-                               reales, ej. el grupo "PM" tiene su mismo pasillo repartido en 5 pisos —
-                               mezclarlos daría un rango que en los hechos describe alturas distintas, no
-                               algo caminable), cada fila con su propio extremo de abajo -> de arriba, su
-                               etiqueta Picking/Altura y un ícono de flecha real (arrowRight) — nunca la
-                               lista completa. Todo ese cálculo vive server-side en routes/consultas.js.
+                               visual que .tc-icon del home — la posición COMPLETA, sin simplificar, ej.
+                               "G450103", porque a diferencia del rango esta sí hay que poder pararse ahí
+                               exacto, más una etiqueta Picking/Altura) y el rango de ubicaciones — una fila
+                               por combinación pasillo+nivel (nunca solo por pasillo: un mismo pasillo puede
+                               tener zona de picking a piso y zona de altura en la estantería — confirmado
+                               con datos reales, ej. el grupo "PM" tiene su mismo pasillo repartido en 5
+                               pisos — mezclarlos daría un rango que en los hechos describe alturas
+                               distintas, no algo caminable), cada fila con su propio extremo de abajo -> de
+                               arriba SIMPLIFICADO a pasillo+módulo (simplifyLocation(), ej. "MFCA300104" ->
+                               "MFCA30" — al rango solo le hace falta decir qué tramo cubre, no la posición
+                               exacta), su etiqueta Picking/Altura y un ícono de flecha real (arrowRight) —
+                               nunca la lista completa. Todo ese cálculo vive server-side en
+                               routes/consultas.js.
                                El sheet se abre AL TOQUE, con placeholders tipo "hueso" (.cq-skeleton, con
                                shimmer) en cada campo — el cruce contra Coordenadas/Referencia no es
                                instantáneo, y sin esto el usuario ve la cámara congelada un par de segundos y
