@@ -43,6 +43,18 @@
    de Referencia — así se ven incluso sin conexión, no solo una vez
    que el motor de sync confirma el alta (que sigue corrigiendo estos
    mismos campos con el dato fresco del servidor apenas puede).
+
+   list() SÍ tiene una caché de respaldo (`gd.mapear.listCache.v1`):
+   sin ella, reabrir la app entera sin conexión (no solo seguir
+   escaneando dentro de un mapeo ya abierto) dejaba la pantalla de
+   Mapear sin nada para mostrar. Cada list() bueno actualiza esa
+   foto; si la llamada de red falla por falta de conexión, se usa la
+   última foto buena, pisando cada mapeo con su propia caché
+   individual si esta tiene algo más nuevo (ediciones locales que
+   todavía no llegaron a figurar en ningún listado exitoso). Un error
+   real del servidor (permisos, 500) NO cae a la caché — solo la
+   falta de red hace ese fallback, para no esconder un problema real
+   detrás de datos viejos.
    ============================================================ */
 
 import { apiFetch } from '/shared/js/api.js';
@@ -76,6 +88,38 @@ function clearCache(id) {
   try {
     localStorage.removeItem(cacheKey(id));
   } catch { /* nada que limpiar */ }
+}
+
+const LIST_CACHE_KEY = 'gd.mapear.listCache.v1';
+
+function saveListCache(items) {
+  try {
+    localStorage.setItem(LIST_CACHE_KEY, JSON.stringify(items));
+  } catch (e) {
+    console.error('[mapear/store] No se pudo persistir el listado en caché:', e.message);
+  }
+}
+
+function loadListCache() {
+  try {
+    const raw = localStorage.getItem(LIST_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function removeFromListCache(id) {
+  const cached = loadListCache();
+  if (!cached) return;
+  saveListCache(cached.filter((m) => m.id !== id));
+}
+
+// fetch() rechaza con TypeError cuando no hay red — cualquier otro
+// error ya es una respuesta real del servidor (permisos, 500, etc.),
+// que no debe esconderse detrás de una caché vieja.
+function isNetworkFailure(err) {
+  return err instanceof TypeError || (typeof navigator !== 'undefined' && navigator.onLine === false);
 }
 
 function metaOf(mapeo) {
@@ -172,8 +216,24 @@ syncEngine.onEvent((evt) => {
 // ---- Mapeos (nivel mapeo — siempre red directa) ----
 
 export async function list() {
-  const { items } = await apiFetch('/api/mapeos');
-  return items;
+  try {
+    const { items } = await apiFetch('/api/mapeos');
+    const merged = items.map((m) => mergeAndCache(m.id, m));
+    saveListCache(merged);
+    return merged;
+  } catch (err) {
+    if (!isNetworkFailure(err)) throw err;
+    const cached = loadListCache();
+    if (!cached) throw err;
+    // Un mapeo puede tener, en su propia caché individual, algo más
+    // nuevo que lo que había en la última foto del listado (se abrió
+    // y se le agregó un código después del último list() bueno) — esa
+    // caché propia gana si existe.
+    return cached.map((m) => {
+      const own = loadCache(m.id);
+      return own ? { ...own.mapeo, codes: own.codes } : m;
+    });
+  }
 }
 
 export async function get(id) {
@@ -208,6 +268,7 @@ export async function remove(id) {
   await apiFetch(`/api/mapeos/${id}`, { method: 'DELETE' });
   syncEngine.cancelMapeo(id);
   clearCache(id);
+  removeFromListCache(id);
 }
 
 // ---- Códigos (offline-first: local primero, red en segundo plano) ----

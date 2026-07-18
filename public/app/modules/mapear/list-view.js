@@ -45,7 +45,18 @@ export async function renderList(outlet, { onNew }) {
   outletRef = outlet;
   refreshRef = () => renderList(outlet, { onNew });
 
-  const mapeos = await store.list();
+  // store.list() ya cae solo a la última foto buena en localStorage si
+  // no hay red (ver store.js) — esto solo pasa si NUNCA hubo una foto
+  // que guardar (primera vez que se abre Mapear en este dispositivo,
+  // sin conexión) o si el error es real (sesión vencida, servidor
+  // caído), no de conectividad.
+  let mapeos, listError;
+  try {
+    mapeos = await store.list();
+  } catch (err) {
+    listError = err;
+    mapeos = [];
+  }
 
   outlet.innerHTML = `
     <div class="action-hero">
@@ -53,7 +64,18 @@ export async function renderList(outlet, { onNew }) {
         ${icon('search', 18)}
         <input type="search" id="mapeoSearchInput" placeholder="Buscar mapeo..." autocomplete="off" />
       </div>
-      ${mapeos.length
+      ${listError
+        ? `
+          <div class="card">
+            <div class="empty-state">
+              <div class="es-icon">${icon('alertTriangle', 26)}</div>
+              <h3>No se pudo cargar</h3>
+              <p>Sin conexión y sin ningún mapeo visto antes en este dispositivo — conectate al menos una vez para poder seguir sin red después.</p>
+              <button type="button" class="btn btn-ghost" id="mapeoRetryBtn" style="margin-top:var(--sp-3);">${icon('refresh', 16)} Reintentar</button>
+            </div>
+          </div>
+        `
+        : mapeos.length
         ? `<div class="mapeo-list">${mapeos.map(mapeoCardHTML).join('')}</div>`
         : `
           <div class="card">
@@ -66,6 +88,11 @@ export async function renderList(outlet, { onNew }) {
         `}
     </div>
   `;
+
+  if (listError) {
+    outlet.querySelector('#mapeoRetryBtn').addEventListener('click', refreshRef);
+    return;
+  }
 
   // Icono "+" en la fila del título (junto a "Mapear"): abre el menú
   // para elegir cómo empezar un mapeo — crear uno nuevo escaneando, o

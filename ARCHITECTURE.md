@@ -151,9 +151,15 @@ public/
                                para los CÓDIGOS de un mapeo ya abierto: addCode/updateCode/removeCode
                                escriben primero en una caché local (localStorage, prefijo `gd.mapear.cache.`)
                                y devuelven al instante, sin esperar la red — el envío real corre después en
-                               segundo plano vía sync-engine.js. list()/create()/rename()/remove() (a nivel
-                               mapeo) siguen siendo red directa sin caché: solo agregar códigos a un mapeo
-                               que ya existe tiene que sobrevivir sin conexión. Cada código carga un
+                               segundo plano vía sync-engine.js. create()/rename() (a nivel mapeo) siguen
+                               siendo red directa sin caché: crear o renombrar un mapeo entero sí requiere
+                               conexión. list() sí tiene caché de respaldo (`gd.mapear.listCache.v1`,
+                               actualizada en cada list() bueno): si la red falla por falta de conexión
+                               (nunca si el servidor responde con un error real — eso no debe esconderse
+                               detrás de datos viejos), usa la última foto buena, pisando cada mapeo con su
+                               propia caché individual si tiene algo más nuevo — sin esto, reabrir la app
+                               entera sin conexión dejaba el listado vacío aunque cada mapeo individual ya
+                               sobreviviera offline. remove() también limpia esa foto. Cada código carga un
                                `syncStatus` ('syncing'/'synced'/'offline', solo de UI) y un `clientId` fijo
                                para toda su vida (a diferencia de `id`, que empieza siendo temporal y el
                                motor lo reemplaza por el real apenas confirma el alta) — editor-view.js debe
@@ -183,7 +189,10 @@ public/
                                (que igual los corrige después con el dato fresco del servidor). Se refresca
                                solo al cargar el módulo y en cada evento 'online'.
       list-view.js             Listado de mapeos + menú de opciones por fila (renombrar, descargar —
-                               pendiente de implementar—, eliminar con confirmación).
+                               pendiente de implementar—, eliminar con confirmación). Si store.list() tira
+                               (sin red y sin ninguna foto guardada todavía — recién instalada la app, nunca
+                               hubo conexión) muestra un estado de error con botón "Reintentar" en vez de
+                               romper la pantalla.
       editor-view.js            Cámara (vía scanner/camera.js) + edición de un mapeo, nuevo o existente:
                                cada código tiene cantidad, condición (rotura/unidades/vencido/otro) y
                                descripción editables, con ingreso manual como respaldo.
