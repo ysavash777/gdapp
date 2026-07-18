@@ -11,9 +11,14 @@
    "tipo_producto" (confirmado con datos reales — los mismos códigos
    BEB1/FMFCCU/DES2/etc. aparecen en ambas fuentes). El front nunca
    recibe la lista completa de ubicaciones de un grupo (puede ser
-   1500+ para uno grande): solo el extremo de abajo y el de arriba
-   (orden natural, no alfabético puro — ver naturalCompare) para
-   mostrar un rango compacto, y una sola ubicación sugerida.
+   1500+ para uno grande): se agrupan por "pasillo" (el prefijo sin
+   dígitos de cada ubicación, ej. "B" en "B400101" o "MFCA" en
+   "MFCA780106" — confirmado con datos reales que un mismo grupo casi
+   siempre vive en varios pasillos, ej. BEB1 está repartido en B, C, D
+   y E) y para cada uno se manda solo su extremo de abajo y el de
+   arriba (orden natural, no alfabético puro — ver naturalCompare),
+   nunca un solo rango global que mezclaría pasillos que en los
+   hechos no son contiguos. Más una sola ubicación sugerida.
 
    La "más vacía" se calcula contra Referencia: se cuenta cuántas filas
    (cajas/posiciones ocupadas) tiene cada ubicación candidata ahí — la
@@ -53,6 +58,31 @@ function naturalCompare(a, b) {
   return 0;
 }
 
+// El "pasillo" de una ubicación es su prefijo sin dígitos ("B" en
+// "B400101", "MFCA" en "MFCA780106") — nunca se asume que todo un
+// grupo vive en un solo pasillo contiguo.
+function aisleOf(ubicacion) {
+  const m = String(ubicacion).match(/^\D+/);
+  return m ? m[0] : '';
+}
+
+// Un rango por pasillo (extremo de abajo/de arriba, orden natural),
+// ordenados ellos mismos por pasillo — nunca la lista completa.
+function aisleRanges(ubicaciones) {
+  const byAisle = new Map();
+  for (const u of ubicaciones) {
+    const aisle = aisleOf(u);
+    if (!byAisle.has(aisle)) byAisle.set(aisle, []);
+    byAisle.get(aisle).push(u);
+  }
+  return [...byAisle.entries()]
+    .map(([aisle, list]) => {
+      const sorted = list.slice().sort(naturalCompare);
+      return { aisle, from: sorted[0], to: sorted[sorted.length - 1] };
+    })
+    .sort((a, b) => naturalCompare(a.aisle, b.aisle));
+}
+
 // GET /api/consultas/lookup?code=...
 router.get('/lookup', (req, res) => {
   try {
@@ -67,8 +97,7 @@ router.get('/lookup', (req, res) => {
       description: match.descripcion || '',
       ean: match.productoean || '',
       group: grupo && grupo !== 'SIN GRUPO' ? grupo : '',
-      rangeFrom: null,
-      rangeTo: null,
+      ranges: [],
       suggestedLocation: null,
     };
 
@@ -78,11 +107,10 @@ router.get('/lookup', (req, res) => {
           .filter((r) => r.tipo_producto === product.group)
           .map((r) => r.ubicacion)
           .filter(Boolean)
-      )].sort(naturalCompare);
+      )];
 
       if (ubicaciones.length) {
-        product.rangeFrom = ubicaciones[0];
-        product.rangeTo = ubicaciones[ubicaciones.length - 1];
+        product.ranges = aisleRanges(ubicaciones);
 
         const occupancy = new Map();
         for (const row of inventoryStore.getRowsForExport()) {

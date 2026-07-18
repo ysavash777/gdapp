@@ -1049,11 +1049,82 @@ html, body {
   font-size: var(--text-sm);
 }
 .cq-location-chip.is-empty { color: var(--ink-3); font-weight: 600; }
-/* Rango de ubicaciones de un grupo (extremo de abajo -> de arriba,
-   nunca la lista completa) — dos chips iguales a los de arriba,
-   unidos por una flecha real (ícono, no una línea CSS). */
-.cq-range-row { display: flex; align-items: center; gap: 10px; }
 .cq-range-arrow { display: inline-flex; color: var(--ink-3); flex-shrink: 0; }
+
+/* Ubicación sugerida: mismo escalón de gris que .reg-info-grid pero
+   un paso más claro (var(--n-200) en vez de var(--surface-2)), para
+   que se lea como un bloque propio y no como una celda más de la
+   grilla de arriba — ícono en una insignia circular de acento, mismo
+   lenguaje visual que las tarjetas de herramienta del home (.tc-icon). */
+.cq-suggested-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  background: var(--n-200);
+  border-radius: var(--r-md);
+  padding: var(--sp-3);
+}
+.cq-suggested-icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--accent-500);
+  color: var(--ink);
+}
+.cq-suggested-text { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+.cq-suggested-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.cq-suggested-value { font-size: var(--text-md); font-weight: 700; color: var(--ink); }
+
+/* Rango de ubicaciones del grupo — un pasillo por fila (nunca un solo
+   rango global: un mismo grupo casi siempre vive en varios pasillos
+   no contiguos, ej. B/C/D/E), mismo tono gris que la caja de arriba,
+   centrado para que se lea de un vistazo. */
+.cq-aisles-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  background: var(--n-200);
+  border-radius: var(--r-md);
+  padding: var(--sp-3);
+}
+.cq-aisles-list { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.cq-aisle-row { display: flex; align-items: center; gap: 10px; }
+
+/* La ficha de Consultar grupo se abre YA, con estos "huesitos" en vez
+   de esperar a que conteste el servidor (el cruce contra Coordenadas/
+   Referencia no es instantáneo) — sin esto, el usuario ve la cámara
+   congelada un par de segundos y aprieta "Buscar" varias veces
+   pensando que no pasó nada. Cuando llega la respuesta real, cada
+   bloque se reemplaza con un fundido (.cq-fade-in), nunca de golpe. */
+.cq-skeleton {
+  display: inline-block;
+  height: 14px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--n-200) 25%, var(--surface-2) 50%, var(--n-200) 75%);
+  background-size: 200% 100%;
+  animation: cq-shimmer 1.3s ease-in-out infinite;
+  vertical-align: middle;
+}
+@keyframes cq-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.cq-fade-in { animation: cq-fadein 320ms ease; }
+@keyframes cq-fadein {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 /* Vencimiento y Cantidad van en el mismo tipo de contenedor que los
    datos del producto (.reg-info-grid): celdas centradas separadas por

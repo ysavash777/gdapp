@@ -6,9 +6,10 @@
    resultado en una ficha — al cerrarla, se puede seguir escaneando.
    findProduct (store.js) pide todo ya calculado a
    /api/consultas/lookup: descripción/EAN/grupo (Variables) + un
-   rango de ubicaciones y una sugerida (cruzando Coordenadas y
+   rango por pasillo y una ubicación sugerida (cruzando Coordenadas y
    Referencia) — nunca la lista completa de ubicaciones de un grupo,
-   que puede ser de miles.
+   que puede ser de miles y repartirse en varios pasillos no
+   contiguos.
 
    Misma cámara y mismos motores de lectura que Mapear, vía
    scanner/camera.js — acá no hay lista debajo ni ingreso masivo, así
@@ -56,16 +57,21 @@ export function openScanner() {
   let closed = false;
   let activeSheetBackdrop = null;
 
+  // El sheet se abre YA, con placeholders en vez de esperar a que
+  // conteste el servidor — si no, el usuario ve la cámara congelada
+  // un par de segundos (el cruce con Coordenadas/Referencia no es
+  // instantáneo) y piensa que el escaneo no funcionó, así que aprieta
+  // "Buscar" de nuevo varias veces. La respuesta real solo reemplaza
+  // los placeholders por los datos reales, con un fundido.
   async function lookupCode(rawValue) {
     if (navigator.vibrate) navigator.vibrate(35);
-    let product = null;
-    let lookupError = null;
+    const sheet = openResultSheet(rawValue);
     try {
-      product = await findProduct(rawValue);
+      const product = await findProduct(rawValue);
+      sheet.showResult(product, null);
     } catch (err) {
-      lookupError = err;
+      sheet.showResult(null, err);
     }
-    openResultSheet(rawValue, product, lookupError);
   }
 
   const scanner = createCameraScanner({
@@ -93,32 +99,31 @@ export function openScanner() {
     input.value = '';
   });
 
-  function openResultSheet(code, product, lookupError) {
+  // Placeholder angosto tipo "hueso" — se ve como texto a punto de
+  // aparecer, no como una barra de carga genérica. `width`/`height`
+  // son valores de CSS (ej. "70%", "18px").
+  function skeletonHTML(width, height = '14px') {
+    return `<span class="cq-skeleton" style="width:${width};height:${height}"></span>`;
+  }
+
+  function openResultSheet(code) {
     scanner.setPaused(true);
     scanner.setTorch(false);
     scanner.pauseView();
-
-    const hasRange = product?.rangeFrom && product?.rangeTo;
 
     const backdrop = document.createElement('div');
     backdrop.className = 'reg-sheet-backdrop';
     backdrop.innerHTML = `
       <div class="reg-sheet">
         <div class="reg-sheet-head">
-          <span class="reg-sheet-title">${lookupError ? 'No se pudo consultar' : product ? 'Producto encontrado' : 'Sin datos en la base'}</span>
+          <span class="reg-sheet-title" id="resultTitle">${skeletonHTML('75%', '18px')}</span>
           <button type="button" class="btn-icon" id="resultClose" title="Cerrar">${icon('x', 18)}</button>
         </div>
-        ${lookupError ? `
-          <p class="cq-desc-value">No se pudo completar la búsqueda. Revisá la conexión e intentá de nuevo.</p>
-        ` : `
-          <div class="cq-desc">
-            <span class="cq-desc-label">Descripción</span>
-            <p class="cq-desc-value">${escapeHtml(product?.description || 'Producto sin descripción')}</p>
-          </div>
+        <div id="resultBody">
           <div class="reg-info-grid">
             <div class="reg-info-cell">
               <span class="reg-info-label">EAN</span>
-              <span class="reg-info-value">${product?.ean ? escapeHtml(product.ean) : '-'}</span>
+              <span class="reg-info-value">${skeletonHTML('44px')}</span>
             </div>
             <div class="reg-info-cell">
               <span class="reg-info-label">Referencia</span>
@@ -126,26 +131,27 @@ export function openScanner() {
             </div>
             <div class="reg-info-cell">
               <span class="reg-info-label">Grupo</span>
-              <span class="reg-info-value">${product?.group ? escapeHtml(product.group) : '-'}</span>
+              <span class="reg-info-value">${skeletonHTML('44px')}</span>
             </div>
           </div>
-          <div class="cq-desc">
-            <span class="cq-desc-label">Ubicación sugerida</span>
-            <p class="cq-desc-value">${product?.suggestedLocation ? escapeHtml(product.suggestedLocation) : 'Sin datos'}</p>
+          <div class="cq-suggested-box">
+            <div class="cq-suggested-icon">${icon('pin', 20)}</div>
+            <div class="cq-suggested-text">
+              <span class="cq-suggested-label">Ubicación sugerida</span>
+              <span class="cq-suggested-value">${skeletonHTML('64px')}</span>
+            </div>
           </div>
-          <div class="cq-locations">
-            <span class="cq-locations-label">${icon('pin', 14)} Rango de ubicaciones del grupo</span>
-            ${hasRange ? `
-              <div class="cq-range-row">
-                <span class="cq-location-chip">${escapeHtml(product.rangeFrom)}</span>
-                <span class="cq-range-arrow">${icon('arrowRight', 16)}</span>
-                <span class="cq-location-chip">${escapeHtml(product.rangeTo)}</span>
+          <div class="cq-aisles-box">
+            <span class="cq-locations-label">${icon('map', 14)} Rango de ubicaciones del grupo</span>
+            <div class="cq-aisles-list">
+              <div class="cq-aisle-row">
+                <span class="cq-location-chip">${skeletonHTML('36px')}</span>
+                <span class="cq-range-arrow">${icon('arrowRight', 15)}</span>
+                <span class="cq-location-chip">${skeletonHTML('36px')}</span>
               </div>
-            ` : `
-              <div class="cq-location-list"><span class="cq-location-chip is-empty">—</span></div>
-            `}
+            </div>
           </div>
-        `}
+        </div>
       </div>
     `;
     document.body.appendChild(backdrop);
@@ -161,6 +167,76 @@ export function openScanner() {
     backdrop.addEventListener('click', (e) => {
       if (e.target === backdrop) closeResult();
     });
+
+    // Reemplaza los placeholders por los datos reales, cada uno con un
+    // fundido — nunca un "parpadeo" de golpe. Se llama una sola vez,
+    // cuando /api/consultas/lookup contesta (bien o mal).
+    function showResult(product, lookupError) {
+      if (!backdrop.isConnected) return; // el usuario ya cerró el sheet antes de que llegara la respuesta
+
+      const ranges = product?.ranges || [];
+      const titleText = lookupError
+        ? 'No se pudo consultar'
+        : product
+          ? (product.description || 'Producto sin descripción')
+          : 'Sin datos en la base';
+
+      const titleEl = backdrop.querySelector('#resultTitle');
+      titleEl.textContent = titleText;
+      titleEl.classList.add('cq-fade-in');
+
+      const bodyEl = backdrop.querySelector('#resultBody');
+      if (lookupError) {
+        bodyEl.innerHTML = `<p class="cq-desc-value cq-fade-in">No se pudo completar la búsqueda. Revisá la conexión e intentá de nuevo.</p>`;
+        return;
+      }
+      if (!product) {
+        bodyEl.innerHTML = '';
+        return;
+      }
+
+      bodyEl.innerHTML = `
+        <div class="reg-info-grid cq-fade-in">
+          <div class="reg-info-cell">
+            <span class="reg-info-label">EAN</span>
+            <span class="reg-info-value">${product.ean ? escapeHtml(product.ean) : '-'}</span>
+          </div>
+          <div class="reg-info-cell">
+            <span class="reg-info-label">Referencia</span>
+            <span class="reg-info-value">${escapeHtml(code)}</span>
+          </div>
+          <div class="reg-info-cell">
+            <span class="reg-info-label">Grupo</span>
+            <span class="reg-info-value">${product.group ? escapeHtml(product.group) : '-'}</span>
+          </div>
+        </div>
+        <div class="cq-suggested-box cq-fade-in">
+          <div class="cq-suggested-icon">${icon('pin', 20)}</div>
+          <div class="cq-suggested-text">
+            <span class="cq-suggested-label">Ubicación sugerida</span>
+            <span class="cq-suggested-value">${product.suggestedLocation ? escapeHtml(product.suggestedLocation) : 'Sin datos'}</span>
+          </div>
+        </div>
+        <div class="cq-aisles-box cq-fade-in">
+          <span class="cq-locations-label">${icon('map', 14)} Rango de ubicaciones del grupo</span>
+          ${ranges.length ? `
+            <div class="cq-aisles-list">
+              ${ranges.map((r) => `
+                <div class="cq-aisle-row">
+                  <span class="cq-location-chip">${escapeHtml(r.from)}</span>
+                  <span class="cq-range-arrow">${icon('arrowRight', 15)}</span>
+                  <span class="cq-location-chip">${escapeHtml(r.to)}</span>
+                </div>
+              `).join('')}
+            </div>
+          ` : `
+            <div class="cq-location-list"><span class="cq-location-chip is-empty">—</span></div>
+          `}
+        </div>
+      `;
+    }
+
+    return { showResult };
   }
 
   scanner.start();

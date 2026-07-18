@@ -49,13 +49,16 @@ server/
                            GRUPO" — ese valor cubre 8000+ productos y cruzarlo daría un rango sin sentido),
                            cruza contra Coordenadas por la columna "tipo_producto" (confirmado con datos
                            reales que es el mismo código de grupo/familia que "codgrupoprm" de Variables) —
-                           devuelve solo el extremo de abajo y el de arriba de las ubicaciones de ese grupo
-                           (nunca la lista completa, que puede ser 1500+), en orden "natural" (ver
-                           naturalCompare — un sort alfabético puro rompe con ubicaciones de distinto largo
-                           dentro de un mismo grupo, ej. "FMFCAU" tiene códigos de 10 y 11 caracteres), más
-                           una ubicación sugerida: la del grupo con menos filas de Referencia encima (la
-                           mejor aproximación disponible a "más vacía" con los datos que hay conectados).
-                           Exige el permiso 'consultas'.
+                           agrupa las ubicaciones de ese grupo por "pasillo" (aisleOf(): el prefijo sin
+                           dígitos, ej. "B" en "B400101" — un mismo grupo casi siempre vive en varios
+                           pasillos no contiguos, confirmado con datos reales: BEB1 está repartido en B/C/D/E)
+                           y devuelve solo el extremo de abajo y el de arriba DE CADA PASILLO (nunca la lista
+                           completa, que puede ser 1500+, ni un solo rango global que mezclaría pasillos),
+                           en orden "natural" (ver naturalCompare — un sort alfabético puro rompe con
+                           ubicaciones de distinto largo dentro de un mismo pasillo, ej. "FMFCAU" tiene
+                           códigos de 10 y 11 caracteres), más una ubicación sugerida: la del grupo con menos
+                           filas de Referencia encima (la mejor aproximación disponible a "más vacía" con los
+                           datos que hay conectados). Exige el permiso 'consultas'.
   services/copernico-client.js  Cliente HTTP de bajo nivel contra la API de Copernico WMS: login/logout +
                            fetchDataset() genérico (usado por fetchReferencia/fetchCoordenadas/fetchVariables,
                            mismo timeout y misma heurística para encontrar el array de filas en la respuesta).
@@ -220,10 +223,20 @@ public/
                            listado ni persistencia — cada código escaneado dispara una búsqueda y
                            muestra el resultado, sin guardar nada.
       index.js               Entrada — abre el escáner directo, no hay paso intermedio.
-      scanner-view.js          Cámara (vía scanner/camera.js) + ficha de resultado: descripción, grilla
-                               EAN/Referencia/Grupo, una "Ubicación sugerida" y un rango compacto de
-                               ubicaciones del grupo (extremo de abajo -> de arriba, con ícono de flecha —
-                               nunca la lista completa, eso vive server-side en routes/consultas.js).
+      scanner-view.js          Cámara (vía scanner/camera.js) + ficha de resultado: la descripción ES el
+                               título del sheet (sin "Producto encontrado" ni un encabezado "Descripción"
+                               aparte), grilla EAN/Referencia/Grupo, y dos cajas en gris más claro
+                               (var(--n-200)) y centradas: "Ubicación sugerida" (con insignia circular de
+                               ícono, mismo lenguaje visual que .tc-icon del home) y el rango de ubicaciones
+                               — un pasillo por fila, cada uno con su propio extremo de abajo -> de arriba y
+                               un ícono de flecha real (arrowRight), nunca la lista completa ni un solo rango
+                               que mezcle pasillos — todo ese cálculo vive server-side en routes/consultas.js.
+                               El sheet se abre AL TOQUE, con placeholders tipo "hueso" (.cq-skeleton, con
+                               shimmer) en cada campo — el cruce contra Coordenadas/Referencia no es
+                               instantáneo, y sin esto el usuario ve la cámara congelada un par de segundos y
+                               aprieta "Buscar" varias veces pensando que no pasó nada. Cuando
+                               /api/consultas/lookup contesta, showResult() reemplaza cada bloque con los
+                               datos reales con un fundido (.cq-fade-in), nunca de golpe.
       store.js                 findProduct(code) — cliente de GET /api/consultas/lookup.
     modules/vencimientos.js Herramienta Vencimientos.
     modules/vacios.js      Herramienta Vacíos.
