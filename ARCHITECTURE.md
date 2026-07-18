@@ -139,10 +139,26 @@ public/
     modules/mapear/         Herramienta Mapear, dividida por pantalla. Un mapeo no tiene estado
                            "finalizado": título y contenido se pueden reeditar siempre.
       index.js               Entrada (title, description, render) — solo orquesta list-view/editor-view.
-      store.js                Cliente de /api/mapeos (server/routes/mapeos.js, Supabase) — antes vivía
-                               entero en un array en memoria del navegador, hoy el servidor es la única
-                               fuente real. Misma forma de API que siempre (list/get/create/rename/remove/
-                               addCode/updateCode/removeCode) — list-view.js/editor-view.js no cambiaron.
+      store.js                Cliente de /api/mapeos (server/routes/mapeos.js, Supabase), offline-first
+                               para los CÓDIGOS de un mapeo ya abierto: addCode/updateCode/removeCode
+                               escriben primero en una caché local (localStorage, prefijo `gd.mapear.cache.`)
+                               y devuelven al instante, sin esperar la red — el envío real corre después en
+                               segundo plano vía sync-engine.js. list()/create()/rename()/remove() (a nivel
+                               mapeo) siguen siendo red directa sin caché: solo agregar códigos a un mapeo
+                               que ya existe tiene que sobrevivir sin conexión. Cada código carga un
+                               `syncStatus` ('syncing'/'synced'/'offline', solo de UI) y store.js expone
+                               subscribe(mapeoId, cb) para avisar a editor-view.js cuando ese estado cambia
+                               en segundo plano. Misma forma de API que siempre (list/get/create/rename/
+                               remove/addCode/updateCode/removeCode) — list-view.js no cambió.
+      sync-engine.js           Motor de sincronización: cola (outbox) persistida en localStorage
+                               (`gd.mapear.outbox.v1`), un trabajo a la vez — nunca en paralelo, para no
+                               saturar el servidor — y solo mientras haya algo pendiente (sin cola no queda
+                               ningún timer corriendo). Retoma sola con el evento 'online' o, como red de
+                               seguridad, cada 8s mientras siga sin conexión. Ediciones seguidas del mismo
+                               código se combinan en un solo trabajo si todavía no se envió. Sigue vivo
+                               aunque se cierre el editor (mientras dure la pestaña). Límite conocido: sin
+                               coordinación entre pestañas, pensado para una sola pestaña activa por
+                               dispositivo.
       list-view.js             Listado de mapeos + menú de opciones por fila (renombrar, descargar —
                                pendiente de implementar—, eliminar con confirmación).
       editor-view.js            Cámara (vía scanner/camera.js) + edición de un mapeo, nuevo o existente:

@@ -24,6 +24,14 @@
    Consultar grupo — este archivo no sabe cuál motor está activo, ni
    maneja el stream: solo escucha los códigos que le llegan por
    onCode.
+
+   store.js ya guarda cada alta/edición/baja localmente y la manda a
+   la base en segundo plano (ver store.js/sync-engine.js) — por eso
+   addCode/updateCode/removeCode de acá nunca esperan la red: el
+   `codes = updated.codes` de cada uno ya refleja el estado optimista
+   local. store.subscribe() avisa cuando ese estado cambia por un
+   evento de sincronización (confirmado, sin conexión) para redibujar
+   solo el ícono de cada tarjeta, sin tocar nada más.
    ============================================================ */
 
 import { icon } from '/shared/js/icons.js';
@@ -73,6 +81,20 @@ function motivoColorClass(c) {
   return c.condition ? `cond-${c.condition}` : 'is-empty';
 }
 
+// Círculo girando = todavía local, camino a la base; tilde = ya
+// confirmado; reloj = sin conexión, esperando para reintentar (ver
+// store.js). Siempre en gris — es información de respaldo del
+// registro, no un dato propio del producto.
+function syncIconHTML(status) {
+  if (status === 'offline') {
+    return `<span class="sync-status-icon" title="Sin conexión — pendiente de enviar">${icon('clock', 13)}</span>`;
+  }
+  if (status === 'synced') {
+    return `<span class="sync-status-icon" title="Guardado en la base">${icon('check', 13)}</span>`;
+  }
+  return `<span class="sync-status-icon is-spinning" title="Enviando a la base…">${icon('refresh', 13)}</span>`;
+}
+
 function recordCardHTML(c, flashId) {
   const desc = c.description || GENERIC_DESCRIPTION;
   const reasonLabel = conditionLabel(c.condition) || 'Sin motivo';
@@ -99,6 +121,7 @@ function recordCardHTML(c, flashId) {
         <span class="record-desc ${descSizeClass(desc)}">${escapeHtml(desc)}</span>
         <span class="record-code-line">${escapeHtml(c.code)}</span>
         <div class="record-badges">
+          ${syncIconHTML(c.syncStatus)}
           <span class="record-reason-inline ${colorClass}">${reasonLabel}</span>
           ${secondaryBadge}
         </div>
@@ -187,6 +210,15 @@ export async function openEditor({ mapeoId, title, onClose }) {
   let searchQuery = '';
   let flashId = null;
 
+  // Un código puede pasar de "enviando" a "guardado" (o "sin
+  // conexión") mucho después de que se lo agregó, en segundo plano —
+  // esta suscripción es lo único que se entera de eso mientras el
+  // editor sigue abierto, para redibujar solo el ícono de estado.
+  const unsubscribeSync = store.subscribe(mapeo.id, (freshCodes) => {
+    codes = freshCodes;
+    renderCodes();
+  });
+
   function visibleCodes() {
     return codes
       .filter((c) => !activeFilter || c.condition === activeFilter)
@@ -200,7 +232,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
         return haystack.includes(q);
       })
       .slice()
-      .sort((a, b) => b.touchedAt - a.touchedAt);
+      .sort((a, b) => new Date(b.touchedAt) - new Date(a.touchedAt));
   }
 
   function renderCodes() {
@@ -261,6 +293,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
       activeSheetBackdrop.remove();
       if (activeSheetDiscard) activeSheetDiscard();
     }
+    unsubscribeSync();
     document.removeEventListener('click', onDocClick);
     scanner.destroy();
     window.removeEventListener('popstate', onPopState);
@@ -328,7 +361,10 @@ export async function openEditor({ mapeoId, title, onClose }) {
   codesEl.addEventListener('click', (e) => {
     const card = e.target.closest('.record-card');
     if (!card) return;
-    const entry = codes.find((c) => c.id === Number(card.dataset.codeId));
+    // El id puede ser numérico (ya confirmado en la base) o un id
+    // local temporal en forma de texto (recién escaneado, todavía sin
+    // enviar) — nunca forzar a Number(), un id local nunca lo es.
+    const entry = codes.find((c) => String(c.id) === card.dataset.codeId);
     if (entry) openRegisterSheet(entry, { isNew: false });
   });
 

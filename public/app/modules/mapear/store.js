@@ -2,17 +2,151 @@
    Módulo App · Mapear — capa de datos.
 
    Cliente de /api/mapeos (server/routes/mapeos.js + store/mapeos.store.js,
-   Supabase) — antes vivía entero en un array en memoria del navegador
-   y se perdía todo al recargar la página; ahora el servidor es la
-   única fuente real y esto solo llama a su API.
+   Supabase) — con una caché local offline-first para los CÓDIGOS de
+   un mapeo ya abierto: addCode/updateCode/removeCode escriben primero
+   en localStorage y devuelven al instante, sin esperar la red — el
+   envío real a la base ocurre después, en segundo plano, vía
+   sync-engine.js. Así un corte de conexión a mitad de un escaneo
+   nunca bloquea seguir escaneando.
 
-   Mismas funciones y misma firma que el store en memoria que
-   reemplaza (incluido el parámetro `actor`, aunque ya no se envía: el
-   servidor lo fija desde la sesión autenticada) — list-view.js y
-   editor-view.js no cambian, porque ya trabajan contra esta interfaz.
+   list()/create()/rename()/remove() (a nivel mapeo, no código) siguen
+   siendo llamadas de red directas sin caché: crear o renombrar un
+   mapeo entero sí requiere conexión — lo que tiene que sobrevivir sin
+   red es seguir agregando códigos a uno que ya existe, que es el caso
+   real de un operario caminando el depósito.
+
+   Cada código de la caché lleva un `syncStatus`: 'syncing' (recién
+   local, todavía no confirmado), 'synced' (ya está en la base) u
+   'offline' (se intentó y no hay conexión — sigue en cola). Es un
+   campo puramente de UI, nunca se manda al servidor.
+
+   Misma forma de funciones que el store en memoria original
+   (incluido el parámetro `actor` en las mutaciones, que ya no se usa:
+   el servidor fija el autor desde la sesión) — list-view.js sigue
+   llamando exactamente igual. editor-view.js solo suma `subscribe()`
+   para enterarse cuando el estado de sincronización de un código
+   cambia en segundo plano (para redibujar su ícono).
    ============================================================ */
 
 import { apiFetch } from '/shared/js/api.js';
+import * as syncEngine from './sync-engine.js';
+
+const CACHE_PREFIX = 'gd.mapear.cache.';
+
+function cacheKey(id) {
+  return `${CACHE_PREFIX}${id}`;
+}
+
+function loadCache(id) {
+  try {
+    const raw = localStorage.getItem(cacheKey(id));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCache(id, entry) {
+  try {
+    localStorage.setItem(cacheKey(id), JSON.stringify(entry));
+  } catch (e) {
+    console.error('[mapear/store] No se pudo persistir la caché local:', e.message);
+  }
+}
+
+function clearCache(id) {
+  try {
+    localStorage.removeItem(cacheKey(id));
+  } catch { /* nada que limpiar */ }
+}
+
+function metaOf(mapeo) {
+  const { codes, ...meta } = mapeo;
+  return meta;
+}
+
+// Server (verdad) + lo que la caché local todavía no pudo mandar
+// (altas con id temporal, o ediciones/bajas con un trabajo pendiente)
+// — para no perder trabajo hecho offline al reabrir un mapeo ya
+// sincronizado antes en este dispositivo.
+function mergeAndCache(id, serverMapeo) {
+  const cached = loadCache(id) || { codes: [] };
+  const pendingLocalOnly = cached.codes.filter((c) => typeof c.id === 'string');
+  const codes = serverMapeo.codes
+    .map((c) => {
+      const local = cached.codes.find((x) => x.id === c.id);
+      return local && local.syncStatus !== 'synced'
+        ? { ...c, ...local, syncStatus: local.syncStatus }
+        : { ...c, syncStatus: 'synced' };
+    })
+    .concat(pendingLocalOnly);
+  const merged = { ...serverMapeo, codes };
+  saveCache(id, { mapeo: metaOf(merged), codes: merged.codes });
+  return merged;
+}
+
+// ---- Suscripción a cambios en segundo plano ----
+
+const listeners = new Map(); // mapeoId -> Set<fn(codes)>
+
+export function subscribe(mapeoId, cb) {
+  if (!listeners.has(mapeoId)) listeners.set(mapeoId, new Set());
+  listeners.get(mapeoId).add(cb);
+  return () => listeners.get(mapeoId)?.delete(cb);
+}
+
+function notify(mapeoId) {
+  const subs = listeners.get(mapeoId);
+  if (!subs || !subs.size) return;
+  const cache = loadCache(mapeoId);
+  subs.forEach((cb) => cb(cache ? cache.codes : []));
+}
+
+syncEngine.onEvent((evt) => {
+  const cache = loadCache(evt.mapeoId);
+  if (!cache) return;
+
+  if (evt.type === 'sending') {
+    const entry = cache.codes.find((c) => c.id === evt.codeId);
+    if (entry && entry.syncStatus !== 'synced') entry.syncStatus = 'syncing';
+  } else if (evt.type === 'add-success') {
+    // El servidor devuelve el mapeo completo — el código nuevo es el
+    // único id real que todavía no conocíamos localmente.
+    const knownIds = cache.codes.filter((c) => typeof c.id === 'number').map((c) => c.id);
+    const newRow = evt.mapeo.codes.find((c) => !knownIds.includes(c.id));
+    if (newRow) {
+      syncEngine.remapId(evt.mapeoId, evt.codeId, newRow.id);
+      const entry = cache.codes.find((c) => c.id === evt.codeId);
+      if (entry) {
+        entry.id = newRow.id;
+        entry.description = newRow.description;
+        entry.scannedAt = newRow.scannedAt;
+        entry.touchedAt = newRow.touchedAt;
+        entry.syncStatus = 'synced';
+      }
+    }
+  } else if (evt.type === 'update-success') {
+    const entry = cache.codes.find((c) => c.id === evt.codeId);
+    if (entry) entry.syncStatus = 'synced';
+  } else if (evt.type === 'remove-success') {
+    // Ya se sacó de la caché al pedir el borrado — nada más que hacer.
+  } else if (evt.type === 'offline') {
+    const entry = cache.codes.find((c) => c.id === evt.codeId);
+    if (entry) entry.syncStatus = 'offline';
+  } else if (evt.type === 'error') {
+    if (evt.kind === 'add') {
+      cache.codes = cache.codes.filter((c) => c.id !== evt.codeId);
+    } else {
+      const entry = cache.codes.find((c) => c.id === evt.codeId);
+      if (entry) entry.syncStatus = 'offline';
+    }
+  }
+
+  saveCache(evt.mapeoId, cache);
+  notify(evt.mapeoId);
+});
+
+// ---- Mapeos (nivel mapeo — siempre red directa) ----
 
 export async function list() {
   const { items } = await apiFetch('/api/mapeos');
@@ -20,40 +154,93 @@ export async function list() {
 }
 
 export async function get(id) {
+  let serverMapeo;
   try {
     const { mapeo } = await apiFetch(`/api/mapeos/${id}`);
-    return mapeo;
+    serverMapeo = mapeo;
   } catch (err) {
     if (err.message === 'NOT_FOUND') return null;
+    // Sin red: si ya se abrió este mapeo antes en este dispositivo,
+    // se sigue desde la última caché conocida en vez de dejar al
+    // operario sin poder escanear.
+    const cached = loadCache(id);
+    if (cached) return { ...cached.mapeo, codes: cached.codes };
     throw err;
   }
+  return mergeAndCache(id, serverMapeo);
 }
 
 export async function create(actor, title) {
   const { mapeo } = await apiFetch('/api/mapeos', { method: 'POST', body: { title } });
+  saveCache(mapeo.id, { mapeo: metaOf(mapeo), codes: mapeo.codes.map((c) => ({ ...c, syncStatus: 'synced' })) });
   return mapeo;
 }
 
 export async function rename(id, title, actor) {
   const { mapeo } = await apiFetch(`/api/mapeos/${id}`, { method: 'PATCH', body: { title } });
-  return mapeo;
+  return mergeAndCache(id, mapeo);
 }
 
 export async function remove(id) {
   await apiFetch(`/api/mapeos/${id}`, { method: 'DELETE' });
+  syncEngine.cancelMapeo(id);
+  clearCache(id);
 }
 
+// ---- Códigos (offline-first: local primero, red en segundo plano) ----
+
 export async function addCode(mapeoId, rawCode, actor) {
-  const { mapeo } = await apiFetch(`/api/mapeos/${mapeoId}/codes`, { method: 'POST', body: { code: rawCode } });
-  return mapeo;
+  const code = String(rawCode).trim();
+  if (!code) throw new Error('EMPTY_CODE');
+
+  const cache = loadCache(mapeoId) || { mapeo: { id: mapeoId }, codes: [] };
+  const now = new Date().toISOString();
+  const localId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const entry = {
+    id: localId,
+    code,
+    description: '',
+    quantity: 1,
+    condition: null,
+    expiryDate: null,
+    roturaResponsible: null,
+    customReason: '',
+    scannedAt: now,
+    touchedAt: now,
+    syncStatus: 'syncing',
+  };
+  cache.codes = [...cache.codes, entry];
+  cache.mapeo = { ...cache.mapeo, updatedAt: now };
+  saveCache(mapeoId, cache);
+
+  syncEngine.enqueueAdd(mapeoId, localId, code);
+  return { ...cache.mapeo, codes: cache.codes };
 }
 
 export async function updateCode(mapeoId, codeId, patch, actor) {
-  const { mapeo } = await apiFetch(`/api/mapeos/${mapeoId}/codes/${codeId}`, { method: 'PATCH', body: patch });
-  return mapeo;
+  const cache = loadCache(mapeoId);
+  if (!cache) throw new Error('NOT_FOUND');
+  const entry = cache.codes.find((c) => c.id === codeId);
+  if (!entry) throw new Error('NOT_FOUND');
+
+  const now = new Date().toISOString();
+  Object.assign(entry, patch, { touchedAt: now });
+  if (entry.syncStatus === 'synced') entry.syncStatus = 'syncing';
+  cache.mapeo = { ...cache.mapeo, updatedAt: now };
+  saveCache(mapeoId, cache);
+
+  syncEngine.enqueueUpdate(mapeoId, codeId, patch);
+  return { ...cache.mapeo, codes: cache.codes };
 }
 
 export async function removeCode(mapeoId, codeId, actor) {
-  const { mapeo } = await apiFetch(`/api/mapeos/${mapeoId}/codes/${codeId}`, { method: 'DELETE' });
-  return mapeo;
+  const cache = loadCache(mapeoId);
+  if (!cache) throw new Error('NOT_FOUND');
+
+  cache.codes = cache.codes.filter((c) => c.id !== codeId);
+  cache.mapeo = { ...cache.mapeo, updatedAt: new Date().toISOString() };
+  saveCache(mapeoId, cache);
+
+  syncEngine.enqueueRemove(mapeoId, codeId);
+  return { ...cache.mapeo, codes: cache.codes };
 }

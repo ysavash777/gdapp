@@ -846,6 +846,14 @@ html, body {
   color: var(--ink-3);
 }
 .record-badges { display: flex; align-items: center; gap: 6px; }
+/* Estado de sincronización de cada registro (offline-first, ver
+   store.js/sync-engine.js): círculo girando = todavía en camino,
+   tilde = ya confirmado en la base, reloj = sin conexión, esperando
+   para reintentar. Siempre en gris — es información de respaldo, no
+   parte del dato en sí. */
+.sync-status-icon { display: inline-flex; align-items: center; flex-shrink: 0; color: var(--ink-3); }
+.sync-status-icon.is-spinning { animation: gd-spin 1s linear infinite; }
+@keyframes gd-spin { to { transform: rotate(360deg); } }
 /* Contenedor de ancho fijo para el motivo — "Rotura" y "Unidades"
    ocupan siempre el mismo espacio, sin importar el largo del texto. */
 .record-reason-inline {
