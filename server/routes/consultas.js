@@ -15,10 +15,15 @@
    dígitos de cada ubicación, ej. "B" en "B400101" o "MFCA" en
    "MFCA780106" — confirmado con datos reales que un mismo grupo casi
    siempre vive en varios pasillos, ej. BEB1 está repartido en B, C, D
-   y E) y para cada uno se manda solo su extremo de abajo y el de
-   arriba (orden natural, no alfabético puro — ver naturalCompare),
-   nunca un solo rango global que mezclaría pasillos que en los
-   hechos no son contiguos. Más una sola ubicación sugerida.
+   y E) Y ADEMÁS por nivel (columna "piso": "01"/"1" es Picking, todo
+   lo demás es Altura — confirmado con datos reales, ej. el grupo "PM"
+   tiene el mismo pasillo repartido en 5 pisos distintos, del 01 al
+   05). Mezclar picking y altura en un solo rango por pasillo daría un
+   extremo de abajo/de arriba que en los hechos describe estanterías a
+   distinta altura, no un rango caminable — por eso cada combinación
+   pasillo+nivel manda su propio rango (orden natural, no alfabético
+   puro — ver naturalCompare), nunca la lista completa. Más una sola
+   ubicación sugerida, con su propio nivel.
 
    La "más vacía" se calcula contra Referencia: se cuenta cuántas filas
    (cajas/posiciones ocupadas) tiene cada ubicación candidata ahí — la
@@ -66,21 +71,31 @@ function aisleOf(ubicacion) {
   return m ? m[0] : '';
 }
 
-// Un rango por pasillo (extremo de abajo/de arriba, orden natural),
-// ordenados ellos mismos por pasillo — nunca la lista completa.
-function aisleRanges(ubicaciones) {
-  const byAisle = new Map();
-  for (const u of ubicaciones) {
-    const aisle = aisleOf(u);
-    if (!byAisle.has(aisle)) byAisle.set(aisle, []);
-    byAisle.get(aisle).push(u);
+// piso "01"/"1"/"00" (o sin dato) es picking, a nivel de piso — todo
+// lo demás (02, 03...) es altura, en la estantería, arriba.
+function levelOf(piso) {
+  const n = Number(piso);
+  return !piso || Number.isNaN(n) || n <= 1 ? 'Picking' : 'Altura';
+}
+
+// Un rango por pasillo Y nivel (extremo de abajo/de arriba, orden
+// natural) — nunca uno por pasillo a secas: mezclar picking y altura
+// daría un rango que en los hechos describe estanterías a distinta
+// altura, no algo caminable de punta a punta. `rows` es
+// [{ubicacion, piso}, ...], nunca la lista completa de vuelta al front.
+function aisleRanges(rows) {
+  const byGroup = new Map();
+  for (const { ubicacion, piso } of rows) {
+    const key = `${aisleOf(ubicacion)}|${levelOf(piso)}`;
+    if (!byGroup.has(key)) byGroup.set(key, { aisle: aisleOf(ubicacion), level: levelOf(piso), list: [] });
+    byGroup.get(key).list.push(ubicacion);
   }
-  return [...byAisle.entries()]
-    .map(([aisle, list]) => {
+  return [...byGroup.values()]
+    .map(({ aisle, level, list }) => {
       const sorted = list.slice().sort(naturalCompare);
-      return { aisle, from: sorted[0], to: sorted[sorted.length - 1] };
+      return { aisle, level, from: sorted[0], to: sorted[sorted.length - 1] };
     })
-    .sort((a, b) => naturalCompare(a.aisle, b.aisle));
+    .sort((a, b) => naturalCompare(a.aisle, b.aisle) || a.level.localeCompare(b.level));
 }
 
 // GET /api/consultas/lookup?code=...
@@ -99,18 +114,22 @@ router.get('/lookup', (req, res) => {
       group: grupo && grupo !== 'SIN GRUPO' ? grupo : '',
       ranges: [],
       suggestedLocation: null,
+      suggestedLevel: null,
     };
 
     if (product.group) {
-      const ubicaciones = [...new Set(
-        coordenadasStore.getRowsForExport()
-          .filter((r) => r.tipo_producto === product.group)
-          .map((r) => r.ubicacion)
-          .filter(Boolean)
-      )];
+      // Una fila por ubicación (nunca duplicada, aunque Coordenadas
+      // pueda tener varias filas por posición) — se guarda el piso de
+      // cada una porque hace falta para separar picking de altura.
+      const candidatesByUbicacion = new Map();
+      for (const r of coordenadasStore.getRowsForExport()) {
+        if (r.tipo_producto !== product.group || !r.ubicacion) continue;
+        if (!candidatesByUbicacion.has(r.ubicacion)) candidatesByUbicacion.set(r.ubicacion, r.piso);
+      }
+      const candidates = [...candidatesByUbicacion.entries()].map(([ubicacion, piso]) => ({ ubicacion, piso }));
 
-      if (ubicaciones.length) {
-        product.ranges = aisleRanges(ubicaciones);
+      if (candidates.length) {
+        product.ranges = aisleRanges(candidates);
 
         const occupancy = new Map();
         for (const row of inventoryStore.getRowsForExport()) {
@@ -118,12 +137,13 @@ router.get('/lookup', (req, res) => {
           occupancy.set(row.ubicacion, (occupancy.get(row.ubicacion) || 0) + 1);
         }
         let best = null;
-        for (const u of ubicaciones) {
-          const count = occupancy.get(u) || 0;
-          if (!best || count < best.count) best = { ubicacion: u, count };
+        for (const c of candidates) {
+          const count = occupancy.get(c.ubicacion) || 0;
+          if (!best || count < best.count) best = { ...c, count };
           if (best.count === 0) break; // ya no hay una más vacía posible
         }
         product.suggestedLocation = best.ubicacion;
+        product.suggestedLevel = levelOf(best.piso);
       }
     }
 

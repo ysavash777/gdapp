@@ -52,13 +52,16 @@ server/
                            agrupa las ubicaciones de ese grupo por "pasillo" (aisleOf(): el prefijo sin
                            dígitos, ej. "B" en "B400101" — un mismo grupo casi siempre vive en varios
                            pasillos no contiguos, confirmado con datos reales: BEB1 está repartido en B/C/D/E)
-                           y devuelve solo el extremo de abajo y el de arriba DE CADA PASILLO (nunca la lista
-                           completa, que puede ser 1500+, ni un solo rango global que mezclaría pasillos),
+                           Y ADEMÁS por nivel (levelOf(): columna "piso", "01"/"1"/"00" es Picking, el resto
+                           es Altura — confirmado con datos reales que un mismo pasillo puede tener las dos
+                           cosas, ej. el grupo "PM" tiene su pasillo repartido en 5 pisos) y devuelve solo el
+                           extremo de abajo y el de arriba DE CADA COMBINACIÓN PASILLO+NIVEL (nunca la lista
+                           completa, que puede ser 1500+, ni un solo rango que mezclaría picking con altura),
                            en orden "natural" (ver naturalCompare — un sort alfabético puro rompe con
                            ubicaciones de distinto largo dentro de un mismo pasillo, ej. "FMFCAU" tiene
-                           códigos de 10 y 11 caracteres), más una ubicación sugerida: la del grupo con menos
-                           filas de Referencia encima (la mejor aproximación disponible a "más vacía" con los
-                           datos que hay conectados). Exige el permiso 'consultas'.
+                           códigos de 10 y 11 caracteres), más una ubicación sugerida (con su propio nivel):
+                           la del grupo con menos filas de Referencia encima (la mejor aproximación disponible
+                           a "más vacía" con los datos que hay conectados). Exige el permiso 'consultas'.
   services/copernico-client.js  Cliente HTTP de bajo nivel contra la API de Copernico WMS: login/logout +
                            fetchDataset() genérico (usado por fetchReferencia/fetchCoordenadas/fetchVariables,
                            mismo timeout y misma heurística para encontrar el array de filas en la respuesta).
@@ -210,13 +213,20 @@ public/
                                (que igual los corrige después con el dato fresco del servidor). Se refresca
                                solo al cargar el módulo y en cada evento 'online'.
       list-view.js             Listado de mapeos + menú de opciones por fila (renombrar, descargar —
-                               pendiente de implementar—, eliminar con confirmación). Si store.list() tira
-                               (sin red y sin ninguna foto guardada todavía — recién instalada la app, nunca
-                               hubo conexión) muestra un estado de error con botón "Reintentar" en vez de
-                               romper la pantalla.
+                               pendiente de implementar—, eliminar con confirmación). Mientras store.list()
+                               contesta, muestra 3 tarjetas "hueso" (mapeoCardSkeletonHTML, con .cq-skeleton)
+                               en vez de pantalla en blanco — la lista real reemplaza eso con un fundido. Si
+                               store.list() tira (sin red y sin ninguna foto guardada todavía — recién
+                               instalada la app, nunca hubo conexión) muestra un estado de error con botón
+                               "Reintentar" en vez de romper la pantalla.
       editor-view.js            Cámara (vía scanner/camera.js) + edición de un mapeo, nuevo o existente:
                                cada código tiene cantidad, condición (rotura/unidades/vencido/otro) y
-                               descripción editables, con ingreso manual como respaldo.
+                               descripción editables, con ingreso manual como respaldo. Al escanear un
+                               código que el catálogo local todavía no pudo resolver (pendingLookup: recién
+                               agregado, syncStatus 'syncing' y sin descripción todavía), Descripción/EAN/
+                               Grupo muestran un placeholder tipo "hueso" en vez de declarar "sin datos"
+                               antes de tiempo — se resuelven con un fundido en cuanto el motor de sync
+                               confirma el alta (mismo mecanismo que ya actualiza esos campos en vivo).
       format.js                 Catálogo de condición — el formato genérico (fecha/hora, escape de
                                HTML) se reexporta desde /shared/js/format.js.
     modules/consultas/      Herramienta Consultar grupo: escáner de cámara de solo lectura, sin
@@ -225,12 +235,23 @@ public/
       index.js               Entrada — abre el escáner directo, no hay paso intermedio.
       scanner-view.js          Cámara (vía scanner/camera.js) + ficha de resultado: la descripción ES el
                                título del sheet (sin "Producto encontrado" ni un encabezado "Descripción"
-                               aparte), grilla EAN/Referencia/Grupo, y dos cajas en gris más claro
-                               (var(--n-200)) y centradas: "Ubicación sugerida" (con insignia circular de
-                               ícono, mismo lenguaje visual que .tc-icon del home) y el rango de ubicaciones
-                               — un pasillo por fila, cada uno con su propio extremo de abajo -> de arriba y
-                               un ícono de flecha real (arrowRight), nunca la lista completa ni un solo rango
-                               que mezcle pasillos — todo ese cálculo vive server-side en routes/consultas.js.
+                               aparte) — nunca más de 2 líneas (titleSizeClass() la achica en escalones
+                               is-md/is-sm antes de llegar al -webkit-line-clamp:2 de .reg-sheet-title, que
+                               es la red de seguridad final). Grilla EAN/Referencia/Grupo con la clase extra
+                               `cq-info-grid` para compartir el mismo gris (var(--n-200)) que las otras dos
+                               cajas del módulo — sin esa clase, .reg-info-grid se queda en el gris de
+                               Mapear (var(--surface-2)), así que el cambio no afecta a ese módulo. Las dos
+                               cajas: "Ubicación sugerida" (con insignia circular de ícono, mismo lenguaje
+                               visual que .tc-icon del home — el código se simplifica con simplifyLocation()
+                               a solo pasillo+módulo, ej. "MFCA300104" -> "MFCA30", más una etiqueta
+                               Picking/Altura) y el rango de ubicaciones — una fila por combinación
+                               pasillo+nivel (nunca solo por pasillo: un mismo pasillo puede tener zona de
+                               picking a piso y zona de altura en la estantería — confirmado con datos
+                               reales, ej. el grupo "PM" tiene su mismo pasillo repartido en 5 pisos —
+                               mezclarlos daría un rango que en los hechos describe alturas distintas, no
+                               algo caminable), cada fila con su propio extremo de abajo -> de arriba, su
+                               etiqueta Picking/Altura y un ícono de flecha real (arrowRight) — nunca la
+                               lista completa. Todo ese cálculo vive server-side en routes/consultas.js.
                                El sheet se abre AL TOQUE, con placeholders tipo "hueso" (.cq-skeleton, con
                                shimmer) en cada campo — el cruce contra Coordenadas/Referencia no es
                                instantáneo, y sin esto el usuario ve la cámara congelada un par de segundos y

@@ -973,7 +973,24 @@ html, body {
   to { opacity: 1; transform: none; }
 }
 .reg-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
-.reg-sheet-title { flex: 1; min-width: 0; font-size: var(--text-md); font-weight: 700; letter-spacing: -0.01em; }
+/* Nunca más de 2 líneas — el título de Consultar grupo es la
+   descripción real del producto, que puede ser larga; se achica en
+   escalones (.is-md/.is-sm, ver titleSizeClass en scanner-view.js)
+   antes de llegar a este clamp, que es la red de seguridad final. */
+.reg-sheet-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-md);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.reg-sheet-title.is-md { font-size: var(--text-base); }
+.reg-sheet-title.is-sm { font-size: var(--text-sm); }
 .reg-sheet-head-actions { display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; }
 
 /* Un escalón más claro que el fondo del sheet (var(--surface)),
@@ -1051,11 +1068,18 @@ html, body {
 .cq-location-chip.is-empty { color: var(--ink-3); font-weight: 600; }
 .cq-range-arrow { display: inline-flex; color: var(--ink-3); flex-shrink: 0; }
 
-/* Ubicación sugerida: mismo escalón de gris que .reg-info-grid pero
-   un paso más claro (var(--n-200) en vez de var(--surface-2)), para
-   que se lea como un bloque propio y no como una celda más de la
-   grilla de arriba — ícono en una insignia circular de acento, mismo
-   lenguaje visual que las tarjetas de herramienta del home (.tc-icon). */
+/* En Consultar grupo, la grilla EAN/Referencia/Grupo pasa al mismo
+   gris que las dos cajas de abajo (var(--n-200) en vez del
+   var(--surface-2) que usa .reg-info-grid en Mapear) — mismo tono en
+   los tres contenedores del módulo, para que se lean como un solo
+   sistema. Solo acá: .reg-info-grid a secas (sin esta clase) sigue
+   como estaba en Mapear. Un margen extra además del gap del sheet,
+   para separarlas un poco más entre sí. */
+.cq-info-grid { background: var(--n-200); margin-top: var(--sp-1); }
+
+/* Ubicación sugerida — ícono en una insignia circular de acento,
+   mismo lenguaje visual que las tarjetas de herramienta del home
+   (.tc-icon). */
 .cq-suggested-box {
   display: flex;
   align-items: center;
@@ -1064,6 +1088,7 @@ html, body {
   background: var(--n-200);
   border-radius: var(--r-md);
   padding: var(--sp-3);
+  margin-top: var(--sp-1);
 }
 .cq-suggested-icon {
   width: 36px;
@@ -1097,9 +1122,26 @@ html, body {
   background: var(--n-200);
   border-radius: var(--r-md);
   padding: var(--sp-3);
+  margin-top: var(--sp-1);
 }
 .cq-aisles-list { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .cq-aisle-row { display: flex; align-items: center; gap: 10px; }
+/* Un mismo pasillo puede tener zona de picking (piso 0/1, a mano) y
+   zona de altura (piso 2+, en la estantería) — sin esta etiqueta, un
+   rango de altura se leería como si fuera caminable a nivel piso,
+   cuando en los hechos hay que subir. */
+.cq-level-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+}
+.cq-level-tag--picking { color: var(--icon-vacios); background: rgba(96, 165, 250, 0.18); }
+.cq-level-tag--altura { color: var(--icon-consultas); background: rgba(167, 139, 250, 0.18); }
+.cq-suggested-value { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; }
 
 /* La ficha de Consultar grupo se abre YA, con estos "huesitos" en vez
    de esperar a que conteste el servidor (el cruce contra Coordenadas/

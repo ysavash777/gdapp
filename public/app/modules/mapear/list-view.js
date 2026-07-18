@@ -41,9 +41,39 @@ function mapeoCardHTML(m) {
   `;
 }
 
+// Tarjeta "hueso" — misma forma que mapeoCardHTML pero con barras que
+// titilan en vez de texto, para no dejar la pantalla en blanco
+// mientras store.list() contesta (que puede tardar, sobre todo si
+// tiene que ir a la red).
+function mapeoCardSkeletonHTML() {
+  return `
+    <div class="mapeo-card">
+      <div class="mapeo-open" style="cursor: default;">
+        <div class="cq-skeleton" style="width: 36px; height: 36px; border-radius: var(--r-full); flex-shrink: 0;"></div>
+        <div class="mapeo-info">
+          <span class="cq-skeleton" style="width: 65%; height: 15px; margin-bottom: 6px;"></span>
+          <span class="cq-skeleton" style="width: 40%; height: 12px;"></span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export async function renderList(outlet, { onNew }) {
   outletRef = outlet;
   refreshRef = () => renderList(outlet, { onNew });
+
+  outlet.innerHTML = `
+    <div class="action-hero">
+      <div class="searchbar">
+        ${icon('search', 18)}
+        <input type="search" id="mapeoSearchInput" placeholder="Buscar mapeo..." autocomplete="off" disabled />
+      </div>
+      <div id="mapeoListWrap">
+        <div class="mapeo-list">${[1, 2, 3].map(mapeoCardSkeletonHTML).join('')}</div>
+      </div>
+    </div>
+  `;
 
   // store.list() ya cae solo a la última foto buena en localStorage si
   // no hay red (ver store.js) — esto solo pasa si NUNCA hubo una foto
@@ -58,36 +88,33 @@ export async function renderList(outlet, { onNew }) {
     mapeos = [];
   }
 
-  outlet.innerHTML = `
-    <div class="action-hero">
-      <div class="searchbar">
-        ${icon('search', 18)}
-        <input type="search" id="mapeoSearchInput" placeholder="Buscar mapeo..." autocomplete="off" />
+  if (!outlet.isConnected) return; // se salió de Mapear mientras esperaba
+
+  const listWrap = outlet.querySelector('#mapeoListWrap');
+  listWrap.innerHTML = listError
+    ? `
+      <div class="card cq-fade-in">
+        <div class="empty-state">
+          <div class="es-icon">${icon('alertTriangle', 26)}</div>
+          <h3>No se pudo cargar</h3>
+          <p>Sin conexión y sin ningún mapeo visto antes en este dispositivo — conectate al menos una vez para poder seguir sin red después.</p>
+          <button type="button" class="btn btn-ghost" id="mapeoRetryBtn" style="margin-top:var(--sp-3);">${icon('refresh', 16)} Reintentar</button>
+        </div>
       </div>
-      ${listError
-        ? `
-          <div class="card">
-            <div class="empty-state">
-              <div class="es-icon">${icon('alertTriangle', 26)}</div>
-              <h3>No se pudo cargar</h3>
-              <p>Sin conexión y sin ningún mapeo visto antes en este dispositivo — conectate al menos una vez para poder seguir sin red después.</p>
-              <button type="button" class="btn btn-ghost" id="mapeoRetryBtn" style="margin-top:var(--sp-3);">${icon('refresh', 16)} Reintentar</button>
-            </div>
-          </div>
-        `
-        : mapeos.length
-        ? `<div class="mapeo-list">${mapeos.map(mapeoCardHTML).join('')}</div>`
-        : `
-          <div class="card">
-            <div class="empty-state">
-              <div class="es-icon">${icon('scan', 26)}</div>
-              <h3>Aún no hay datos</h3>
-              <p>Los mapeos que crees van a aparecer acá.</p>
-            </div>
-          </div>
-        `}
-    </div>
-  `;
+    `
+    : mapeos.length
+    ? `<div class="mapeo-list cq-fade-in">${mapeos.map(mapeoCardHTML).join('')}</div>`
+    : `
+      <div class="card cq-fade-in">
+        <div class="empty-state">
+          <div class="es-icon">${icon('scan', 26)}</div>
+          <h3>Aún no hay datos</h3>
+          <p>Los mapeos que crees van a aparecer acá.</p>
+        </div>
+      </div>
+    `;
+
+  outlet.querySelector('#mapeoSearchInput').disabled = false;
 
   if (listError) {
     outlet.querySelector('#mapeoRetryBtn').addEventListener('click', refreshRef);

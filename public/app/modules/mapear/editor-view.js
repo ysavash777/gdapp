@@ -395,6 +395,14 @@ export async function openEditor({ mapeoId, title, onClose }) {
     scanner.setTorch(false);
     scanner.pauseView();
 
+    // Todavía no sabemos si el código tiene datos o no (el motor de
+    // sync ni siquiera terminó de intentar el alta) — un "hueso" que
+    // titila es más honesto que declarar "sin descripción" antes de
+    // tiempo, que después no se corrige más que con un cambio brusco
+    // de texto. Una vez que hay syncStatus distinto de 'syncing', o ya
+    // hay descripción local (catálogo offline), no hay nada pendiente.
+    const pendingLookup = entry.syncStatus === 'syncing' && !entry.description;
+
     const backdrop = document.createElement('div');
     backdrop.className = 'reg-sheet-backdrop';
     backdrop.innerHTML = `
@@ -408,12 +416,12 @@ export async function openEditor({ mapeoId, title, onClose }) {
         </div>
         <div class="cq-desc">
           <span class="cq-desc-label">Descripción</span>
-          <p class="cq-desc-value">${escapeHtml(entry.description || GENERIC_DESCRIPTION)}</p>
+          <p class="cq-desc-value">${pendingLookup ? `<span class="cq-skeleton" style="width:80%;"></span>` : escapeHtml(entry.description || GENERIC_DESCRIPTION)}</p>
         </div>
         <div class="reg-info-grid">
           <div class="reg-info-cell">
             <span class="reg-info-label">EAN</span>
-            <span class="reg-info-value" data-field="ean">${entry.ean ? escapeHtml(entry.ean) : '-'}</span>
+            <span class="reg-info-value" data-field="ean">${pendingLookup ? `<span class="cq-skeleton" style="width:36px;"></span>` : entry.ean ? escapeHtml(entry.ean) : '-'}</span>
           </div>
           <div class="reg-info-cell">
             <span class="reg-info-label">Referencia</span>
@@ -421,7 +429,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
           </div>
           <div class="reg-info-cell">
             <span class="reg-info-label">Grupo</span>
-            <span class="reg-info-value" data-field="grupo">${entry.grupo && entry.grupo !== 'SIN GRUPO' ? escapeHtml(entry.grupo) : '-'}</span>
+            <span class="reg-info-value" data-field="grupo">${pendingLookup ? `<span class="cq-skeleton" style="width:36px;"></span>` : entry.grupo && entry.grupo !== 'SIN GRUPO' ? escapeHtml(entry.grupo) : '-'}</span>
           </div>
         </div>
         <div class="condition-pills">
@@ -459,11 +467,20 @@ export async function openEditor({ mapeoId, title, onClose }) {
     activeSheetRefreshLookup = () => {
       const fresh = currentEntry();
       const descEl = backdrop.querySelector('.cq-desc-value');
-      if (descEl) descEl.textContent = fresh.description || GENERIC_DESCRIPTION;
+      if (descEl) {
+        descEl.textContent = fresh.description || GENERIC_DESCRIPTION;
+        descEl.classList.add('cq-fade-in');
+      }
       const eanEl = backdrop.querySelector('[data-field="ean"]');
-      if (eanEl) eanEl.textContent = fresh.ean || '-';
+      if (eanEl) {
+        eanEl.textContent = fresh.ean || '-';
+        eanEl.classList.add('cq-fade-in');
+      }
       const grupoEl = backdrop.querySelector('[data-field="grupo"]');
-      if (grupoEl) grupoEl.textContent = fresh.grupo && fresh.grupo !== 'SIN GRUPO' ? fresh.grupo : '-';
+      if (grupoEl) {
+        grupoEl.textContent = fresh.grupo && fresh.grupo !== 'SIN GRUPO' ? fresh.grupo : '-';
+        grupoEl.classList.add('cq-fade-in');
+      }
     };
 
     let quantity = entry.quantity;

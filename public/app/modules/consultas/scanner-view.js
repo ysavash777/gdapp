@@ -106,6 +106,27 @@ export function openScanner() {
     return `<span class="cq-skeleton" style="width:${width};height:${height}"></span>`;
   }
 
+  // El título (la descripción) nunca puede empujar el sheet más allá
+  // de 2 líneas — se achica la fuente en escalones en vez de cortar el
+  // texto a la mitad de una palabra. El clamp de 2 líneas (CSS) es la
+  // red de seguridad final para descripciones igual demasiado largas.
+  function titleSizeClass(text) {
+    if (text.length <= 34) return '';
+    if (text.length <= 60) return 'is-md';
+    return 'is-sm';
+  }
+
+  // La ubicación sugerida solo tiene que decir "pasillo + módulo" (ej.
+  // "MFCA30", "B40"), nunca la posición/nivel completo (ej.
+  // "MFCA300104", "B400101") — eso es demasiado detalle para una
+  // sugerencia rápida. El formato real es prefijo de letras + 6
+  // dígitos, donde los primeros 2 son el módulo — si no matchea (dato
+  // con otra forma), se muestra tal cual en vez de romper.
+  function simplifyLocation(loc) {
+    const m = String(loc).match(/^(\D+)(\d{2})/);
+    return m ? `${m[1]}${m[2]}` : loc;
+  }
+
   function openResultSheet(code) {
     scanner.setPaused(true);
     scanner.setTorch(false);
@@ -120,7 +141,7 @@ export function openScanner() {
           <button type="button" class="btn-icon" id="resultClose" title="Cerrar">${icon('x', 18)}</button>
         </div>
         <div id="resultBody">
-          <div class="reg-info-grid">
+          <div class="reg-info-grid cq-info-grid">
             <div class="reg-info-cell">
               <span class="reg-info-label">EAN</span>
               <span class="reg-info-value">${skeletonHTML('44px')}</span>
@@ -183,7 +204,8 @@ export function openScanner() {
 
       const titleEl = backdrop.querySelector('#resultTitle');
       titleEl.textContent = titleText;
-      titleEl.classList.add('cq-fade-in');
+      titleEl.classList.remove('is-md', 'is-sm');
+      titleEl.classList.add(...['cq-fade-in', titleSizeClass(titleText)].filter(Boolean));
 
       const bodyEl = backdrop.querySelector('#resultBody');
       if (lookupError) {
@@ -196,7 +218,7 @@ export function openScanner() {
       }
 
       bodyEl.innerHTML = `
-        <div class="reg-info-grid cq-fade-in">
+        <div class="reg-info-grid cq-info-grid cq-fade-in">
           <div class="reg-info-cell">
             <span class="reg-info-label">EAN</span>
             <span class="reg-info-value">${product.ean ? escapeHtml(product.ean) : '-'}</span>
@@ -214,7 +236,10 @@ export function openScanner() {
           <div class="cq-suggested-icon">${icon('pin', 20)}</div>
           <div class="cq-suggested-text">
             <span class="cq-suggested-label">Ubicación sugerida</span>
-            <span class="cq-suggested-value">${product.suggestedLocation ? escapeHtml(product.suggestedLocation) : 'Sin datos'}</span>
+            <span class="cq-suggested-value">
+              ${product.suggestedLocation ? escapeHtml(simplifyLocation(product.suggestedLocation)) : 'Sin datos'}
+              ${product.suggestedLevel ? `<span class="cq-level-tag cq-level-tag--${product.suggestedLevel === 'Picking' ? 'picking' : 'altura'}">${product.suggestedLevel}</span>` : ''}
+            </span>
           </div>
         </div>
         <div class="cq-aisles-box cq-fade-in">
@@ -223,6 +248,7 @@ export function openScanner() {
             <div class="cq-aisles-list">
               ${ranges.map((r) => `
                 <div class="cq-aisle-row">
+                  <span class="cq-level-tag cq-level-tag--${r.level === 'Picking' ? 'picking' : 'altura'}">${r.level}</span>
                   <span class="cq-location-chip">${escapeHtml(r.from)}</span>
                   <span class="cq-range-arrow">${icon('arrowRight', 15)}</span>
                   <span class="cq-location-chip">${escapeHtml(r.to)}</span>
