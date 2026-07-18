@@ -1,7 +1,7 @@
 /* ============================================================
-   Módulo App · Mapear — catálogo local de Referencia (código
-   escaneado -> descripción + EAN corto), para completar esos datos
-   al agregar un código incluso SIN conexión.
+   Módulo App · Mapear — catálogo local de Variables (código
+   escaneado -> descripción + EAN corto + grupo/familia), para
+   completar esos datos al agregar un código incluso SIN conexión.
 
    Se descarga una vez (GET /api/mapeos/lookup-catalog) y se cachea
    en localStorage — el servidor sigue siendo la fuente de verdad;
@@ -17,7 +17,7 @@
 
 import { apiFetch } from '/shared/js/api.js';
 
-const CACHE_KEY = 'gd.mapear.lookupCatalog.v1';
+const CACHE_KEY = 'gd.mapear.lookupCatalog.v2';
 
 let map = new Map();
 let refreshing = false;
@@ -27,7 +27,7 @@ function normalize(code) {
 }
 
 function buildMap(rows) {
-  return new Map(rows.map(([referencia, descripcion, ean]) => [normalize(referencia), { descripcion, ean }]));
+  return new Map(rows.map(([referencia, descripcion, ean, grupo]) => [normalize(referencia), { descripcion, ean, grupo }]));
 }
 
 function loadFromStorage() {

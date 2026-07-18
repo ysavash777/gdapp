@@ -30,7 +30,7 @@ server/
                            GET /rows?source=referencia|coordenadas|variables (paginado+búsqueda+orden) lee sus filas.
                            Exige el permiso 'basesdatos', no un rol fijo.
   routes/mapeos.js         API de mapeos: listar/crear/renombrar/eliminar mapeos + agregar/editar/quitar
-                           códigos escaneados, más GET /lookup-catalog (catálogo liviano de Referencia para
+                           códigos escaneados, más GET /lookup-catalog (catálogo liviano de Variables para
                            el catálogo local offline del celular, ver mapear/lookup-catalog.js — tiene que
                            estar declarado antes de GET /:id). Exige el permiso 'mapear' (app) o 'mapeos' (desk) —
                            cualquiera de los dos alcanza (requirePermission acepta varias claves), porque
@@ -38,12 +38,24 @@ server/
                            (solo consulta/administra lo ya escaneado — misma data, sin nada propio). El
                            actor de cada mutación lo fija esta ruta desde la sesión autenticada
                            (req.user.username), nunca lo manda el cliente. Usa store/mapeos.store.js, que a
-                           su vez consulta store/inventory.store.js al agregar un código: si el código
+                           su vez consulta store/variables.store.js al agregar un código: si el código
                            (un EAN-13) coincide con la columna "referencia" de esa fuente, su "descripcion"
-                           queda como título del producto y su "ean" (el código corto interno, no el de
-                           barras) se guarda aparte — ambos en columnas propias de `mapeo_codes` (ver
-                           store/mapeos.store.js). "Grupo" queda pendiente: todavía no hay fuente conectada
-                           con esa columna.
+                           queda como título del producto, "productoean" (el código corto interno, no el de
+                           barras) y "codgrupoprm" (grupo/familia) se guardan aparte — los tres en columnas
+                           propias de `mapeo_codes` (ver store/mapeos.store.js). Antes se buscaba en
+                           Referencia, pero solo Variables tiene el grupo/familia del producto.
+  routes/consultas.js      API de Consultar grupo, de solo lectura: GET /lookup?code=... busca el código en
+                           Variables (mismo catálogo que Mapear) y, si tiene un grupo real (ni vacío ni "SIN
+                           GRUPO" — ese valor cubre 8000+ productos y cruzarlo daría un rango sin sentido),
+                           cruza contra Coordenadas por la columna "tipo_producto" (confirmado con datos
+                           reales que es el mismo código de grupo/familia que "codgrupoprm" de Variables) —
+                           devuelve solo el extremo de abajo y el de arriba de las ubicaciones de ese grupo
+                           (nunca la lista completa, que puede ser 1500+), en orden "natural" (ver
+                           naturalCompare — un sort alfabético puro rompe con ubicaciones de distinto largo
+                           dentro de un mismo grupo, ej. "FMFCAU" tiene códigos de 10 y 11 caracteres), más
+                           una ubicación sugerida: la del grupo con menos filas de Referencia encima (la
+                           mejor aproximación disponible a "más vacía" con los datos que hay conectados).
+                           Exige el permiso 'consultas'.
   services/copernico-client.js  Cliente HTTP de bajo nivel contra la API de Copernico WMS: login/logout +
                            fetchDataset() genérico (usado por fetchReferencia/fetchCoordenadas/fetchVariables,
                            mismo timeout y misma heurística para encontrar el array de filas en la respuesta).
@@ -186,11 +198,11 @@ public/
                                aunque se cierre el editor (mientras dure la pestaña). Límite conocido: sin
                                coordinación entre pestañas, pensado para una sola pestaña activa por
                                dispositivo.
-      lookup-catalog.js        Catálogo local liviano de Referencia (código -> descripción + EAN corto),
-                               descargado una vez (GET /api/mapeos/lookup-catalog, servido como arrays para
-                               no repetir claves en 11000+ filas) y cacheado en localStorage
-                               (`gd.mapear.lookupCatalog.v1`). store.js lo consulta al agregar un código para
-                               completar esos dos campos AL INSTANTE, antes de cualquier red — así se ven
+      lookup-catalog.js        Catálogo local liviano de Variables (código -> descripción + EAN corto +
+                               grupo/familia), descargado una vez (GET /api/mapeos/lookup-catalog, servido
+                               como arrays para no repetir claves en 14000+ filas) y cacheado en localStorage
+                               (`gd.mapear.lookupCatalog.v2`). store.js lo consulta al agregar un código para
+                               completar esos tres campos AL INSTANTE, antes de cualquier red — así se ven
                                incluso sin conexión, no solo una vez que el motor de sync confirma el alta
                                (que igual los corrige después con el dato fresco del servidor). Se refresca
                                solo al cargar el módulo y en cada evento 'online'.
@@ -208,10 +220,11 @@ public/
                            listado ni persistencia — cada código escaneado dispara una búsqueda y
                            muestra el resultado, sin guardar nada.
       index.js               Entrada — abre el escáner directo, no hay paso intermedio.
-      scanner-view.js          Cámara (vía scanner/camera.js) + ficha de resultado (descripción,
-                               grilla EAN/Referencia/Grupo, ubicaciones de guardado).
-      store.js                 findProduct(code) — hoy siempre devuelve null (sin base conectada);
-                               misma forma que tendrá la API real.
+      scanner-view.js          Cámara (vía scanner/camera.js) + ficha de resultado: descripción, grilla
+                               EAN/Referencia/Grupo, una "Ubicación sugerida" y un rango compacto de
+                               ubicaciones del grupo (extremo de abajo -> de arriba, con ícono de flecha —
+                               nunca la lista completa, eso vive server-side en routes/consultas.js).
+      store.js                 findProduct(code) — cliente de GET /api/consultas/lookup.
     modules/vencimientos.js Herramienta Vencimientos.
     modules/vacios.js      Herramienta Vacíos.
 ```

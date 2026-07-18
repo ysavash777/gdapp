@@ -13,7 +13,7 @@
    ============================================================ */
 
 const { requireClient } = require('../services/supabase-client');
-const inventoryStore = require('./inventory.store');
+const variablesStore = require('./variables.store');
 
 // Cada mutación de código termina tocando el mapeo (updated_at/by) y
 // devolviendo el mapeo completo con sus códigos — mismo patrón que
@@ -31,6 +31,7 @@ function rowToCode(row) {
     code: row.code,
     description: row.description,
     ean: row.ean,
+    grupo: row.grupo,
     quantity: row.quantity,
     condition: row.condition,
     expiryDate: row.expiry_date,
@@ -123,24 +124,28 @@ async function remove(id) {
 
 // Cantidad y condición quedan con valores por defecto al escanear —
 // se completan después sin frenar el ritmo de un escaneo masivo
-// (mismo comportamiento que tenía el store del navegador). Descripción
-// y EAN, en cambio, se completan solos en este mismo paso: se busca el
-// código escaneado (un EAN-13) contra la columna "referencia" de la
-// fuente Referencia (inventory.store, hidratada desde Supabase) — si
-// hay match, "descripcion" queda como título del producto y "ean" (el
-// código corto interno, no el de barras) se muestra en la ficha de
-// registro — si no hay match (código fuera de catálogo o fuente
-// vacía), ambos quedan '' y el front los muestra como "sin datos".
+// (mismo comportamiento que tenía el store del navegador). Descripción,
+// EAN y Grupo, en cambio, se completan solos en este mismo paso: se
+// busca el código escaneado (un EAN-13) contra la columna "referencia"
+// de la fuente Variables (variables.store, hidratada desde Supabase —
+// antes se buscaba en Referencia, pero Variables es la única de las
+// dos que además tiene el grupo/familia del producto, "codgrupoprm")
+// — si hay match, "descripcion" queda como título del producto,
+// "productoean" (el código corto interno, no el de barras) y
+// "codgrupoprm" se muestran en la ficha de registro — si no hay match
+// (código fuera de catálogo o fuente vacía), los tres quedan '' y el
+// front los muestra como "sin datos".
 async function addCode(mapeoId, rawCode, actor) {
   const supabase = requireClient();
   const code = String(rawCode).trim();
   if (!code) throw new Error('EMPTY_CODE');
 
-  const match = inventoryStore.findBy('referencia', code);
+  const match = variablesStore.findBy('referencia', code);
   const description = match?.descripcion || '';
-  const ean = match?.ean || '';
+  const ean = match?.productoean || '';
+  const grupo = match?.codgrupoprm || '';
 
-  const { error: insErr } = await supabase.from('mapeo_codes').insert({ mapeo_id: mapeoId, code, description, ean });
+  const { error: insErr } = await supabase.from('mapeo_codes').insert({ mapeo_id: mapeoId, code, description, ean, grupo });
   if (insErr) throw insErr;
 
   return touchAndReturn(mapeoId, actor);

@@ -421,7 +421,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
           </div>
           <div class="reg-info-cell">
             <span class="reg-info-label">Grupo</span>
-            <span class="reg-info-value">-</span>
+            <span class="reg-info-value" data-field="grupo">${entry.grupo && entry.grupo !== 'SIN GRUPO' ? escapeHtml(entry.grupo) : '-'}</span>
           </div>
         </div>
         <div class="condition-pills">
@@ -462,6 +462,8 @@ export async function openEditor({ mapeoId, title, onClose }) {
       if (descEl) descEl.textContent = fresh.description || GENERIC_DESCRIPTION;
       const eanEl = backdrop.querySelector('[data-field="ean"]');
       if (eanEl) eanEl.textContent = fresh.ean || '-';
+      const grupoEl = backdrop.querySelector('[data-field="grupo"]');
+      if (grupoEl) grupoEl.textContent = fresh.grupo && fresh.grupo !== 'SIN GRUPO' ? fresh.grupo : '-';
     };
 
     let quantity = entry.quantity;

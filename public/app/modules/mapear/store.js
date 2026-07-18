@@ -38,11 +38,11 @@
    contra el id viejo ya no encuentra nada y la edición se pierde en
    silencio.
 
-   addCode también completa descripción y EAN al instante (antes de
-   cualquier red) contra lookup-catalog.js, un catálogo local liviano
-   de Referencia — así se ven incluso sin conexión, no solo una vez
-   que el motor de sync confirma el alta (que sigue corrigiendo estos
-   mismos campos con el dato fresco del servidor apenas puede).
+   addCode también completa descripción, EAN y grupo al instante (antes
+   de cualquier red) contra lookup-catalog.js, un catálogo local
+   liviano de Variables — así se ven incluso sin conexión, no solo una
+   vez que el motor de sync confirma el alta (que sigue corrigiendo
+   estos mismos campos con el dato fresco del servidor apenas puede).
 
    list() SÍ tiene una caché de respaldo (`gd.mapear.listCache.v1`):
    sin ella, reabrir la app entera sin conexión (no solo seguir
@@ -187,6 +187,7 @@ syncEngine.onEvent((evt) => {
         entry.id = newRow.id;
         entry.description = newRow.description;
         entry.ean = newRow.ean;
+        entry.grupo = newRow.grupo;
         entry.scannedAt = newRow.scannedAt;
         entry.touchedAt = newRow.touchedAt;
         entry.syncStatus = 'synced';
@@ -287,6 +288,7 @@ export async function addCode(mapeoId, rawCode, actor) {
     code,
     description: local?.descripcion || '',
     ean: local?.ean || '',
+    grupo: local?.grupo || '',
     quantity: 1,
     condition: null,
     expiryDate: null,

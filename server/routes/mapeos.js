@@ -11,7 +11,7 @@
 const express = require('express');
 const router = express.Router();
 const store = require('../store/mapeos.store');
-const inventoryStore = require('../store/inventory.store');
+const variablesStore = require('../store/variables.store');
 const { requirePermission } = require('../middleware/auth');
 
 router.use(requirePermission('mapear', 'mapeos'));
@@ -31,15 +31,17 @@ router.get('/', async (_req, res) => {
 });
 
 // GET /api/mapeos/lookup-catalog — catálogo liviano (referencia,
-// descripcion, ean) de Referencia para que el celular pueda completar
-// esos datos al escanear SIN red (ver app/modules/mapear/
-// lookup-catalog.js). Tiene que ir antes de GET /:id — si no, Express
-// intentaría matchear "lookup-catalog" como si fuera un id. Arrays en
-// vez de objetos: con 11000+ filas, no repetir las claves por fila
-// ahorra buena parte del payload.
+// descripcion, ean, grupo) de Variables para que el celular pueda
+// completar esos datos al escanear SIN red (ver app/modules/mapear/
+// lookup-catalog.js) — Variables, no Referencia, porque es la única
+// de las dos que tiene el grupo/familia del producto. Tiene que ir
+// antes de GET /:id — si no, Express intentaría matchear
+// "lookup-catalog" como si fuera un id. Arrays en vez de objetos: con
+// 14000+ filas, no repetir las claves por fila ahorra buena parte del
+// payload.
 router.get('/lookup-catalog', (_req, res) => {
   try {
-    const items = inventoryStore.getRowsForExport().map((r) => [r.referencia || '', r.descripcion || '', r.ean || '']);
+    const items = variablesStore.getRowsForExport().map((r) => [r.referencia || '', r.descripcion || '', r.productoean || '', r.codgrupoprm || '']);
     res.json({ ok: true, items });
   } catch (e) {
     console.error('[routes/mapeos] lookup-catalog falló:', e.message);

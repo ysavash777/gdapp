@@ -19,6 +19,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/database', require('./routes/database'));
 app.use('/api/mapeos', require('./routes/mapeos'));
+app.use('/api/consultas', require('./routes/consultas'));
 
 // Estáticos
 const PUBLIC = path.join(__dirname, '..', 'public');

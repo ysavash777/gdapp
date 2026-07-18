@@ -4,8 +4,11 @@
    A diferencia de Mapear, acá no se guarda nada: cada código
    escaneado solo dispara una búsqueda (findProduct) y muestra el
    resultado en una ficha — al cerrarla, se puede seguir escaneando.
-   Sin base de datos conectada todavía, la ficha siempre aparece
-   vacía (ver store.js).
+   findProduct (store.js) pide todo ya calculado a
+   /api/consultas/lookup: descripción/EAN/grupo (Variables) + un
+   rango de ubicaciones y una sugerida (cruzando Coordenadas y
+   Referencia) — nunca la lista completa de ubicaciones de un grupo,
+   que puede ser de miles.
 
    Misma cámara y mismos motores de lectura que Mapear, vía
    scanner/camera.js — acá no hay lista debajo ni ingreso masivo, así
@@ -55,8 +58,14 @@ export function openScanner() {
 
   async function lookupCode(rawValue) {
     if (navigator.vibrate) navigator.vibrate(35);
-    const product = await findProduct(rawValue);
-    openResultSheet(rawValue, product);
+    let product = null;
+    let lookupError = null;
+    try {
+      product = await findProduct(rawValue);
+    } catch (err) {
+      lookupError = err;
+    }
+    openResultSheet(rawValue, product, lookupError);
   }
 
   const scanner = createCameraScanner({
@@ -64,12 +73,6 @@ export function openScanner() {
     onCode: (code) => lookupCode(code),
   });
 
-  // A diferencia de Mapear, esta herramienta no tiene un paso de lista
-  // antes del escáner — la ruta ES el escáner. Por eso no hace falta
-  // una guarda de historial propia: alcanza con escuchar el "volver"
-  // que ya generó pushRoute('consultas') en app.js y limpiar overlay
-  // + cámara cuando ocurra. La flecha de volver hace exactamente lo
-  // mismo que el gesto físico: un solo history.back(), un solo evento.
   function cleanup() {
     if (closed) return;
     closed = true;
@@ -90,47 +93,59 @@ export function openScanner() {
     input.value = '';
   });
 
-  // Ficha de solo lectura: sin motivo, sin cantidad, sin "Listo" — se
-  // cierra y listo, no hay nada que confirmar ni guardar.
-  function openResultSheet(code, product) {
+  function openResultSheet(code, product, lookupError) {
     scanner.setPaused(true);
     scanner.setTorch(false);
     scanner.pauseView();
 
-    const locations = product?.locations || [];
+    const hasRange = product?.rangeFrom && product?.rangeTo;
 
     const backdrop = document.createElement('div');
     backdrop.className = 'reg-sheet-backdrop';
     backdrop.innerHTML = `
       <div class="reg-sheet">
         <div class="reg-sheet-head">
-          <span class="reg-sheet-title">${product ? 'Producto encontrado' : 'Sin datos en la base'}</span>
+          <span class="reg-sheet-title">${lookupError ? 'No se pudo consultar' : product ? 'Producto encontrado' : 'Sin datos en la base'}</span>
           <button type="button" class="btn-icon" id="resultClose" title="Cerrar">${icon('x', 18)}</button>
         </div>
-        <div class="cq-desc">
-          <span class="cq-desc-label">Descripción</span>
-          <p class="cq-desc-value">${escapeHtml(product?.description || 'Producto sin descripción')}</p>
-        </div>
-        <div class="reg-info-grid">
-          <div class="reg-info-cell">
-            <span class="reg-info-label">EAN</span>
-            <span class="reg-info-value">${product?.ean ? escapeHtml(product.ean) : '-'}</span>
+        ${lookupError ? `
+          <p class="cq-desc-value">No se pudo completar la búsqueda. Revisá la conexión e intentá de nuevo.</p>
+        ` : `
+          <div class="cq-desc">
+            <span class="cq-desc-label">Descripción</span>
+            <p class="cq-desc-value">${escapeHtml(product?.description || 'Producto sin descripción')}</p>
           </div>
-          <div class="reg-info-cell">
-            <span class="reg-info-label">Referencia</span>
-            <span class="reg-info-value">${escapeHtml(code)}</span>
+          <div class="reg-info-grid">
+            <div class="reg-info-cell">
+              <span class="reg-info-label">EAN</span>
+              <span class="reg-info-value">${product?.ean ? escapeHtml(product.ean) : '-'}</span>
+            </div>
+            <div class="reg-info-cell">
+              <span class="reg-info-label">Referencia</span>
+              <span class="reg-info-value">${escapeHtml(code)}</span>
+            </div>
+            <div class="reg-info-cell">
+              <span class="reg-info-label">Grupo</span>
+              <span class="reg-info-value">${product?.group ? escapeHtml(product.group) : '-'}</span>
+            </div>
           </div>
-          <div class="reg-info-cell">
-            <span class="reg-info-label">Grupo</span>
-            <span class="reg-info-value">${product?.group ? escapeHtml(product.group) : '-'}</span>
+          <div class="cq-desc">
+            <span class="cq-desc-label">Ubicación sugerida</span>
+            <p class="cq-desc-value">${product?.suggestedLocation ? escapeHtml(product.suggestedLocation) : 'Sin datos'}</p>
           </div>
-        </div>
-        <div class="cq-locations">
-          <span class="cq-locations-label">${icon('pin', 14)} Ubicaciones de guardado</span>
-          <div class="cq-location-list">
-            ${locations.length ? locations.map((l) => `<span class="cq-location-chip">${escapeHtml(l)}</span>`).join('') : '<span class="cq-location-chip is-empty">—</span>'}
+          <div class="cq-locations">
+            <span class="cq-locations-label">${icon('pin', 14)} Rango de ubicaciones del grupo</span>
+            ${hasRange ? `
+              <div class="cq-range-row">
+                <span class="cq-location-chip">${escapeHtml(product.rangeFrom)}</span>
+                <span class="cq-range-arrow">${icon('arrowRight', 16)}</span>
+                <span class="cq-location-chip">${escapeHtml(product.rangeTo)}</span>
+              </div>
+            ` : `
+              <div class="cq-location-list"><span class="cq-location-chip is-empty">—</span></div>
+            `}
           </div>
-        </div>
+        `}
       </div>
     `;
     document.body.appendChild(backdrop);

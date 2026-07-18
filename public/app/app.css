@@ -1049,6 +1049,11 @@ html, body {
   font-size: var(--text-sm);
 }
 .cq-location-chip.is-empty { color: var(--ink-3); font-weight: 600; }
+/* Rango de ubicaciones de un grupo (extremo de abajo -> de arriba,
+   nunca la lista completa) — dos chips iguales a los de arriba,
+   unidos por una flecha real (ícono, no una línea CSS). */
+.cq-range-row { display: flex; align-items: center; gap: 10px; }
+.cq-range-arrow { display: inline-flex; color: var(--ink-3); flex-shrink: 0; }
 
 /* Vencimiento y Cantidad van en el mismo tipo de contenedor que los
    datos del producto (.reg-info-grid): celdas centradas separadas por
