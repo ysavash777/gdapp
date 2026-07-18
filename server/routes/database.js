@@ -31,15 +31,31 @@ function requirePermission(key) {
 router.use(requireAuth, requirePermission('basesdatos'));
 
 // POST /api/database/refresh — dispara una corrida del motor (todas
-// las fuentes configuradas, un solo login). Nunca se llama a sí misma
-// ni se reprograma: solo responde a este POST.
-router.post('/refresh', async (_req, res) => {
-  const result = await engine.refresh();
-  if (!result.ok) {
-    const status = result.error === 'ALREADY_RUNNING' ? 409 : 502;
-    return res.status(status).json(result);
+// las fuentes configuradas, un solo login) y responde de inmediato,
+// sin esperar a que termine. Nunca se llama a sí misma ni se
+// reprograma: sigue siendo este POST el único disparador.
+//
+// A propósito no se hace `await engine.refresh()` acá: una corrida
+// real tarda 30-100+ segundos (depende de Copernico, no de nosotros),
+// y mantener una sola conexión HTTP abierta todo ese tiempo no tiene
+// ninguna ventaja — el navegador de todos modos tiene que consultar
+// GET /status para enterarse del resultado final (por si la corrida
+// la disparó otra pestaña). Isolar el "arranca" del "esperar el
+// resultado" evita depender de que esa conexión particular sobreviva
+// el tiempo completo (proxies/CDN suelen cortar conexiones largas
+// antes de tiempo) y libera al navegador de tener un fetch pendiente
+// gigante todo ese rato.
+router.post('/refresh', (_req, res) => {
+  if (engine.isRunning()) {
+    return res.status(409).json({ ok: false, error: 'ALREADY_RUNNING' });
   }
-  res.json(result);
+  engine.refresh().catch((e) => {
+    // engine.refresh() ya atrapa sus propios errores y siempre resuelve
+    // (nunca rechaza) — este catch es solo una red de seguridad por si
+    // eso cambiara algún día, para que nunca quede un rechazo silencioso.
+    console.error('[routes/database] engine.refresh() rechazó sin capturar:', e);
+  });
+  res.status(202).json({ ok: true, started: true });
 });
 
 // GET /api/database/status — estado de todas las fuentes configuradas.

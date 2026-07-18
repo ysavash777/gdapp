@@ -169,19 +169,23 @@ async function mount(root) {
     drawCards();
     startProgress();
     try {
-      const data = await apiFetch('/api/database/refresh', { method: 'POST' });
-      applySources(data.sources);
+      // Solo dispara la corrida — no espera a que termine (eso puede
+      // tardar 30-100+ segundos, según Copernico). El resultado final
+      // se conoce por polling a /status, igual que cuando la corrida
+      // la arranca otra pestaña — mismo pollUntilDone() para los dos
+      // casos, sin mantener una conexión HTTP gigante abierta.
+      await apiFetch('/api/database/refresh', { method: 'POST' });
     } catch (err) {
-      // El error puede ser previo a intentar cualquier fuente (login
-      // falló) — el servidor ya marcó todas como "error" en su propio
-      // store; acá solo se refleja lo mismo de inmediato en la UI.
-      for (const key in state.sources) state.sources[key].status = 'error';
+      // No llegó ni a arrancar (ej. ALREADY_RUNNING) — no hay nada
+      // que esperar.
+      finishProgress();
+      state.refreshing = false;
       state.error = err;
+      drawButton();
+      drawCards();
+      return;
     }
-    finishProgress();
-    state.refreshing = false;
-    drawButton();
-    drawCards();
+    await pollUntilDone();
   }
 
   function drawShell() {
