@@ -148,6 +148,16 @@ function createDataSourceStore(name, supabaseTable) {
     }
   }
 
+  // Búsqueda exacta (case-insensitive, sin espacios) por una columna
+  // ya saneada — la usa Mapear para completar la descripción de un
+  // código recién escaneado comparando contra la columna "referencia"
+  // de esta misma fuente (ver store/mapeos.store.js).
+  function findBy(column, value) {
+    const needle = String(value ?? '').trim().toLowerCase();
+    if (!needle) return null;
+    return rows.find((r) => String(r[column] ?? '').trim().toLowerCase() === needle) || null;
+  }
+
   function getMeta() {
     return { ...meta };
   }
@@ -194,7 +204,7 @@ function createDataSourceStore(name, supabaseTable) {
     return { items, total, page: safePage, pageSize: safePageSize, totalPages };
   }
 
-  return { replaceAll, recordError, getMeta, getRowsForExport, list, hydrateFromSupabase };
+  return { replaceAll, recordError, getMeta, getRowsForExport, list, hydrateFromSupabase, findBy };
 }
 
 module.exports = createDataSourceStore;

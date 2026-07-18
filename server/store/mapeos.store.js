@@ -13,6 +13,7 @@
    ============================================================ */
 
 const { requireClient } = require('../services/supabase-client');
+const inventoryStore = require('./inventory.store');
 
 // Cada mutación de código termina tocando el mapeo (updated_at/by) y
 // devolviendo el mapeo completo con sus códigos — mismo patrón que
@@ -119,15 +120,25 @@ async function remove(id) {
   await supabase.from('mapeos').delete().eq('id', id);
 }
 
-// Cantidad, condición y descripción quedan con valores por defecto al
-// escanear — se completan después sin frenar el ritmo de un escaneo
-// masivo (mismo comportamiento que tenía el store del navegador).
+// Cantidad y condición quedan con valores por defecto al escanear —
+// se completan después sin frenar el ritmo de un escaneo masivo
+// (mismo comportamiento que tenía el store del navegador). La
+// descripción, en cambio, se completa sola en este mismo paso: se
+// busca el código escaneado contra la columna "referencia" de la
+// fuente Referencia (inventory.store, hidratada desde Supabase) y, si
+// hay match, su columna "descripcion" queda como título del producto
+// en la tarjeta y en la ficha de registro — si no hay match (código
+// fuera de catálogo o fuente vacía), queda '' y el front la muestra
+// como "Producto sin descripción".
 async function addCode(mapeoId, rawCode, actor) {
   const supabase = requireClient();
   const code = String(rawCode).trim();
   if (!code) throw new Error('EMPTY_CODE');
 
-  const { error: insErr } = await supabase.from('mapeo_codes').insert({ mapeo_id: mapeoId, code });
+  const match = inventoryStore.findBy('referencia', code);
+  const description = match?.descripcion || '';
+
+  const { error: insErr } = await supabase.from('mapeo_codes').insert({ mapeo_id: mapeoId, code, description });
   if (insErr) throw insErr;
 
   return touchAndReturn(mapeoId, actor);

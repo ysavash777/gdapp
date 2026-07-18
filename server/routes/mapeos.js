@@ -1,9 +1,11 @@
 /* ============================================================
    API de Mapeos — usada por la herramienta Mapear de /app (permiso
-   'mapear'). Delega toda la persistencia en store/mapeos.store.js
-   (Supabase); este archivo solo valida entrada, traduce a códigos
-   HTTP y fija el actor de cada mutación desde la sesión autenticada
-   (nunca desde el cliente).
+   'mapear') y por el módulo de consulta/administración de /desk
+   (permiso 'mapeos') — cualquiera de los dos alcanza, ambos leen y
+   escriben la misma data. Delega toda la persistencia en
+   store/mapeos.store.js (Supabase); este archivo solo valida entrada,
+   traduce a códigos HTTP y fija el actor de cada mutación desde la
+   sesión autenticada (nunca desde el cliente).
    ============================================================ */
 
 const express = require('express');
@@ -11,7 +13,7 @@ const router = express.Router();
 const store = require('../store/mapeos.store');
 const { requirePermission } = require('../middleware/auth');
 
-router.use(requirePermission('mapear'));
+router.use(requirePermission('mapear', 'mapeos'));
 
 function actorOf(req) {
   return req.user.username;

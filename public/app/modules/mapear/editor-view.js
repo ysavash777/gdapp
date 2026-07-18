@@ -348,6 +348,10 @@ export async function openEditor({ mapeoId, title, onClose }) {
             <button type="button" class="btn-icon" id="regClose" title="Cerrar">${icon('x', 18)}</button>
           </div>
         </div>
+        <div class="cq-desc">
+          <span class="cq-desc-label">Descripción</span>
+          <p class="cq-desc-value">${escapeHtml(entry.description || GENERIC_DESCRIPTION)}</p>
+        </div>
         <div class="reg-info-grid">
           <div class="reg-info-cell">
             <span class="reg-info-label">EAN</span>

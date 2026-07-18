@@ -12,9 +12,11 @@ server/
   middleware/device.js     Detección de dispositivo por User-Agent (redirect / → /desk | /app).
   permissions.js           Catálogo de módulos asignables como permiso, con scope 'web' o 'app'.
                            ÚNICO lugar para añadir uno nuevo (aparece solo en el modal de Usuarios).
-  middleware/auth.js       requireAuth (exige sesión), requireAdmin (+ role admin), requirePermission(key)
-                           (+ ese permiso en la lista) — las tres consultan Supabase (users/sessions), así
-                           que son async; un error de red/DB se traduce a 401, no a un 500 críptico.
+  middleware/auth.js       requireAuth (exige sesión), requireAdmin (+ role admin), requirePermission(...keys)
+                           (+ al menos uno de esos permisos en la lista — una misma ruta puede servir a un
+                           permiso de scope 'app' y a su equivalente 'web', ej. routes/mapeos.js) — las tres
+                           consultan Supabase (users/sessions), así que son async; un error de red/DB se
+                           traduce a 401, no a un 500 críptico.
   store/users.store.js     Repositorio de usuarios — Supabase (tabla `users`). Login, alta, edición, permisos
                            y borrado pasan por aquí. Misma forma de API desde que vivía en memoria
                            (list/findById/create/update/...), solo que ahora todas son async.
@@ -27,10 +29,16 @@ server/
                            (todas las fuentes configuradas), GET /status trae el estado de cada una y
                            GET /rows?source=referencia|coordenadas (paginado+búsqueda+orden) lee sus filas.
                            Exige el permiso 'basesdatos', no un rol fijo.
-  routes/mapeos.js         API de la herramienta Mapear (permiso 'mapear'): listar/crear/renombrar/eliminar
-                           mapeos + agregar/editar/quitar códigos escaneados. El actor de cada mutación lo
-                           fija esta ruta desde la sesión autenticada (req.user.username), nunca lo manda
-                           el cliente. Usa store/mapeos.store.js.
+  routes/mapeos.js         API de mapeos: listar/crear/renombrar/eliminar mapeos + agregar/editar/quitar
+                           códigos escaneados. Exige el permiso 'mapear' (app) o 'mapeos' (desk) —
+                           cualquiera de los dos alcanza (requirePermission acepta varias claves), porque
+                           la usan tanto app/modules/mapear (escanea y crea) como desk/modules/mapeos.js
+                           (solo consulta/administra lo ya escaneado — misma data, sin nada propio). El
+                           actor de cada mutación lo fija esta ruta desde la sesión autenticada
+                           (req.user.username), nunca lo manda el cliente. Usa store/mapeos.store.js, que a
+                           su vez consulta store/inventory.store.js al agregar un código: si el código
+                           coincide con la columna "referencia" de esa fuente, su "descripcion" queda como
+                           título del producto (ver store/mapeos.store.js).
   services/copernico-client.js  Cliente HTTP de bajo nivel contra la API de Copernico WMS: login/logout +
                            fetchDataset() genérico (usado por fetchReferencia/fetchCoordenadas, mismo
                            timeout y misma heurística para encontrar el array de filas en la respuesta).
@@ -88,7 +96,10 @@ public/
     desk.css               Layout propio del desk (sidebar, topbar).
     desk.js                Router hash + montaje de módulos.
     modules/usuarios.js    Gestión de usuarios (modificar, contraseña, eliminar, permisos).
-    modules/mapeos.js      Mapeos.
+    modules/mapeos.js      Mapeos: consulta y administración (buscar, ver detalle con sus códigos,
+                           renombrar, borrar un código suelto o el mapeo entero) de los mismos mapeos que
+                           se escanean desde app/modules/mapear — mismo /api/mapeos, sin store propio.
+                           Escanear sigue siendo exclusivo de /app (requiere cámara).
     modules/basesdatos.js  Bases de datos: un solo botón "Actualizar DB" (dispara /api/database/refresh
                            para todas las fuentes) y una tarjeta por fuente (Referencia, Coordenadas,
                            Variables, Líneas picking — solo las dos primeras tienen motor real hoy) con
