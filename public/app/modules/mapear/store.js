@@ -37,10 +37,17 @@
    buena conexión puede pasar en menos de un segundo), un updateCode
    contra el id viejo ya no encuentra nada y la edición se pierde en
    silencio.
+
+   addCode también completa descripción y EAN al instante (antes de
+   cualquier red) contra lookup-catalog.js, un catálogo local liviano
+   de Referencia — así se ven incluso sin conexión, no solo una vez
+   que el motor de sync confirma el alta (que sigue corrigiendo estos
+   mismos campos con el dato fresco del servidor apenas puede).
    ============================================================ */
 
 import { apiFetch } from '/shared/js/api.js';
 import * as syncEngine from './sync-engine.js';
+import * as lookupCatalog from './lookup-catalog.js';
 
 const CACHE_PREFIX = 'gd.mapear.cache.';
 
@@ -212,12 +219,13 @@ export async function addCode(mapeoId, rawCode, actor) {
   const cache = loadCache(mapeoId) || { mapeo: { id: mapeoId }, codes: [] };
   const now = new Date().toISOString();
   const localId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const local = lookupCatalog.findLocal(code);
   const entry = {
     id: localId,
     clientId: localId,
     code,
-    description: '',
-    ean: '',
+    description: local?.descripcion || '',
+    ean: local?.ean || '',
     quantity: 1,
     condition: null,
     expiryDate: null,

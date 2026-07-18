@@ -30,7 +30,9 @@ server/
                            GET /rows?source=referencia|coordenadas (paginado+búsqueda+orden) lee sus filas.
                            Exige el permiso 'basesdatos', no un rol fijo.
   routes/mapeos.js         API de mapeos: listar/crear/renombrar/eliminar mapeos + agregar/editar/quitar
-                           códigos escaneados. Exige el permiso 'mapear' (app) o 'mapeos' (desk) —
+                           códigos escaneados, más GET /lookup-catalog (catálogo liviano de Referencia para
+                           el catálogo local offline del celular, ver mapear/lookup-catalog.js — tiene que
+                           estar declarado antes de GET /:id). Exige el permiso 'mapear' (app) o 'mapeos' (desk) —
                            cualquiera de los dos alcanza (requirePermission acepta varias claves), porque
                            la usan tanto app/modules/mapear (escanea y crea) como desk/modules/mapeos.js
                            (solo consulta/administra lo ya escaneado — misma data, sin nada propio). El
@@ -172,6 +174,14 @@ public/
                                aunque se cierre el editor (mientras dure la pestaña). Límite conocido: sin
                                coordinación entre pestañas, pensado para una sola pestaña activa por
                                dispositivo.
+      lookup-catalog.js        Catálogo local liviano de Referencia (código -> descripción + EAN corto),
+                               descargado una vez (GET /api/mapeos/lookup-catalog, servido como arrays para
+                               no repetir claves en 11000+ filas) y cacheado en localStorage
+                               (`gd.mapear.lookupCatalog.v1`). store.js lo consulta al agregar un código para
+                               completar esos dos campos AL INSTANTE, antes de cualquier red — así se ven
+                               incluso sin conexión, no solo una vez que el motor de sync confirma el alta
+                               (que igual los corrige después con el dato fresco del servidor). Se refresca
+                               solo al cargar el módulo y en cada evento 'online'.
       list-view.js             Listado de mapeos + menú de opciones por fila (renombrar, descargar —
                                pendiente de implementar—, eliminar con confirmación).
       editor-view.js            Cámara (vía scanner/camera.js) + edición de un mapeo, nuevo o existente:
