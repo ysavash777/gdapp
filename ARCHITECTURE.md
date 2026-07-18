@@ -27,7 +27,7 @@ server/
   routes/users.js          API: listar (con búsqueda+paginación), crear, editar, cambiar contraseña, eliminar.
   routes/database.js       API del módulo Bases de datos: POST /refresh dispara una corrida del motor
                            (todas las fuentes configuradas), GET /status trae el estado de cada una y
-                           GET /rows?source=referencia|coordenadas (paginado+búsqueda+orden) lee sus filas.
+                           GET /rows?source=referencia|coordenadas|variables (paginado+búsqueda+orden) lee sus filas.
                            Exige el permiso 'basesdatos', no un rol fijo.
   routes/mapeos.js         API de mapeos: listar/crear/renombrar/eliminar mapeos + agregar/editar/quitar
                            códigos escaneados, más GET /lookup-catalog (catálogo liviano de Referencia para
@@ -45,12 +45,12 @@ server/
                            store/mapeos.store.js). "Grupo" queda pendiente: todavía no hay fuente conectada
                            con esa columna.
   services/copernico-client.js  Cliente HTTP de bajo nivel contra la API de Copernico WMS: login/logout +
-                           fetchDataset() genérico (usado por fetchReferencia/fetchCoordenadas, mismo
-                           timeout y misma heurística para encontrar el array de filas en la respuesta).
+                           fetchDataset() genérico (usado por fetchReferencia/fetchCoordenadas/fetchVariables,
+                           mismo timeout y misma heurística para encontrar el array de filas en la respuesta).
                            Clasifica errores de login (LICENSE_LIMIT, ALREADY_LOGGED_IN, INVALID_CREDENTIALS...)
                            por el texto del mensaje — la API no trae códigos propios.
   services/inventory-engine.js  Orquesta una corrida completa: un login, una consulta por cada fuente en
-                           SOURCES (hoy referencia + coordenadas) en secuencia, un solo logout — nunca un
+                           SOURCES (hoy referencia + coordenadas + variables) en secuencia, un solo logout — nunca un
                            login por fuente. Si una fuente falla, las demás igual se intentan. Lock en
                            memoria + en disco: nunca corren dos corridas en simultáneo y el motor nunca se
                            auto-invoca — el único disparador es refresh(), llamado por routes/database.js.
@@ -60,8 +60,14 @@ server/
   store/create-data-source-store.js  Fábrica: misma lógica de columnas genéricas + status (empty/ok/error)
                            + persistencia en disco + paginado, instanciada por cada fuente (inventory.store.js
                            = 'referencia'/'inventario_cajas', coordenadas.store.js = 'coordenadas'/
-                           'layout_coordenadas'). Agregar una fuente nueva es una línea nueva
-                           `require('./create-data-source-store')('nombre', 'tabla_supabase')`.
+                           'layout_coordenadas', variables.store.js = 'variables'/'variables_logisticas').
+                           Agregar una fuente nueva es una línea nueva
+                           `require('./create-data-source-store')('nombre', 'tabla_supabase')` + sumarla en
+                           inventory-engine.js (SOURCES) y routes/database.js (STORES) + la tabla en Supabase
+                           (columnas = sanitizeKey() de cada clave real que devuelve la API de Copernico —
+                           ojo con camelCase: "productoEAN" sanea a "productoean", SIN guion bajo, porque
+                           sanitizeKey no separa por mayúscula/minúscula, solo por caracteres no alfanuméricos;
+                           conviene verificar el nombre exacto con un fetch real antes de crear la tabla).
                            hydrateFromSupabase() (llamado una sola vez al boot, ver server/index.js) trae la
                            última corrida buena desde Supabase si el caché en disco está vacío — sin esto el
                            desk se veía vacío después de cada deploy nuevo en Render (contenedor sin el
@@ -110,7 +116,7 @@ public/
                            Escanear sigue siendo exclusivo de /app (requiere cámara).
     modules/basesdatos.js  Bases de datos: un solo botón "Actualizar DB" (dispara /api/database/refresh
                            para todas las fuentes) y una tarjeta por fuente (Referencia, Coordenadas,
-                           Variables, Líneas picking — solo las dos primeras tienen motor real hoy) con
+                           Variables, Líneas picking — solo la última todavía no tiene motor real) con
                            filas + horario en números y un ícono de estado (actualizado/error/sin datos,
                            sin texto). Nunca muestra las filas en sí — ese detalle vive en el servidor,
                            listo para consultarse desde otro módulo (/api/database/rows?source=...) sin

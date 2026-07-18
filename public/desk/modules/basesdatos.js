@@ -1,10 +1,11 @@
 /* ============================================================
    Módulo Desk · Bases de datos
    Un solo botón "Actualizar DB" para todas las fuentes — hoy dispara
-   el motor de "Referencia" y "Coordenadas" (server/services/inventory-engine.js,
-   un solo login, una consulta por fuente, un solo logout). Variables
-   y Líneas picking todavía no tienen motor propio: la tarjeta ya
-   existe con la forma final, pero no hace nada al tocarla.
+   el motor de "Referencia", "Coordenadas" y "Variables" (server/
+   services/inventory-engine.js, un solo login, una consulta por
+   fuente, un solo logout). Líneas picking todavía no tiene motor
+   propio: la tarjeta ya existe con la forma final, pero no hace nada
+   al tocarla.
 
    Cada tarjeta es solo una vidriera de estado (ícono, sin texto) —
    nunca tienen su propia acción. Tampoco se muestran las filas
@@ -47,7 +48,7 @@ const EMPTY_SOURCE = { status: 'empty', lastUpdatedAt: null, rowCount: 0, durati
 
 const SOURCES = [
   { key: 'referencia', label: 'Referencia', icon: 'database', active: true },
-  { key: 'variables', label: 'Variables', icon: 'layers', active: false },
+  { key: 'variables', label: 'Variables', icon: 'layers', active: true },
   { key: 'coordenadas', label: 'Coordenadas', icon: 'pin', active: true },
   { key: 'lineas_picking', label: 'Líneas picking', icon: 'grid', active: false },
 ];

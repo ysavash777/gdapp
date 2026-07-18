@@ -48,15 +48,17 @@ const config = require('../config');
 const copernico = require('./copernico-client');
 const inventoryStore = require('../store/inventory.store');
 const coordenadasStore = require('../store/coordenadas.store');
+const variablesStore = require('../store/variables.store');
 const supabaseSync = require('./supabase-sync');
 
 // Cada fuente sabe cómo pedirse (fetch), dónde guardarse localmente
 // (store) y a qué tabla de Supabase espejarse (supabaseTable) —
-// agregar una nueva (Variables, Líneas picking...) es sumar una
-// entrada acá + la tabla en Supabase, nada más de este archivo cambia.
+// agregar una nueva (Líneas picking...) es sumar una entrada acá + la
+// tabla en Supabase, nada más de este archivo cambia.
 const SOURCES = [
   { key: 'referencia', fetch: copernico.fetchReferencia, store: inventoryStore, supabaseTable: 'inventario_cajas' },
   { key: 'coordenadas', fetch: copernico.fetchCoordenadas, store: coordenadasStore, supabaseTable: 'layout_coordenadas' },
+  { key: 'variables', fetch: copernico.fetchVariables, store: variablesStore, supabaseTable: 'variables_logisticas' },
 ];
 
 const LOCK_FILE = path.join(__dirname, '..', 'data', 'refresh.lock');

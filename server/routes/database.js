@@ -11,12 +11,14 @@ const { requirePermission } = require('../middleware/auth');
 const engine = require('../services/inventory-engine');
 const inventoryStore = require('../store/inventory.store');
 const coordenadasStore = require('../store/coordenadas.store');
+const variablesStore = require('../store/variables.store');
 
 // Un solo lugar donde mapear "nombre de fuente" -> su store. Agregar
 // una fuente nueva es sumar una entrada acá (y en inventory-engine.js).
 const STORES = {
   referencia: inventoryStore,
   coordenadas: coordenadasStore,
+  variables: variablesStore,
 };
 
 router.use(requirePermission('basesdatos'));

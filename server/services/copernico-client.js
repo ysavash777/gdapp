@@ -13,6 +13,7 @@ const LOGIN_URL = 'https://services.copernicowms.com/users/api/login';
 const LOGOUT_URL = 'https://services.copernicowms.com/users/api/logout';
 const REFERENCIA_URL = 'https://services.copernicowms.com/backweb25/inventario/obtenerrefsxcaja';
 const COORDENADAS_URL = 'https://services.copernicowms.com/backweb25/layout/coordenadas';
+const VARIABLES_URL = 'https://services.copernicowms.com/backweb25/logisticsvars';
 
 // Sin esto, un fetch que Copernico deja "colgado" sin responder nunca
 // falla ni se resuelve — el motor quedaría marcado como "corriendo"
@@ -148,6 +149,10 @@ function fetchCoordenadas(token, bodega) {
   return fetchDataset('coordenadas', COORDENADAS_URL, token, bodega);
 }
 
+function fetchVariables(token, bodega) {
+  return fetchDataset('variables', VARIABLES_URL, token, bodega);
+}
+
 // Se llama siempre al terminar una corrida (haya salido bien o mal la
 // consulta) para no dejar la licencia ocupada — por eso nunca lanza:
 // un logout que falla no debe tirar abajo el resultado de la corrida.
@@ -172,4 +177,4 @@ async function logout(token, uid) {
   }
 }
 
-module.exports = { login, fetchReferencia, fetchCoordenadas, logout, CopernicoError };
+module.exports = { login, fetchReferencia, fetchCoordenadas, fetchVariables, logout, CopernicoError };
