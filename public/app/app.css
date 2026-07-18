@@ -1054,19 +1054,28 @@ html, body {
   color: var(--ink-3);
 }
 .cq-location-list { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Ancho FIJO (no mínimo) — todos los chips de una fila miden lo
+   mismo sin importar si el texto tiene 2 caracteres ("B4") o 6
+   ("MFCA58"): se achica la fuente en vez de dejar crecer la caja (ver
+   chipSizeClass()/is-md/is-sm en scanner-view.js), para que las filas
+   de rango queden alineadas. */
 .cq-location-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 40px;
+  width: 64px;
   height: 30px;
-  padding: 0 12px;
+  padding: 0 6px;
   border-radius: var(--r-md);
   background: var(--surface-2);
   color: var(--ink);
   font-weight: 700;
   font-size: var(--text-sm);
+  overflow: hidden;
+  white-space: nowrap;
 }
+.cq-location-chip.is-md { font-size: 12px; }
+.cq-location-chip.is-sm { font-size: 10.5px; letter-spacing: -0.02em; }
 .cq-location-chip.is-empty { color: var(--ink-3); font-weight: 600; }
 .cq-range-arrow { display: inline-flex; color: var(--ink-3); flex-shrink: 0; }
 
@@ -1079,14 +1088,15 @@ html, body {
    para separarlas un poco más entre sí. */
 .cq-info-grid { background: var(--n-200); margin-top: var(--sp-1); }
 
-/* Ubicación sugerida — ícono en una insignia circular de acento,
-   mismo lenguaje visual que las tarjetas de herramienta del home
-   (.tc-icon). */
+/* Ubicación sugerida — hasta dos filas (Picking/Altura), sin ícono:
+   solo la etiqueta de texto y el valor, la misma posición completa
+   (nunca simplificada — a diferencia del rango, aquí hay que poder
+   pararse exacto). */
 .cq-suggested-box {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
   width: 100%;
   box-sizing: border-box;
   background: var(--n-200);
@@ -1094,18 +1104,12 @@ html, body {
   padding: var(--sp-3);
   margin-top: var(--sp-1);
 }
-.cq-suggested-icon {
-  width: 36px;
-  height: 36px;
+.cq-suggested-list { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.cq-suggested-row { display: flex; align-items: center; gap: var(--sp-2); }
+.cq-suggested-level-label {
   flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-full);
-  background: var(--accent-500);
-  color: var(--ink);
-}
-.cq-suggested-text { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
-.cq-suggested-label {
+  width: 52px;
+  text-align: right;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -1147,7 +1151,6 @@ html, body {
 }
 .cq-level-tag--picking { color: var(--icon-vacios); background: rgba(96, 165, 250, 0.18); }
 .cq-level-tag--altura { color: var(--icon-consultas); background: rgba(167, 139, 250, 0.18); }
-.cq-suggested-value { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; }
 
 /* La ficha de Consultar grupo se abre YA, con estos "huesitos" en vez
    de esperar a que conteste el servidor (el cruce contra Coordenadas/

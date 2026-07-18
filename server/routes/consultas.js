@@ -15,15 +15,18 @@
    dígitos de cada ubicación, ej. "B" en "B400101" o "MFCA" en
    "MFCA780106" — confirmado con datos reales que un mismo grupo casi
    siempre vive en varios pasillos, ej. BEB1 está repartido en B, C, D
-   y E) Y ADEMÁS por nivel (columna "piso": "01"/"1" es Picking, todo
-   lo demás es Altura — confirmado con datos reales, ej. el grupo "PM"
-   tiene el mismo pasillo repartido en 5 pisos distintos, del 01 al
-   05). Mezclar picking y altura en un solo rango por pasillo daría un
-   extremo de abajo/de arriba que en los hechos describe estanterías a
-   distinta altura, no un rango caminable — por eso cada combinación
-   pasillo+nivel manda su propio rango (orden natural, no alfabético
-   puro — ver naturalCompare), nunca la lista completa. Más una sola
-   ubicación sugerida, con su propio nivel.
+   y E) Y ADEMÁS por nivel (columna "piso": "01"/"1" es Picking; cada
+   piso de estantería de ahí en más es SU PROPIO "Nivel N" — nunca un
+   "Altura" genérico que mezcle todos los pisos — confirmado con datos
+   reales, ej. el grupo "PM" tiene el mismo pasillo repartido en 5
+   pisos distintos, del 01 al 05, cada uno a una altura física
+   distinta). Mezclar picking con cualquier nivel, o dos niveles entre
+   sí, en un solo rango por pasillo daría un extremo de abajo/de
+   arriba que en los hechos describe estanterías a distinta altura, no
+   un rango caminable — por eso cada combinación pasillo+nivel manda
+   su propio rango (orden natural, no alfabético puro — ver
+   naturalCompare), nunca la lista completa. Más una sola ubicación
+   sugerida, con su propio nivel.
 
    La "más vacía" se calcula contra Referencia: se cuenta cuántas filas
    (cajas/posiciones ocupadas) tiene cada ubicación candidata ahí — la
@@ -71,23 +74,36 @@ function aisleOf(ubicacion) {
   return m ? m[0] : '';
 }
 
-// piso "01"/"1"/"00" (o sin dato) es picking, a nivel de piso — todo
-// lo demás (02, 03...) es altura, en la estantería, arriba.
+// piso "01"/"1"/"00" (o sin dato) es picking, a nivel de piso — cada
+// piso de estantería (02, 03, 04, 05...) es SU PROPIO nivel, nunca un
+// "Altura" genérico que los mezcle a todos: son alturas físicas
+// distintas, cada una con su propia escalera/autoelevador.
 function levelOf(piso) {
   const n = Number(piso);
-  return !piso || Number.isNaN(n) || n <= 1 ? 'Picking' : 'Altura';
+  return !piso || Number.isNaN(n) || n <= 1 ? 'Picking' : `Nivel ${n}`;
+}
+
+// Picking siempre primero, después Nivel 2, 3, 4... en orden — nunca
+// alfabético puro (que pondría "Nivel 10" antes de "Nivel 2").
+function levelRank(level) {
+  if (level === 'Picking') return 0;
+  const n = Number(String(level).replace(/\D+/g, ''));
+  return Number.isNaN(n) ? 99 : n;
 }
 
 // Un rango por pasillo Y nivel (extremo de abajo/de arriba, orden
-// natural) — nunca uno por pasillo a secas: mezclar picking y altura
-// daría un rango que en los hechos describe estanterías a distinta
-// altura, no algo caminable de punta a punta. `rows` es
-// [{ubicacion, piso}, ...], nunca la lista completa de vuelta al front.
+// natural) — nunca uno por pasillo a secas, ni uno por pasillo+altura
+// genérico: dos niveles de estantería distintos en el mismo pasillo
+// (ej. Nivel 2 y Nivel 3) mandan cada uno su propio rango, porque son
+// alturas físicas distintas, no un tramo caminable de punta a punta.
+// `rows` es [{ubicacion, piso}, ...], nunca la lista completa de
+// vuelta al front.
 function aisleRanges(rows) {
   const byGroup = new Map();
   for (const { ubicacion, piso } of rows) {
-    const key = `${aisleOf(ubicacion)}|${levelOf(piso)}`;
-    if (!byGroup.has(key)) byGroup.set(key, { aisle: aisleOf(ubicacion), level: levelOf(piso), list: [] });
+    const level = levelOf(piso);
+    const key = `${aisleOf(ubicacion)}|${level}`;
+    if (!byGroup.has(key)) byGroup.set(key, { aisle: aisleOf(ubicacion), level, list: [] });
     byGroup.get(key).list.push(ubicacion);
   }
   return [...byGroup.values()]
@@ -95,7 +111,7 @@ function aisleRanges(rows) {
       const sorted = list.slice().sort(naturalCompare);
       return { aisle, level, from: sorted[0], to: sorted[sorted.length - 1] };
     })
-    .sort((a, b) => naturalCompare(a.aisle, b.aisle) || a.level.localeCompare(b.level));
+    .sort((a, b) => naturalCompare(a.aisle, b.aisle) || levelRank(a.level) - levelRank(b.level));
 }
 
 // GET /api/consultas/lookup?code=...
@@ -113,8 +129,13 @@ router.get('/lookup', (req, res) => {
       ean: match.productoean || '',
       group: grupo && grupo !== 'SIN GRUPO' ? grupo : '',
       ranges: [],
-      suggestedLocation: null,
-      suggestedLevel: null,
+      // Dos sugerencias como máximo, una por tipo de nivel (Picking y
+      // Altura combinada — no una por cada Nivel N exacto, esta es la
+      // versión "gruesa" para decidir rápido si hace falta subir o
+      // no) — nunca una sola, porque un producto con ambos tipos de
+      // ubicación necesita las dos alternativas, no solo la más vacía
+      // de las dos sin importar el tipo.
+      suggestions: [],
     };
 
     if (product.group) {
@@ -136,14 +157,22 @@ router.get('/lookup', (req, res) => {
           if (!row.ubicacion) continue;
           occupancy.set(row.ubicacion, (occupancy.get(row.ubicacion) || 0) + 1);
         }
-        let best = null;
-        for (const c of candidates) {
-          const count = occupancy.get(c.ubicacion) || 0;
-          if (!best || count < best.count) best = { ...c, count };
-          if (best.count === 0) break; // ya no hay una más vacía posible
+
+        function bestAmong(filterFn) {
+          let best = null;
+          for (const c of candidates) {
+            if (!filterFn(c)) continue;
+            const count = occupancy.get(c.ubicacion) || 0;
+            if (!best || count < best.count) best = { ...c, count };
+            if (best.count === 0) break; // ya no hay una más vacía posible
+          }
+          return best;
         }
-        product.suggestedLocation = best.ubicacion;
-        product.suggestedLevel = levelOf(best.piso);
+
+        const bestPicking = bestAmong((c) => levelOf(c.piso) === 'Picking');
+        const bestAltura = bestAmong((c) => levelOf(c.piso) !== 'Picking');
+        if (bestPicking) product.suggestions.push({ level: 'Picking', location: bestPicking.ubicacion });
+        if (bestAltura) product.suggestions.push({ level: 'Altura', location: bestAltura.ubicacion });
       }
     }
 

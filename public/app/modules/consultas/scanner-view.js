@@ -6,10 +6,10 @@
    resultado en una ficha — al cerrarla, se puede seguir escaneando.
    findProduct (store.js) pide todo ya calculado a
    /api/consultas/lookup: descripción/EAN/grupo (Variables) + un
-   rango por pasillo y una ubicación sugerida (cruzando Coordenadas y
-   Referencia) — nunca la lista completa de ubicaciones de un grupo,
-   que puede ser de miles y repartirse en varios pasillos no
-   contiguos.
+   rango por pasillo+nivel y hasta dos ubicaciones sugeridas, una para
+   Picking y otra para Altura (cruzando Coordenadas y Referencia) —
+   nunca la lista completa de ubicaciones de un grupo, que puede ser
+   de miles y repartirse en varios pasillos y niveles no contiguos.
 
    Misma cámara y mismos motores de lectura que Mapear, vía
    scanner/camera.js — acá no hay lista debajo ni ingreso masivo, así
@@ -128,6 +128,20 @@ export function openScanner() {
     return m ? `${m[1]}${m[2]}` : loc;
   }
 
+  // Todos los chips de ubicación miden lo mismo sin importar cuántos
+  // caracteres tengan ("B4" vs "MFCA58") — se achica la fuente en vez
+  // de dejar que la caja crezca, para que la fila de rangos quede
+  // alineada y simétrica.
+  function chipSizeClass(text) {
+    if (text.length <= 3) return '';
+    if (text.length <= 5) return 'is-md';
+    return 'is-sm';
+  }
+
+  function chipHTML(text) {
+    return `<span class="cq-location-chip ${chipSizeClass(text)}">${escapeHtml(text)}</span>`;
+  }
+
   function openResultSheet(code) {
     scanner.setPaused(true);
     scanner.setTorch(false);
@@ -157,19 +171,21 @@ export function openScanner() {
             </div>
           </div>
           <div class="cq-suggested-box">
-            <div class="cq-suggested-icon">${icon('pin', 20)}</div>
-            <div class="cq-suggested-text">
-              <span class="cq-suggested-label">Ubicación sugerida</span>
-              <span class="cq-suggested-value">${skeletonHTML('64px')}</span>
+            <span class="cq-locations-label">Ubicación sugerida</span>
+            <div class="cq-suggested-list">
+              <div class="cq-suggested-row">
+                <span class="cq-suggested-level-label">${skeletonHTML('44px', '11px')}</span>
+                <span class="cq-suggested-value">${skeletonHTML('64px')}</span>
+              </div>
             </div>
           </div>
           <div class="cq-aisles-box">
             <span class="cq-locations-label">${icon('map', 14)} Rango de ubicaciones del grupo</span>
             <div class="cq-aisles-list">
               <div class="cq-aisle-row">
-                <span class="cq-location-chip">${skeletonHTML('36px')}</span>
+                <span class="cq-location-chip">${skeletonHTML('28px')}</span>
                 <span class="cq-range-arrow">${icon('arrowRight', 15)}</span>
-                <span class="cq-location-chip">${skeletonHTML('36px')}</span>
+                <span class="cq-location-chip">${skeletonHTML('28px')}</span>
               </div>
             </div>
           </div>
@@ -197,6 +213,7 @@ export function openScanner() {
       if (!backdrop.isConnected) return; // el usuario ya cerró el sheet antes de que llegara la respuesta
 
       const ranges = product?.ranges || [];
+      const suggestions = product?.suggestions || [];
       const titleText = lookupError
         ? 'No se pudo consultar'
         : product
@@ -234,14 +251,17 @@ export function openScanner() {
           </div>
         </div>
         <div class="cq-suggested-box cq-fade-in">
-          <div class="cq-suggested-icon">${icon('pin', 20)}</div>
-          <div class="cq-suggested-text">
-            <span class="cq-suggested-label">Ubicación sugerida</span>
-            <span class="cq-suggested-value">
-              ${product.suggestedLocation ? escapeHtml(product.suggestedLocation) : 'Sin datos'}
-              ${product.suggestedLevel ? `<span class="cq-level-tag cq-level-tag--${product.suggestedLevel === 'Picking' ? 'picking' : 'altura'}">${product.suggestedLevel}</span>` : ''}
-            </span>
-          </div>
+          <span class="cq-locations-label">Ubicación sugerida</span>
+          ${suggestions.length ? `
+            <div class="cq-suggested-list">
+              ${suggestions.map((s) => `
+                <div class="cq-suggested-row">
+                  <span class="cq-suggested-level-label">${escapeHtml(s.level)}</span>
+                  <span class="cq-suggested-value">${escapeHtml(s.location)}</span>
+                </div>
+              `).join('')}
+            </div>
+          ` : `<p class="cq-suggested-value">Sin datos</p>`}
         </div>
         <div class="cq-aisles-box cq-fade-in">
           <span class="cq-locations-label">${icon('map', 14)} Rango de ubicaciones del grupo</span>
@@ -250,9 +270,9 @@ export function openScanner() {
               ${ranges.map((r) => `
                 <div class="cq-aisle-row">
                   <span class="cq-level-tag cq-level-tag--${r.level === 'Picking' ? 'picking' : 'altura'}">${r.level}</span>
-                  <span class="cq-location-chip">${escapeHtml(simplifyLocation(r.from))}</span>
+                  ${chipHTML(simplifyLocation(r.from))}
                   <span class="cq-range-arrow">${icon('arrowRight', 15)}</span>
-                  <span class="cq-location-chip">${escapeHtml(simplifyLocation(r.to))}</span>
+                  ${chipHTML(simplifyLocation(r.to))}
                 </div>
               `).join('')}
             </div>

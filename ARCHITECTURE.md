@@ -52,16 +52,20 @@ server/
                            agrupa las ubicaciones de ese grupo por "pasillo" (aisleOf(): el prefijo sin
                            dígitos, ej. "B" en "B400101" — un mismo grupo casi siempre vive en varios
                            pasillos no contiguos, confirmado con datos reales: BEB1 está repartido en B/C/D/E)
-                           Y ADEMÁS por nivel (levelOf(): columna "piso", "01"/"1"/"00" es Picking, el resto
-                           es Altura — confirmado con datos reales que un mismo pasillo puede tener las dos
-                           cosas, ej. el grupo "PM" tiene su pasillo repartido en 5 pisos) y devuelve solo el
-                           extremo de abajo y el de arriba DE CADA COMBINACIÓN PASILLO+NIVEL (nunca la lista
-                           completa, que puede ser 1500+, ni un solo rango que mezclaría picking con altura),
-                           en orden "natural" (ver naturalCompare — un sort alfabético puro rompe con
-                           ubicaciones de distinto largo dentro de un mismo pasillo, ej. "FMFCAU" tiene
-                           códigos de 10 y 11 caracteres), más una ubicación sugerida (con su propio nivel):
-                           la del grupo con menos filas de Referencia encima (la mejor aproximación disponible
-                           a "más vacía" con los datos que hay conectados). Exige el permiso 'consultas'.
+                           Y ADEMÁS por nivel EXACTO (levelOf(): columna "piso", "01"/"1"/"00" es Picking, cada
+                           piso de estantería de ahí en más es su propio "Nivel N" — nunca un "Altura"
+                           genérico que los mezcle: confirmado con datos reales que el grupo "PM" reparte su
+                           mismo pasillo en 5 pisos distintos, cada uno a una altura física distinta) y
+                           devuelve solo el extremo de abajo y el de arriba DE CADA COMBINACIÓN PASILLO+NIVEL
+                           (nunca la lista completa, que puede ser 1500+, ni un solo rango que mezclaría
+                           picking con cualquier nivel o dos niveles entre sí), en orden "natural" (ver
+                           naturalCompare — un sort alfabético puro rompe con ubicaciones de distinto largo
+                           dentro de un mismo pasillo, ej. "FMFCAU" tiene códigos de 10 y 11 caracteres), más
+                           hasta DOS ubicaciones sugeridas — una para Picking y otra para Altura (la mejor
+                           entre TODOS los niveles de estantería combinados, no una por cada Nivel N exacto):
+                           la del grupo con menos filas de Referencia encima en cada categoría (la mejor
+                           aproximación disponible a "más vacía" con los datos que hay conectados). Exige el
+                           permiso 'consultas'.
   services/copernico-client.js  Cliente HTTP de bajo nivel contra la API de Copernico WMS: login/logout +
                            fetchDataset() genérico (usado por fetchReferencia/fetchCoordenadas/fetchVariables,
                            mismo timeout y misma heurística para encontrar el array de filas en la respuesta).
@@ -242,19 +246,23 @@ public/
                                cajas del módulo — sin esa clase, .reg-info-grid se queda en el gris de
                                Mapear (var(--surface-2)), así que el cambio no afecta a ese módulo; las tres
                                cajas llevan además `width:100%` explícito para quedar simétricas. Las dos
-                               cajas: "Ubicación sugerida" (con insignia circular de ícono, mismo lenguaje
-                               visual que .tc-icon del home — la posición COMPLETA, sin simplificar, ej.
-                               "G450103", porque a diferencia del rango esta sí hay que poder pararse ahí
-                               exacto, más una etiqueta Picking/Altura) y el rango de ubicaciones — una fila
-                               por combinación pasillo+nivel (nunca solo por pasillo: un mismo pasillo puede
-                               tener zona de picking a piso y zona de altura en la estantería — confirmado
-                               con datos reales, ej. el grupo "PM" tiene su mismo pasillo repartido en 5
-                               pisos — mezclarlos daría un rango que en los hechos describe alturas
-                               distintas, no algo caminable), cada fila con su propio extremo de abajo -> de
-                               arriba SIMPLIFICADO a pasillo+módulo (simplifyLocation(), ej. "MFCA300104" ->
-                               "MFCA30" — al rango solo le hace falta decir qué tramo cubre, no la posición
-                               exacta), su etiqueta Picking/Altura y un ícono de flecha real (arrowRight) —
-                               nunca la lista completa. Todo ese cálculo vive server-side en
+                               cajas: "Ubicación sugerida" (sin ícono — solo texto: hasta dos filas, una
+                               "Picking" y otra "Altura", cada una con su posición COMPLETA sin simplificar,
+                               ej. "G450103", porque a diferencia del rango acá hay que poder pararse ahí
+                               exacto — product.suggestions del server, nunca una sola aunque el grupo tenga
+                               ambos tipos de ubicación) y el rango de ubicaciones — una fila por combinación
+                               pasillo+nivel EXACTO (nunca solo por pasillo, ni un "Altura" genérico: dos
+                               pisos de estantería distintos, ej. Nivel 2 y Nivel 3, mandan cada uno su
+                               propia fila — confirmado con datos reales, ej. el grupo "PM" reparte su mismo
+                               pasillo en 5 pisos, cada uno a una altura física distinta), cada fila con su
+                               propio extremo de abajo -> de arriba SIMPLIFICADO a pasillo+módulo
+                               (simplifyLocation(), ej. "MFCA300104" -> "MFCA30" — al rango solo le hace
+                               falta decir qué tramo cubre, no la posición exacta), su etiqueta
+                               Picking/Nivel N y un ícono de flecha real (arrowRight) — nunca la lista
+                               completa. Los chips de ubicación (.cq-location-chip) tienen ancho FIJO (no
+                               mínimo): chipSizeClass() achica la fuente en escalones is-md/is-sm en vez de
+                               dejar crecer la caja, para que dos chips de distinto largo ("B4" vs "MFCA58")
+                               midan exactamente lo mismo. Todo ese cálculo vive server-side en
                                routes/consultas.js.
                                El sheet se abre AL TOQUE, con placeholders tipo "hueso" (.cq-skeleton, con
                                shimmer) en cada campo — el cruce contra Coordenadas/Referencia no es
