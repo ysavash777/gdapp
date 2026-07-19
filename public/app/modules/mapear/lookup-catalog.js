@@ -71,3 +71,4 @@ export function findLocal(code) {
 
 refresh();
 window.addEventListener('online', refresh);
+window.addEventListener('gd-session-ready', refresh);

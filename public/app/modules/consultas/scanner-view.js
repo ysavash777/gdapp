@@ -19,6 +19,8 @@
 
 import { icon } from '/shared/js/icons.js';
 import { escapeHtml } from '/shared/js/format.js';
+import { existsLocal, hasData } from '/shared/js/product-catalog.js';
+import { showToast } from '/shared/js/toast.js';
 import { createCameraScanner } from '../../scanner/camera.js';
 import { findProduct } from './store.js';
 
@@ -63,8 +65,24 @@ export function openScanner() {
   // instantáneo) y piensa que el escaneo no funcionó, así que aprieta
   // "Buscar" de nuevo varias veces. La respuesta real solo reemplaza
   // los placeholders por los datos reales, con un fundido.
+  // Antes de abrir la ficha (y de gastar una llamada al servidor), se
+  // valida contra el catálogo local (shared/js/product-catalog.js) si
+  // el código existe en Variables — si no, una alerta flotante basta:
+  // abrir una ficha entera para terminar mostrando "Sin datos" es una
+  // interacción de más (hay que cerrarla a mano) por algo que ya se
+  // sabía de antemano. Solo se salta esta validación si el catálogo
+  // local todavía está vacío (sin red desde el primer uso): ahí no hay
+  // forma de saber si existe o no, así que se deja pasar a la ficha,
+  // que igual maneja el caso "sin conexión" mostrando el error real.
   async function lookupCode(rawValue) {
+    // Si ya hay una ficha abierta, se ignora cualquier escaneo nuevo
+    // (cámara o manual) — nunca dos fichas encimadas.
+    if (activeSheetBackdrop) return;
     if (navigator.vibrate) navigator.vibrate(35);
+    if (hasData() && !existsLocal(rawValue)) {
+      showToast('Código no encontrado', { variant: 'warn' });
+      return;
+    }
     const sheet = openResultSheet(rawValue);
     try {
       const product = await findProduct(rawValue);

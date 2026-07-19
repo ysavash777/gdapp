@@ -18,6 +18,12 @@ export function currentUser() {
 
 function save(user) {
   localStorage.setItem(KEY, JSON.stringify(user));
+  // Los catálogos locales (shared/js/product-catalog.js,
+  // mapear/lookup-catalog.js) intentan refrescarse apenas se cargan,
+  // pero en un arranque sin sesión todavía (pantalla de login) esa
+  // primera llamada da 401 y se queda así hasta el próximo 'online' —
+  // este evento les avisa que ya hay sesión válida para reintentar.
+  window.dispatchEvent(new Event('gd-session-ready'));
   return user;
 }
 

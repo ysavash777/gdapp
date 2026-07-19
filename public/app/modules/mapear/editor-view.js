@@ -38,6 +38,8 @@ import { icon } from '/shared/js/icons.js';
 import * as store from './store.js';
 import { escapeHtml, CONDITIONS, conditionLabel } from './format.js';
 import { currentUser } from '/shared/js/session.js';
+import { existsLocal, hasData } from '/shared/js/product-catalog.js';
+import { showToast } from '/shared/js/toast.js';
 import { createCameraScanner } from '../../scanner/camera.js';
 
 const GENERIC_DESCRIPTION = 'Producto sin descripción';
@@ -209,6 +211,14 @@ export async function openEditor({ mapeoId, title, onClose }) {
   let activeFilter = '';
   let searchQuery = '';
   let flashId = null;
+  // Mientras se está creando un registro (desde que se dispara el
+  // escaneo hasta que su ventana termina de abrirse, o hasta que la
+  // cierran) ningún otro escaneo puede colarse — sin esto, dos lecturas
+  // casi simultáneas del mismo código (la cámara sigue detectando unos
+  // milisegundos más mientras arranca el alta, antes de que
+  // scanner.setPaused(true) surta efecto) terminaban creando dos
+  // registros y abriendo dos ventanas de registro encimadas.
+  let registering = false;
 
   // Un código puede pasar de "enviando" a "guardado" (o "sin
   // conexión") mucho después de que se lo agregó, en segundo plano —
@@ -258,6 +268,24 @@ export async function openEditor({ mapeoId, title, onClose }) {
   // diferencia de la cámara, que debounce internamente en
   // scanner/camera.js mientras un código sigue en cuadro).
   async function registerCode(rawValue) {
+    // Reentrancia: si ya hay un registro en curso (o su ventana ya
+    // abierta), cualquier escaneo nuevo se ignora — ver `registering`
+    // más arriba.
+    if (registering || activeSheetBackdrop) return;
+    registering = true;
+
+    // Antes de agregar el código (y de abrir su ventana de registro),
+    // se valida contra el catálogo local (shared/js/product-catalog.js)
+    // si existe en Variables — si no, una alerta flotante basta: no
+    // tiene sentido abrir una ficha en blanco para algo que ya se sabe
+    // que no está en el catálogo. Solo se salta esta validación si el
+    // catálogo local todavía está vacío (sin red desde el primer uso),
+    // igual que en Consultar grupo (ver scanner-view.js).
+    if (hasData() && !existsLocal(rawValue)) {
+      showToast('Código no encontrado', { variant: 'warn' });
+      registering = false;
+      return;
+    }
     // Si quedó una búsqueda abierta, no debe tapar ni confundirse con
     // la ventana de registro que está por abrirse.
     closeSearch();
@@ -266,6 +294,9 @@ export async function openEditor({ mapeoId, title, onClose }) {
     renderCodes();
     if (navigator.vibrate) navigator.vibrate(35);
     openRegisterSheet(codes.at(-1).clientId, { isNew: true });
+    // `registering` sigue en true hasta que esta ventana se cierre
+    // (cleanupSheet la resetea) — mientras esté abierta, ni la cámara
+    // ni el ingreso manual pueden disparar un segundo registro.
   }
 
   const scanner = createCameraScanner({
@@ -652,6 +683,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
       activeSheetBackdrop = null;
       activeSheetDiscard = null;
       activeSheetRefreshLookup = null;
+      registering = false;
     }
 
     // El registro recién tocado (nuevo o editado) sube al tope de la

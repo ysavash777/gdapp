@@ -69,6 +69,13 @@ server/
                            categoría (la mejor aproximación disponible a "más vacía" con los datos que hay
                            conectados), con la posición COMPLETA (ubicacion) sin tocar. Exige el
                            permiso 'consultas'.
+  routes/catalog.js       API de catálogo liviano de existencia: GET /lookup devuelve [referencia,
+                           descripcion, ean] (arrays, mismo criterio que /api/mapeos/lookup-catalog) de
+                           TODA Variables, sin "grupo" (ese dato solo lo necesita el autocompletado de
+                           Mapear, no la validación de existencia). Lo consumen shared/js/product-catalog.js
+                           desde Mapear Y Consultar grupo para decidir ANTES de escanear si vale la pena
+                           abrir una ventana — no exige un permiso de módulo puntual (solo requireAuth):
+                           no es dato sensible ni exclusivo de una herramienta.
   services/copernico-client.js  Cliente HTTP de bajo nivel contra la API de Copernico WMS: login/logout +
                            fetchDataset() genérico (usado por fetchReferencia/fetchCoordenadas/fetchVariables,
                            mismo timeout y misma heurística para encontrar el array de filas en la respuesta).
@@ -126,9 +133,29 @@ public/
     js/avatars.js          Resuelve id de avatar → ruta de imagen en avatars/ (con fallback a inicial).
     avatars/               Imágenes JPG de avatar (avatar.jpg predeterminado, avatar-1..5.jpg elegibles).
                            Ver README dentro de la carpeta para los nombres exactos.
-    js/session.js          Sesión (localStorage) + llamadas reales a /api/auth.
+    js/session.js          Sesión (localStorage) + llamadas reales a /api/auth. save() (login y
+                           refreshUser) dispara el evento global 'gd-session-ready' — lo escuchan los
+                           catálogos locales (js/product-catalog.js, mapear/lookup-catalog.js) para
+                           reintentar su descarga: sin esto, la primera llamada de cada uno (al cargar el
+                           módulo, típicamente ANTES de que haya sesión, con la pantalla de login todavía
+                           puesta) daba 401 y se quedaba así hasta el próximo evento 'online', dejando el
+                           catálogo vacío toda la sesión aunque el login fuera exitoso.
     js/auth-view.js        Pantalla de login (sin registro) reutilizada por desk y app.
     js/api.js              Cliente fetch mínimo (JSON + manejo de error) usado por los módulos.
+    js/product-catalog.js  Catálogo local de existencia de producto (referencia/descripcion/ean),
+                           descargado una vez (GET /api/catalog/lookup, arrays) y cacheado en localStorage
+                           (`gd.productCatalog.v1`). Lo usan app/modules/mapear/editor-view.js y
+                           app/modules/consultas/scanner-view.js para decidir, ANTES de abrir cualquier
+                           ventana, si un código escaneado existe en Variables: existsLocal(code) — si el
+                           catálogo nunca se pudo descargar en este dispositivo (hasData() === false, sin
+                           red desde el primer uso), no hay forma de saber si existe o no, así que los
+                           llamadores dejan pasar el escaneo en vez de bloquearlo. Se refresca solo al
+                           cargar el módulo y en cada evento 'online' — mismo patrón que
+                           app/modules/mapear/lookup-catalog.js (que sigue existiendo aparte, con "grupo"
+                           incluido, porque a Mapear le sirve además para autocompletar esos campos).
+    js/toast.js             Alerta flotante temporal genérica (showToast(msg, {variant})) — mismo patrón
+                           visual que el "Presiona de nuevo para salir" de app/app.js (clase .gd-toast en
+                           app/app.css); variant 'warn' para avisos de código no encontrado.
 
   desk/                    WEB de escritorio.
     index.html             Shell HTML (sidebar + outlet).
@@ -228,7 +255,17 @@ public/
                                "Reintentar" en vez de romper la pantalla.
       editor-view.js            Cámara (vía scanner/camera.js) + edición de un mapeo, nuevo o existente:
                                cada código tiene cantidad, condición (rotura/unidades/vencido/otro) y
-                               descripción editables, con ingreso manual como respaldo. Al escanear un
+                               descripción editables, con ingreso manual como respaldo. registerCode()
+                               valida primero contra /shared/js/product-catalog.js (existsLocal) si el
+                               código existe en Variables — si no, solo una alerta flotante (showToast,
+                               shared/js/toast.js): nunca agrega el código ni abre su ventana de registro
+                               para algo que ya se sabe que no está en el catálogo. Guard de reentrancia
+                               (`registering`, junto con activeSheetBackdrop): mientras un registro está
+                               en curso o su ventana sigue abierta, cualquier escaneo nuevo (cámara o
+                               manual) se ignora — sin esto, dos lecturas casi simultáneas del mismo código
+                               (la cámara puede seguir detectando unos milisegundos más mientras arranca el
+                               alta, antes de que scanner.setPaused(true) surta efecto) terminaban creando
+                               dos registros y abriendo dos ventanas encimadas. Al escanear un
                                código que el catálogo local todavía no pudo resolver (pendingLookup: recién
                                agregado, syncStatus 'syncing' y sin descripción todavía), Descripción/EAN/
                                Grupo muestran un placeholder tipo "hueso" en vez de declarar "sin datos"
@@ -240,7 +277,13 @@ public/
                            listado ni persistencia — cada código escaneado dispara una búsqueda y
                            muestra el resultado, sin guardar nada.
       index.js               Entrada — abre el escáner directo, no hay paso intermedio.
-      scanner-view.js          Cámara (vía scanner/camera.js) + ficha de resultado: la descripción ES el
+      scanner-view.js          Cámara (vía scanner/camera.js) + ficha de resultado. lookupCode() valida
+                               primero contra /shared/js/product-catalog.js (existsLocal) si el código
+                               existe en Variables — si no, solo una alerta flotante (showToast,
+                               shared/js/toast.js) y nunca abre la ficha, que hubiera terminado igual en
+                               "Sin datos en la base" después de gastar una llamada al servidor. Si ya hay
+                               una ficha abierta (activeSheetBackdrop), ignora cualquier escaneo nuevo —
+                               nunca dos fichas encimadas. La descripción ES el
                                título del sheet (sin "Producto encontrado" ni un encabezado "Descripción"
                                aparte) — nunca más de 2 líneas (titleSizeClass() la achica en escalones
                                is-md/is-sm antes de llegar al -webkit-line-clamp:2 de .reg-sheet-title, que
