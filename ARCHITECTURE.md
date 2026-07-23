@@ -214,7 +214,13 @@ public/
   shared/                  Todo lo compartido entre desk y app.
     styles/tokens.css      Design tokens: colores, tipografía, radios, sombras. ÚNICO lugar para cambiar el tema.
     styles/base.css        Reset, tipografía base, utilidades.
-    styles/components.css  Botones, inputs, cards, badges, tablas, modales.
+    styles/components.css  Botones, inputs, cards, badges, tablas, modales. .modal-lg (max-width:600px, ver
+                           usuarios.js) para formularios con más campos que el modal angosto por defecto
+                           (440px). .field-row pone dos .field lado a lado (ahorra alto vertical). Permisos
+                           como chips (.perm-chip/.perm-chips/.perm-groups) en vez de una lista de checkboxes
+                           de una fila cada uno: el <input> real sigue existiendo (oculto, mismo
+                           name="perm") para no tocar cómo se lee el formulario, solo cambia qué se ve — el
+                           <span> hermano es lo que se pinta según :checked.
     js/icons.js            Set de iconos SVG (estilo Lucide). Añadir iconos SOLO aquí.
     js/avatars.js          Resuelve id de avatar → ruta de imagen en avatars/ (con fallback a inicial).
     avatars/               Imágenes JPG de avatar (avatar.jpg predeterminado, avatar-1..5.jpg elegibles).
@@ -263,7 +269,11 @@ public/
     index.html             Shell HTML (sidebar + outlet).
     desk.css               Layout propio del desk (sidebar, topbar).
     desk.js                Router hash + montaje de módulos.
-    modules/usuarios.js    Gestión de usuarios (modificar, contraseña, eliminar, permisos).
+    modules/usuarios.js    Gestión de usuarios (modificar, contraseña, eliminar, permisos). Modales de
+                           crear/editar usan modal ancho (wide:true → .modal-lg) con Usuario+Rol en una
+                           fila (.field-row) y los permisos como chips seleccionables (.perm-chip) agrupados
+                           por scope (Web/App) — antes una lista vertical de checkboxes, una fila por
+                           permiso, empujaba el formulario fuera de la vista con 7+ módulos.
     modules/mapeos.js      Mapeos: consulta y administración (buscar, ver detalle con sus códigos,
                            renombrar, borrar un código suelto o el mapeo entero) de los mismos mapeos que
                            se escanean desde app/modules/mapear — mismo /api/mapeos, sin store propio.

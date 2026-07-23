@@ -71,6 +71,12 @@
 }
 .field input::placeholder { color: var(--ink-3); }
 
+/* Dos campos lado a lado dentro de un formulario (ej. Usuario + Rol) —
+   ahorra alto vertical en formularios con muchos campos, en vez de
+   apilar todo en una sola columna angosta. */
+.field-row { display: flex; gap: var(--sp-4); }
+.field-row > .field { flex: 1; min-width: 0; }
+
 /* --- Card --- */
 .card {
   background: var(--surface);
@@ -247,6 +253,10 @@
   overflow: hidden;
   animation: modal-in var(--t-med);
 }
+/* Formularios con más campos (ej. editar/crear usuario: usuario+rol,
+   avatar, permisos) necesitan más ancho para acomodarlos en filas en
+   vez de una sola columna angosta que fuerza a scrollear todo. */
+.modal.modal-lg { max-width: 600px; }
 .modal-head {
   display: flex;
   align-items: center;
@@ -270,13 +280,49 @@
   border-top: 1px solid var(--line-soft);
 }
 
-.checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: 8px 2px;
+/* Permisos como chips seleccionables en vez de una lista vertical de
+   checkboxes (cada uno ocupaba una fila entera) — con 7+ módulos
+   asignables, la lista larga era lo que más empujaba el formulario
+   fuera de vista. El <input> real sigue existiendo (mismo
+   name="perm", mismo form.querySelectorAll(':checked') para leer el
+   estado) pero queda oculto — el <span> es lo que se ve y se clickea. */
+.perm-groups { display: flex; flex-direction: column; gap: var(--sp-3); }
+.perm-group-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-3);
 }
-.checkbox-row input { width: 18px; height: 18px; accent-color: var(--accent-500); }
+.perm-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.perm-chip { cursor: pointer; }
+.perm-chip input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+.perm-chip span {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-full);
+  font-size: var(--text-sm);
+  font-weight: 550;
+  color: var(--ink-2);
+  background: var(--surface);
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+.perm-chip:hover span { border-color: var(--accent-500); }
+.perm-chip input:checked + span {
+  background: var(--accent-500);
+  border-color: var(--accent-500);
+  color: #fff;
+}
+.perm-chip input:focus-visible + span { box-shadow: 0 0 0 3px var(--accent-100); }
 
 .form-error {
   font-size: var(--text-sm);

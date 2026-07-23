@@ -175,11 +175,11 @@ async function mount(root) {
 
   // ---- Modales ----
 
-  function openModal({ headTitle, bodyHTML, footHTML, onMount, onSubmit }) {
+  function openModal({ headTitle, bodyHTML, footHTML, onMount, onSubmit, wide }) {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
-      <div class="modal">
+      <div class="modal ${wide ? 'modal-lg' : ''}">
         <div class="modal-head">
           <h3>${headTitle}</h3>
           <button class="btn-icon" data-close>${icon('x', 18)}</button>
@@ -239,16 +239,20 @@ async function mount(root) {
       const items = state.catalog.filter((c) => c.scope === scope);
       if (!items.length) return '';
       return `
-        <p class="small muted" style="margin-top:6px;">${label}</p>
-        ${items.map((c) => `
-          <label class="checkbox-row">
-            <input type="checkbox" name="perm" value="${c.key}" ${selected.includes(c.key) ? 'checked' : ''} />
-            ${c.label}
-          </label>
-        `).join('')}
+        <div class="perm-group">
+          <span class="perm-group-label">${label}</span>
+          <div class="perm-chips">
+            ${items.map((c) => `
+              <label class="perm-chip">
+                <input type="checkbox" name="perm" value="${c.key}" ${selected.includes(c.key) ? 'checked' : ''} />
+                <span>${c.label}</span>
+              </label>
+            `).join('')}
+          </div>
+        </div>
       `;
     };
-    return group('web', 'Web (/desk)') + group('app', 'App (/app)');
+    return `<div class="perm-groups">${group('web', 'Web (/desk)')}${group('app', 'App (/app)')}</div>`;
   }
 
   function readPermissions(form) {
@@ -259,18 +263,21 @@ async function mount(root) {
     let getAvatar;
     openModal({
       headTitle: `Editar ${user.username}`,
+      wide: true,
       bodyHTML: `
         <div id="modalError"></div>
-        <div class="field">
-          <label for="f-username">Usuario</label>
-          <input id="f-username" name="username" value="${user.username}" required minlength="3" />
-        </div>
-        <div class="field">
-          <label for="f-role">Rol</label>
-          <select id="f-role" name="role">
-            <option value="user" ${user.role === 'user' ? 'selected' : ''}>Usuario</option>
-            <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Administrador</option>
-          </select>
+        <div class="field-row">
+          <div class="field">
+            <label for="f-username">Usuario</label>
+            <input id="f-username" name="username" value="${user.username}" required minlength="3" />
+          </div>
+          <div class="field">
+            <label for="f-role">Rol</label>
+            <select id="f-role" name="role">
+              <option value="user" ${user.role === 'user' ? 'selected' : ''}>Usuario</option>
+              <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Administrador</option>
+            </select>
+          </div>
         </div>
         ${avatarPickerHTML(user.avatar)}
         <div class="field">
@@ -338,22 +345,25 @@ async function mount(root) {
     let getAvatar;
     openModal({
       headTitle: 'Nuevo usuario',
+      wide: true,
       bodyHTML: `
         <div id="modalError"></div>
-        <div class="field">
-          <label for="f-username">Usuario</label>
-          <input id="f-username" name="username" required minlength="3" placeholder="nombre.usuario" />
+        <div class="field-row">
+          <div class="field">
+            <label for="f-username">Usuario</label>
+            <input id="f-username" name="username" required minlength="3" placeholder="nombre.usuario" />
+          </div>
+          <div class="field">
+            <label for="f-role">Rol</label>
+            <select id="f-role" name="role">
+              <option value="user" selected>Usuario</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
         </div>
         <div class="field">
           <label for="f-password">Contraseña</label>
           <input id="f-password" name="password" type="password" required minlength="4" placeholder="••••••••" />
-        </div>
-        <div class="field">
-          <label for="f-role">Rol</label>
-          <select id="f-role" name="role">
-            <option value="user" selected>Usuario</option>
-            <option value="admin">Administrador</option>
-          </select>
         </div>
         ${avatarPickerHTML(1)}
         <div class="field">
