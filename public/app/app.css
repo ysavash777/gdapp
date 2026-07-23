@@ -763,6 +763,36 @@ html, body {
 .cq-camera { flex: 1; min-height: 0; }
 .cq-sheet { flex: 0 0 auto; }
 
+/* Último producto escaneado — un solo renglón chico, siempre el
+   mismo lugar, nunca una lista: cada escaneo nuevo pisa este mismo
+   contenedor (ver saveLastScanned() en scanner-view.js). Vacío
+   (primera vez en este dispositivo) no ocupa espacio. */
+.cq-last-scanned-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 8px 2px 0;
+  font-size: var(--text-xs);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.cq-last-scanned-label {
+  flex-shrink: 0;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+.cq-last-scanned-desc {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.cq-last-scanned-meta { flex-shrink: 0; color: var(--ink-3); }
+
 /* --- Registros: dos columnas fijas (Unidades | Info) — el mismo alto
    para todas las tarjetas sin importar cuánto texto tenga cada una.
    La cantidad achica su fuente de 1 a 5 cifras sin romper el ancho de

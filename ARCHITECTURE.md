@@ -67,15 +67,23 @@ server/
                            Altura (la mejor entre TODOS los niveles de estantería combinados, no una por cada
                            Nivel N exacto): la del grupo con menos filas de Referencia encima en cada
                            categoría (la mejor aproximación disponible a "más vacía" con los datos que hay
-                           conectados), con la posición COMPLETA (ubicacion) sin tocar. Exige el
-                           permiso 'consultas'.
+                           conectados), con la posición COMPLETA (ubicacion) sin tocar. SIN
+                           requireAuth/requirePermission a propósito — bug real ya corregido: "Consultar
+                           grupo" es la única herramienta pública de /app (PUBLIC_TOOLS en app/app.js, sin
+                           cuenta), pero esta ruta exigía requirePermission('consultas') incondicional, así
+                           que cualquiera sin sesión que escaneara acá recibía 401 y veía "no se pudo
+                           completar la búsqueda" (como si la base estuviera caída) — el permiso
+                           'consultas' solo tiene sentido para un futuro equivalente del desk, nunca para
+                           bloquear el uso público real de /app.
   routes/catalog.js       API de catálogo liviano de existencia: GET /lookup devuelve [referencia,
                            descripcion, ean] (arrays, mismo criterio que /api/mapeos/lookup-catalog) de
                            TODA Variables, sin "grupo" (ese dato solo lo necesita el autocompletado de
                            Mapear, no la validación de existencia). Lo consumen shared/js/product-catalog.js
                            desde Mapear Y Consultar grupo para decidir ANTES de escanear si vale la pena
-                           abrir una ventana — no exige un permiso de módulo puntual (solo requireAuth):
-                           no es dato sensible ni exclusivo de una herramienta.
+                           abrir una ventana — SIN requireAuth, por el mismo motivo que routes/consultas.js:
+                           Consultar grupo es de acceso libre, así que lo que usa para validar existencia
+                           también tiene que serlo (mapear/lookup-catalog.js, que SÍ exige sesión, sigue
+                           aparte porque solo lo usa Mapear, que nunca es de acceso libre).
   services/copernico-client.js  Cliente HTTP de bajo nivel contra la API de Copernico WMS: login/logout +
                            fetchDataset() genérico (usado por fetchReferencia/fetchCoordenadas/fetchVariables,
                            mismo timeout y misma heurística para encontrar el array de filas en la respuesta).
@@ -93,6 +101,12 @@ server/
                            + persistencia en disco + paginado, instanciada por cada fuente (inventory.store.js
                            = 'referencia'/'inventario_cajas', coordenadas.store.js = 'coordenadas'/
                            'layout_coordenadas', variables.store.js = 'variables'/'variables_logisticas').
+                           `status` refleja solo si COPERNICO contestó bien — `mirrorStatus`/`mirrorError`
+                           (recordMirror(ok, error), llamado por inventory-engine.js tras cada intento de
+                           espejar en Supabase) es aparte: pueden discrepar (status:'ok' con
+                           mirrorStatus:'error'), y ESO es justamente lo que hay que poder ver — ver el bug
+                           real de inventario_cajas en services/supabase-sync.js. No se persiste a disco:
+                           es del intento de ESTA corrida, no del último dato bueno.
                            Agregar una fuente nueva es una línea nueva
                            `require('./create-data-source-store')('nombre', 'tabla_supabase')` + sumarla en
                            inventory-engine.js (SOURCES) y routes/database.js (STORES) + la tabla en Supabase
@@ -110,9 +124,24 @@ server/
                            caso (lo usan users/sessions/mapeos, que no tienen ningún respaldo local — sin
                            Supabase configurada, login y Mapear no funcionan).
   services/supabase-sync.js  Espejo en Supabase de cada fuente de Copernico que trae datos con éxito —
-                           reemplaza toda la tabla real (borra + inserta, sin upsert: Copernico no da
-                           ninguna clave estable entre corridas) y deja un registro en sync_log. Best-effort:
-                           si falla, se loguea pero no cambia el status local de esa fuente. loadTable()
+                           inserta TODO lo nuevo (marcado con una "generación" = synced_at compartido) y
+                           solo borra lo viejo al final, ya con lo nuevo confirmado adentro. `conflictKey`
+                           (ej. "bodega,caja,ean", pasado desde SOURCES en inventory-engine.js) es SOLO
+                           para tablas con una unique constraint natural aparte del id: sin esto, insertar
+                           la fila nueva ANTES de borrar la vieja choca con esa constraint apenas comparten
+                           esa clave (el caso normal, no la excepción) y usa upsert en su lugar. Bug real ya
+                           corregido y confirmado con datos reales: `inventario_cajas` tiene UNIQUE(bodega,
+                           caja, ean) sin conflictKey, así que CADA corrida fallaba en el primer lote con
+                           "duplicate key value violates unique constraint..." — silenciosamente (best-
+                           effort, no se ve en la tarjeta del desk, que solo refleja si Copernico contestó
+                           bien) — dejando Supabase (lo único que sobrevive un restart/deploy en Render, ya
+                           que server/data/*.json es efímero) clavado en la ÚLTIMA corrida que sí tuvo éxito
+                           (en este caso, 18/7) sin que nadie lo notara hasta el próximo restart, cuando
+                           referencia "volvía" a esa fecha vieja mientras coordenadas/variables (sin esta
+                           constraint, sin necesitar conflictKey) sí mostraban la corrida de hoy. Deja un
+                           registro en sync_log siempre. Best-effort: si falla, se loguea (+ recordMirror(false,
+                           …) en el store, ver create-data-source-store.js) pero no cambia el status LOCAL
+                           de esa fuente (ese solo refleja Copernico). loadTable()
                            es el sentido inverso: lee la tabla completa, paginando con .range() de 1000 en
                            1000 (PostgREST nunca devuelve más de eso en un solo select, sin importar cuántas
                            filas tenga la tabla real) — usado por hydrateFromSupabase(), que además toma el
@@ -143,16 +172,21 @@ public/
     js/auth-view.js        Pantalla de login (sin registro) reutilizada por desk y app.
     js/api.js              Cliente fetch mínimo (JSON + manejo de error) usado por los módulos.
     js/product-catalog.js  Catálogo local de existencia de producto (referencia/descripcion/ean),
-                           descargado una vez (GET /api/catalog/lookup, arrays) y cacheado en localStorage
-                           (`gd.productCatalog.v1`). Lo usan app/modules/mapear/editor-view.js y
+                           descargado una vez (GET /api/catalog/lookup, arrays, sin sesión) y cacheado en
+                           localStorage (`gd.productCatalog.v1`). Lo usan app/modules/mapear/editor-view.js y
                            app/modules/consultas/scanner-view.js para decidir, ANTES de abrir cualquier
                            ventana, si un código escaneado existe en Variables: existsLocal(code) — si el
                            catálogo nunca se pudo descargar en este dispositivo (hasData() === false, sin
                            red desde el primer uso), no hay forma de saber si existe o no, así que los
-                           llamadores dejan pasar el escaneo en vez de bloquearlo. Se refresca solo al
-                           cargar el módulo y en cada evento 'online' — mismo patrón que
-                           app/modules/mapear/lookup-catalog.js (que sigue existiendo aparte, con "grupo"
-                           incluido, porque a Mapear le sirve además para autocompletar esos campos).
+                           llamadores dejan pasar el escaneo en vez de bloquearlo. findLocal(code) devuelve
+                           {descripcion, ean} ya conocidos SIN red — Consultar grupo los pinta al toque al
+                           abrir la ficha (sin "hueso"/skeleton) porque ese dato no cambia una vez que el
+                           producto existe en Variables; solo Grupo y ubicaciones esperan al servidor, que
+                           sí necesita el cruce real. Se refresca solo al cargar el módulo y en cada evento
+                           'online' — mismo patrón que app/modules/mapear/lookup-catalog.js (que sigue
+                           existiendo aparte, con "grupo" incluido, porque a Mapear le sirve además para
+                           autocompletar esos campos, y SÍ exige sesión: GET /api/mapeos/lookup-catalog
+                           vive detrás de requirePermission, porque Mapear nunca es de acceso libre).
     js/toast.js             Alerta flotante temporal genérica (showToast(msg, {variant})) — mismo patrón
                            visual que el "Presiona de nuevo para salir" de app/app.js (clase .gd-toast en
                            app/app.css); variant 'warn' para avisos de código no encontrado.
@@ -170,9 +204,15 @@ public/
                            para todas las fuentes) y una tarjeta por fuente (Referencia, Coordenadas,
                            Variables, Líneas picking — solo la última todavía no tiene motor real) con
                            filas + horario en números y un ícono de estado (actualizado/error/sin datos,
-                           sin texto). Nunca muestra las filas en sí — ese detalle vive en el servidor,
-                           listo para consultarse desde otro módulo (/api/database/rows?source=...) sin
-                           que el navegador tenga que cargarlo.
+                           sin texto). Un cuarto estado visual (STATUS_ICON.mirrorError, ícono ámbar
+                           .is-warn) aparece cuando status==='ok' (Copernico contestó bien) PERO
+                           mirrorStatus==='error' (el espejo en Supabase — lo único que sobrevive un
+                           restart/deploy en Render — está fallando): sin esto, ese desperfecto (ver el bug
+                           real de inventario_cajas en services/supabase-sync.js) era invisible hasta el
+                           próximo restart, cuando los datos "volvían" solos a una corrida vieja. Nunca
+                           muestra las filas en sí — ese detalle vive en el servidor, listo para
+                           consultarse desde otro módulo (/api/database/rows?source=...) sin que el
+                           navegador tenga que cargarlo.
 
   app/                     PWA móvil.
     index.html             Shell HTML (header opcional + outlet).
@@ -283,7 +323,14 @@ public/
                                shared/js/toast.js) y nunca abre la ficha, que hubiera terminado igual en
                                "Sin datos en la base" después de gastar una llamada al servidor. Si ya hay
                                una ficha abierta (activeSheetBackdrop), ignora cualquier escaneo nuevo —
-                               nunca dos fichas encimadas. La descripción ES el
+                               nunca dos fichas encimadas. openResultSheet() pinta Descripción/EAN de una,
+                               con findLocal() del mismo catálogo (sin "hueso") si ya los tiene — solo Grupo
+                               y ubicaciones esperan a findProduct() (necesitan el cruce real del servidor).
+                               Debajo del ingreso manual, un renglón fijo (#lastScanned,
+                               localStorage `gd.consultas.lastScanned.v1`) muestra el ÚLTIMO producto
+                               escaneado con éxito — nunca una lista/historial: cada escaneo válido nuevo
+                               PISA por completo el anterior (un "no encontrado" nunca lo pisa). La
+                               descripción ES el
                                título del sheet (sin "Producto encontrado" ni un encabezado "Descripción"
                                aparte) — nunca más de 2 líneas (titleSizeClass() la achica en escalones
                                is-md/is-sm antes de llegar al -webkit-line-clamp:2 de .reg-sheet-title, que

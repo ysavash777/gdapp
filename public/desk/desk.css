@@ -127,6 +127,7 @@
 .db-status-icon.is-ok { background: var(--ok-bg); color: var(--ok); }
 .db-status-icon.is-error { background: var(--danger-bg); color: var(--danger); }
 .db-status-icon.is-empty { background: var(--n-100); color: var(--ink-3); }
+.db-status-icon.is-warn { background: var(--warn-bg); color: var(--warn); }
 
 /* El tic verde "entra" con un pequeño rebote en vez de aparecer de
    golpe — sutil, una sola vez por render, nada en loop. */

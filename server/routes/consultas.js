@@ -1,7 +1,14 @@
 /* ============================================================
    API de Consultar grupo — de solo lectura, sin nada que guardar:
-   cada escaneo dispara una búsqueda y devuelve una ficha. Exige el
-   permiso 'consultas'.
+   cada escaneo dispara una búsqueda y devuelve una ficha. SIN
+   requireAuth/requirePermission a propósito: en /app, "Consultar
+   grupo" es la única herramienta pública (PUBLIC_TOOLS en app.js —
+   el equipo operativo la usa sin cuenta, desde el celular del
+   depósito) — el permiso 'consultas' solo importa para el equivalente
+   del desk. Bug real ya corregido: esta ruta exigía requirePermission
+   incondicional, así que cualquiera sin sesión que escaneara acá
+   recibía 401 y veía "no se pudo completar la búsqueda", como si la
+   base estuviera caída.
 
    Al escanear una referencia, se busca en Variables (mismo catálogo
    que usa Mapear) para saber su grupo/familia ("codgrupoprm") y, si
@@ -39,12 +46,9 @@
 
 const express = require('express');
 const router = express.Router();
-const { requirePermission } = require('../middleware/auth');
 const variablesStore = require('../store/variables.store');
 const coordenadasStore = require('../store/coordenadas.store');
 const inventoryStore = require('../store/inventory.store');
-
-router.use(requirePermission('consultas'));
 
 // piso "01"/"1"/"00" (o sin dato) es picking, a nivel de piso — cada
 // piso de estantería (02, 03, 04, 05...) es SU PROPIO nivel, nunca un

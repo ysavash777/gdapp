@@ -69,6 +69,14 @@ export function existsLocal(code) {
   return map.has(normalize(code));
 }
 
+// Descripción + EAN ya conocidos localmente (sin red) — referencia,
+// descripción y EAN de un producto no cambian una vez creados en
+// Variables, así que no hace falta esperar al servidor ni mostrar un
+// "hueso" para estos dos campos si ya están en el catálogo local.
+export function findLocal(code) {
+  return map.get(normalize(code)) || null;
+}
+
 // Si el catálogo nunca se pudo descargar en este dispositivo (nunca
 // hubo red desde el primer uso), no hay forma de saber si un código
 // existe o no — los llamadores deben dejar pasar el escaneo en vez de

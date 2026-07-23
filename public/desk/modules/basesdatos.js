@@ -42,9 +42,14 @@ const STATUS_ICON = {
   ok: { name: 'check', cls: 'is-ok', title: 'Actualizado y cargado' },
   error: { name: 'alertTriangle', cls: 'is-error', title: 'Error al actualizar' },
   empty: { name: 'inbox', cls: 'is-empty', title: 'Sin datos' },
+  // Copernico contestó bien (por eso no es "error"), pero el respaldo
+  // en Supabase — lo único que sobrevive un restart/deploy en Render —
+  // está fallando: los datos de esta fuente NO van a sobrevivir el
+  // próximo restart, aunque se vean bien ahora mismo.
+  mirrorError: { name: 'alertTriangle', cls: 'is-warn', title: 'Actualizado, pero el respaldo en Supabase está fallando: no sobrevivirá un restart' },
 };
 
-const EMPTY_SOURCE = { status: 'empty', lastUpdatedAt: null, rowCount: 0, durationMs: null };
+const EMPTY_SOURCE = { status: 'empty', lastUpdatedAt: null, rowCount: 0, durationMs: null, mirrorStatus: 'unknown', mirrorError: null };
 
 const SOURCES = [
   { key: 'referencia', label: 'Referencia', icon: 'database', active: true },
@@ -90,6 +95,8 @@ async function mount(root) {
         lastUpdatedAt: meta.lastUpdatedAt,
         rowCount: meta.rowCount,
         durationMs: meta.durationMs || state.sources[key].durationMs,
+        mirrorStatus: meta.mirrorStatus,
+        mirrorError: meta.mirrorError,
       };
     }
   }
@@ -223,7 +230,7 @@ async function mount(root) {
 
   function sourceCardHTML(src) {
     const s = src.active ? state.sources[src.key] : EMPTY_SOURCE;
-    const st = STATUS_ICON[s.status] || STATUS_ICON.empty;
+    const st = (s.status === 'ok' && s.mirrorStatus === 'error') ? STATUS_ICON.mirrorError : (STATUS_ICON[s.status] || STATUS_ICON.empty);
     const hasData = s.rowCount > 0;
 
     return `

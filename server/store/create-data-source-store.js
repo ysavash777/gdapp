@@ -58,6 +58,14 @@ function createDataSourceStore(name, supabaseTable) {
     columns: [],
     durationMs: null,
     lastError: null,
+    // Independiente de `status`: ese refleja si COPERNICO contestó
+    // bien, este si el espejo en SUPABASE (lo único que sobrevive un
+    // restart/deploy en Render) también lo logró — pueden discrepar
+    // (ver el bug real de inventario_cajas en services/supabase-sync.js,
+    // donde Copernico contestaba bien pero el espejo fallaba SIEMPRE,
+    // en silencio, hasta que un restart mostraba datos viejos de la nada).
+    mirrorStatus: 'unknown',
+    mirrorError: null,
   };
 
   function persist() {
@@ -172,6 +180,14 @@ function createDataSourceStore(name, supabaseTable) {
     return { ...meta };
   }
 
+  // Lo llama inventory-engine.js después de cada intento de espejar
+  // esta fuente en Supabase (éxito o error) — no se persiste a disco:
+  // es información de esta corrida puntual, no del último dato bueno.
+  function recordMirror(ok, error) {
+    meta = { ...meta, mirrorStatus: ok ? 'ok' : 'error', mirrorError: ok ? null : (error || 'UNKNOWN') };
+    return meta;
+  }
+
   // Filas ya saneadas (mismas claves que las columnas reales de la
   // tabla en Supabase), sin el _row_id interno — lo usa el motor para
   // espejar la corrida actual allá. No pagina: quien lo llama ya sabe
@@ -214,7 +230,7 @@ function createDataSourceStore(name, supabaseTable) {
     return { items, total, page: safePage, pageSize: safePageSize, totalPages };
   }
 
-  return { replaceAll, recordError, getMeta, getRowsForExport, list, hydrateFromSupabase, findBy };
+  return { replaceAll, recordError, recordMirror, getMeta, getRowsForExport, list, hydrateFromSupabase, findBy };
 }
 
 module.exports = createDataSourceStore;

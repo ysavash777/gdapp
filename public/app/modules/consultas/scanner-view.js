@@ -19,10 +19,44 @@
 
 import { icon } from '/shared/js/icons.js';
 import { escapeHtml } from '/shared/js/format.js';
-import { existsLocal, hasData } from '/shared/js/product-catalog.js';
+import { existsLocal, hasData, findLocal } from '/shared/js/product-catalog.js';
 import { showToast } from '/shared/js/toast.js';
 import { createCameraScanner } from '../../scanner/camera.js';
 import { findProduct } from './store.js';
+
+const LAST_SCANNED_KEY = 'gd.consultas.lastScanned.v1';
+
+// Solo el ÚLTIMO producto escaneado — nunca un historial. Cada
+// escaneo exitoso pisa el anterior por completo (nunca se acumula),
+// así que esto siempre pesa lo mismo en localStorage sin importar
+// cuánto se use la herramienta.
+function saveLastScanned(product) {
+  try {
+    localStorage.setItem(LAST_SCANNED_KEY, JSON.stringify(product));
+  } catch (e) {
+    console.error('[consultas/scanner-view] No se pudo guardar el último escaneado:', e.message);
+  }
+}
+
+function loadLastScanned() {
+  try {
+    const raw = localStorage.getItem(LAST_SCANNED_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function lastScannedHTML(product) {
+  if (!product) return '';
+  return `
+    <div class="cq-last-scanned-row">
+      <span class="cq-last-scanned-label">Último escaneado</span>
+      <span class="cq-last-scanned-desc">${escapeHtml(product.description || 'Producto sin descripción')}</span>
+      <span class="cq-last-scanned-meta">${escapeHtml(product.code)}${product.ean ? ` · EAN ${escapeHtml(product.ean)}` : ''}</span>
+    </div>
+  `;
+}
 
 export function openScanner() {
   const overlay = document.createElement('div');
@@ -46,10 +80,12 @@ export function openScanner() {
         <input type="text" inputmode="numeric" placeholder="Ingresar código manualmente" id="scanManualInput" autocomplete="off" />
         <button type="submit" class="btn btn-primary" title="Buscar">${icon('search', 18)}</button>
       </form>
+      <div id="lastScanned">${lastScannedHTML(loadLastScanned())}</div>
     </div>
   `;
   document.body.appendChild(overlay);
 
+  const lastScannedEl = overlay.querySelector('#lastScanned');
   const cameraBox = overlay.querySelector('#scanCamera');
   const videoEl = overlay.querySelector('#scanVideo');
   const hintEl = overlay.querySelector('#scanHint');
@@ -153,19 +189,27 @@ export function openScanner() {
     scanner.setTorch(false);
     scanner.pauseView();
 
+    // Descripción y EAN, si ya están en el catálogo local (ver
+    // /shared/js/product-catalog.js), se pintan de una — ese dato no
+    // cambia una vez que el producto existe en Variables, así que no
+    // hace falta esperar al servidor ni mostrar un "hueso" para estos
+    // dos campos. Grupo y ubicaciones SÍ necesitan el cruce real
+    // (Coordenadas/Referencia), eso sigue esperando a findProduct().
+    const local = findLocal(code);
+
     const backdrop = document.createElement('div');
     backdrop.className = 'reg-sheet-backdrop';
     backdrop.innerHTML = `
       <div class="reg-sheet">
         <div class="reg-sheet-head">
-          <span class="reg-sheet-title" id="resultTitle">${skeletonHTML('75%', '18px')}</span>
+          <span class="reg-sheet-title ${local ? titleSizeClass(local.descripcion || '') : ''}" id="resultTitle">${local ? escapeHtml(local.descripcion || 'Producto sin descripción') : skeletonHTML('75%', '18px')}</span>
           <button type="button" class="btn-icon" id="resultClose" title="Cerrar">${icon('x', 18)}</button>
         </div>
         <div id="resultBody">
           <div class="reg-info-grid cq-info-grid">
             <div class="reg-info-cell">
               <span class="reg-info-label">EAN</span>
-              <span class="reg-info-value">${skeletonHTML('44px')}</span>
+              <span class="reg-info-value">${local ? (local.ean ? escapeHtml(local.ean) : '-') : skeletonHTML('44px')}</span>
             </div>
             <div class="reg-info-cell">
               <span class="reg-info-label">Referencia</span>
@@ -230,6 +274,15 @@ export function openScanner() {
       titleEl.textContent = titleText;
       titleEl.classList.remove('is-md', 'is-sm');
       titleEl.classList.add(...['cq-fade-in', titleSizeClass(titleText)].filter(Boolean));
+
+      // Solo se guarda si el producto existe de verdad — un "no
+      // encontrado" o un error de red nunca deben pisar el último
+      // escaneado válido que ya había.
+      if (!lookupError && product) {
+        const scanned = { code, description: product.description, ean: product.ean };
+        saveLastScanned(scanned);
+        if (lastScannedEl) lastScannedEl.innerHTML = lastScannedHTML(scanned);
+      }
 
       const bodyEl = backdrop.querySelector('#resultBody');
       if (lookupError) {

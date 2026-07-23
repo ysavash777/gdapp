@@ -55,8 +55,12 @@ const supabaseSync = require('./supabase-sync');
 // (store) y a qué tabla de Supabase espejarse (supabaseTable) —
 // agregar una nueva (Líneas picking...) es sumar una entrada acá + la
 // tabla en Supabase, nada más de este archivo cambia.
+// conflictKey: SOLO inventario_cajas tiene una unique constraint
+// natural (bodega, caja, ean) además del id — ver el comentario de
+// replaceTable() en supabase-sync.js para el bug real que esto
+// corrige (el espejo de Referencia fallaba en TODAS las corridas).
 const SOURCES = [
-  { key: 'referencia', fetch: copernico.fetchReferencia, store: inventoryStore, supabaseTable: 'inventario_cajas' },
+  { key: 'referencia', fetch: copernico.fetchReferencia, store: inventoryStore, supabaseTable: 'inventario_cajas', conflictKey: 'bodega,caja,ean' },
   { key: 'coordenadas', fetch: copernico.fetchCoordenadas, store: coordenadasStore, supabaseTable: 'layout_coordenadas' },
   { key: 'variables', fetch: copernico.fetchVariables, store: variablesStore, supabaseTable: 'variables_logisticas' },
 ];
@@ -209,16 +213,24 @@ async function refresh() {
             // contestó bien.
             const supabaseStartedAt = Date.now();
             try {
-              const syncResult = await supabaseSync.replaceTable(src.supabaseTable, src.store.getRowsForExport());
+              const syncResult = await supabaseSync.replaceTable(src.supabaseTable, src.store.getRowsForExport(), { conflictKey: src.conflictKey });
               if (syncResult.skipped) {
                 console.log(`[inventory-engine] ${src.key} → Supabase: omitido (sin configurar).`);
               } else {
                 await supabaseSync.logSync(src.key, { status: 'ok', rowCount: rawRows.length, durationMs: Date.now() - supabaseStartedAt });
                 console.log(`[inventory-engine] ${src.key} → Supabase (${src.supabaseTable}): ${Date.now() - supabaseStartedAt}ms`);
+                src.store.recordMirror(true);
               }
             } catch (supaErr) {
               await supabaseSync.logSync(src.key, { status: 'error', errorMessage: supaErr.message, durationMs: Date.now() - supabaseStartedAt });
               console.error(`[inventory-engine] ${src.key} → Supabase falló:`, supaErr.message);
+              // Esto es lo único que distingue, en la tarjeta del desk,
+              // "Copernico contestó bien pero el respaldo en Supabase está
+              // fallando" (que antes pasaba en silencio) de un éxito real
+              // — sin esto, un desperfecto como el de inventario_cajas
+              // (ver supabase-sync.js) solo se nota recién en el próximo
+              // restart, cuando ya es tarde.
+              src.store.recordMirror(false, supaErr.message);
             }
           } catch (err) {
             console.log(`[inventory-engine] ${src.key}: falló a los ${Date.now() - sourceStartedAt}ms · error: ${err.code || 'FETCH_FAILED'}`);

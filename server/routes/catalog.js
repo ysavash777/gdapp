@@ -9,14 +9,18 @@
    dato sensible ni exclusivo de una herramienta puntual, así que no
    exige un permiso de módulo específico (a diferencia de /api/mapeos
    y /api/consultas).
+   Sin requireAuth a propósito: lo consume también Consultar grupo
+   (app/modules/consultas), que es de acceso libre sin cuenta (ver
+   PUBLIC_TOOLS en app/app.js y el mismo criterio en routes/consultas.js)
+   — si esta ruta exigiera sesión, un usuario sin cuenta escaneando en
+   Consultar grupo se hubiera quedado sin poder validar existencia
+   contra nada (mapear/lookup-catalog.js, que sí exige sesión, sigue
+   aparte porque solo lo usa Mapear, que nunca es de acceso libre).
    ============================================================ */
 
 const express = require('express');
 const router = express.Router();
-const { requireAuth } = require('../middleware/auth');
 const variablesStore = require('../store/variables.store');
-
-router.use(requireAuth);
 
 // GET /api/catalog/lookup — arrays en vez de objetos: con 14000+
 // filas, no repetir las claves por fila ahorra buena parte del

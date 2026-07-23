@@ -64,7 +64,26 @@ async function withRetries(fn, label) {
   throw new Error(`${label} (tras ${MAX_ATTEMPTS} intentos): ${lastErr.message}`);
 }
 
-async function replaceTable(table, rows) {
+// `conflictKey` (columnas separadas por coma, ej. "bodega,caja,ean")
+// es SOLO para tablas que tienen una unique constraint natural aparte
+// del id — insertar la generación nueva ANTES de borrar la vieja (ver
+// comentario de arriba) choca con esa constraint apenas la fila nueva
+// comparte esa clave con la vieja (que todavía no se borró), cosa que
+// pasa siempre que un mismo producto/caja se repite corrida a corrida
+// (el caso normal). Bug real ya corregido: `inventario_cajas` tiene
+// UNIQUE(bodega, caja, ean) y sin esto, CADA corrida fallaba en el
+// primer lote con "duplicate key value violates unique constraint
+// inventario_cajas_bodega_caja_ean_key" — silenciosamente (es
+// best-effort, no tira abajo la corrida ni se ve en la tarjeta del
+// desk, que solo refleja si Copernico contestó bien) — dejando
+// Supabase (lo único que sobrevive un restart/deploy en Render, ya
+// que server/data/*.json es efímero) clavado en la última corrida que
+// sí había tenido éxito, sin que nadie lo notara hasta el próximo
+// restart. Con conflictKey se usa upsert (actualiza la fila existente
+// con synced_at nuevo) en vez de insert — nunca colisiona, y el
+// borrado final de "todo lo anterior a esta generación" sigue
+// limpiando lo que de verdad ya no existe.
+async function replaceTable(table, rows, { conflictKey } = {}) {
   const supabase = getClient();
   if (!supabase) return { skipped: true };
 
@@ -74,9 +93,11 @@ async function replaceTable(table, rows) {
   for (let i = 0; i < stamped.length; i += BATCH_SIZE) {
     const chunk = stamped.slice(i, i + BATCH_SIZE);
     await withRetries(async () => {
-      const { error } = await supabase.from(table).insert(chunk);
+      const { error } = conflictKey
+        ? await supabase.from(table).upsert(chunk, { onConflict: conflictKey })
+        : await supabase.from(table).insert(chunk);
       if (error) throw new Error(error.message);
-    }, `No se pudo insertar en ${table} (filas ${i}-${i + chunk.length})`);
+    }, `No se pudo ${conflictKey ? 'upsertear' : 'insertar'} en ${table} (filas ${i}-${i + chunk.length})`);
   }
 
   // Recién acá se borra lo viejo — todo lo nuevo de esta corrida ya
