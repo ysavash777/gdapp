@@ -42,6 +42,11 @@ router.get('/', async (_req, res) => {
 router.get('/lookup-catalog', (_req, res) => {
   try {
     const items = variablesStore.getRowsForExport().map((r) => [r.referencia || '', r.descripcion || '', r.productoean || '', r.codgrupoprm || '']);
+    // Ídem catalog.js: 'no-cache' fuerza a revalidar por ETag en vez de
+    // heurística del navegador — si Variables no cambió desde la última
+    // vez, el celular recibe un 304 sin cuerpo en vez de bajar de nuevo
+    // el catálogo completo cada vez que se abre Mapear.
+    res.set('Cache-Control', 'no-cache');
     res.json({ ok: true, items });
   } catch (e) {
     console.error('[routes/mapeos] lookup-catalog falló:', e.message);

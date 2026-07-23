@@ -8,6 +8,11 @@ móvil → `/app` (PWA instalable) · escritorio → `/desk` (web).
 ```
 server/
   index.js                 Bootstrap Express: monta middleware, rutas y estáticos. No contiene lógica.
+                           `compression()` de entrada, antes que nada más — comprime TODA respuesta
+                           (JSON/HTML/JS/CSS) que supere el umbral por defecto (~1KB); el caso más pesado
+                           es el catálogo de productos (~1MB en JSON crudo, ver routes/catalog.js), que
+                           así viaja en ~300KB. Transparente para el navegador (Content-Encoding), no
+                           cambia el contenido ni exige nada del lado cliente.
   config.js                Puerto y constantes de entorno.
   middleware/device.js     Detección de dispositivo por User-Agent (redirect / → /desk | /app).
   permissions.js           Catálogo de módulos asignables como permiso, con scope 'web' o 'app'.
@@ -91,6 +96,16 @@ server/
                            Consultar grupo es de acceso libre, así que lo que usa para validar existencia
                            también tiene que serlo (mapear/lookup-catalog.js, que SÍ exige sesión, sigue
                            aparte porque solo lo usa Mapear, que nunca es de acceso libre).
+                           `Cache-Control: no-cache` (mismo criterio en /api/mapeos/lookup-catalog) fuerza
+                           al navegador a revalidar por ETag en cada apertura de la app en vez de decidirlo
+                           por heurística propia — Express ya pone un ETag automático (hash del cuerpo);
+                           si el catálogo no cambió desde el último "Actualizar DB" de Variables, el
+                           servidor contesta 304 sin cuerpo. Confirmado en vivo (Performance API,
+                           `transferSize`): primera vez ~300KB comprimidos, cualquier apertura siguiente
+                           sin cambios reales, ~300 BYTES — antes de esto, cada apertura de la app volvía a
+                           bajar el ~1MB completo, sin excepción (el service worker de /app explícitamente
+                           nunca cachea /api/*, ver app/sw.js — esto no lo contradice: el 304 lo maneja el
+                           caché HTTP del navegador, una capa distinta, más abajo).
   services/copernico-client.js  Cliente HTTP de bajo nivel contra la API de Copernico WMS: login/logout +
                            fetchDataset() genérico (usado por fetchReferencia/fetchCoordenadas/fetchVariables,
                            mismo timeout y misma heurística para encontrar el array de filas en la respuesta).

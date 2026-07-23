@@ -30,6 +30,15 @@ router.get('/lookup', (_req, res) => {
     const items = variablesStore.getRowsForExport()
       .filter((r) => r.referencia)
       .map((r) => [r.referencia, r.descripcion || '', r.productoean || '']);
+    // 'no-cache' (a pesar del nombre) NO significa "no cachear" — significa
+    // "podés servir la copia guardada, pero primero preguntame si sigue
+    // vigente". Express ya pone un ETag automático en cada respuesta
+    // (hash del cuerpo); con este header, el navegador manda ese ETag de
+    // vuelta la próxima vez (If-None-Match) y, si el catálogo no cambió
+    // desde el último "Actualizar DB" de Variables, el servidor contesta
+    // 304 sin cuerpo — el celular no vuelve a bajar el ~1MB completo en
+    // cada apertura de la app, solo cuando de verdad cambió algo.
+    res.set('Cache-Control', 'no-cache');
     res.json({ ok: true, items });
   } catch (e) {
     console.error('[routes/catalog] lookup falló:', e.message);

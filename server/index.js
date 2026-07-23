@@ -2,12 +2,20 @@
 
 const path = require('path');
 const express = require('express');
+const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const { PORT } = require('./config');
 const { deviceRedirect } = require('./middleware/device');
 const inventoryEngine = require('./services/inventory-engine');
 
 const app = express();
+// Gzip para toda respuesta (JSON, HTML, JS, CSS) por encima del umbral
+// por defecto (~1KB) — el catálogo de productos (shared/js/
+// product-catalog.js) es el caso más pesado, ~1MB en JSON crudo, y
+// comprime muy bien (texto repetitivo) sin costo perceptible de CPU
+// para este volumen. Nunca afecta el contenido, solo cuánto viaja por
+// la red — el navegador lo descomprime solo, de forma transparente.
+app.use(compression());
 app.use(express.json());
 app.use(cookieParser());
 
