@@ -217,17 +217,23 @@ public/
   app/                     PWA móvil.
     index.html             Shell HTML (header opcional + outlet).
     app.css                Layout propio de la app (lista de herramientas, safe areas iOS).
-    app.js                 Sin sesión: sin cabecera; el inicio es una sola pantalla con jerarquía
-                           clara — marca chica (.hg-brand) arriba, la(s) herramienta(s) pública(s)
-                           como "hero" (heroCardHTML(): mismo .tool-card/.tc-icon/.tc-body que el
-                           resto, así hereda el color propio de la herramienta, pero más grande y
-                           con su propia CTA — hoy solo Consultar grupo) ocupando la mayoría de la
-                           pantalla, y el acceso del equipo de inventario como un link discreto al
-                           pie (.hg-staff-link, borde punteado, sin color propio) — nunca una
-                           tarjeta del mismo tamaño/formato que la pública: esa era la versión
-                           anterior (.hg-login-card, ya retirada) y competía por atención con la
-                           única acción real de esta pantalla, leyéndose como "otra herramienta más"
-                           en vez de la puerta de atrás del equipo.
+    app.js                 Sin sesión: sin cabecera, sin nombre de la app en pantalla. El inicio es
+                           welcomeScreenHTML() — una pantalla de bienvenida propia (.hg-screen), NO
+                           una tarjeta de herramienta agrandada ni una lista: con una sola
+                           herramienta pública (hoy Consultar grupo), llenar la pantalla con un
+                           catálogo de a una tarjeta se leía como relleno. Composición: un ícono de
+                           acceso a cuentas chico y discreto arriba a la derecha (.hg-signin, sin
+                           texto explicando de quién es — cualquier aclaración contaminaría la única
+                           acción real de la pantalla), el glifo de la herramienta con un halo tenue
+                           de su propio color (.hg-glyph-wrap/.hg-glyph, dos círculos concéntricos
+                           lisos, sin blur ni sombra) como foco central, y su acción al pie (.hg-cta,
+                           mismo color que el halo) — toma la primera herramienta de PUBLIC_TOOLS sin
+                           pretender diseñar para un catálogo de varias que hoy no existe. Con
+                           sesión: cabecera de una fila (saludo + avatar); lista de herramientas
+                           (.home-layout/.tool-card, sin relación con welcomeScreenHTML) en orden
+                           alfabético, habilitadas en color arriba y sin permiso en BW debajo.
+                           Entrar a una herramienta o al login (hash #/login) quita la cabecera y
+                           muestra solo un enlace "Volver" sobre el contenido.
                            Con sesión: cabecera de una fila (saludo + avatar); mismo formato de
                            lista, orden alfabético, habilitadas en color arriba y sin permiso en
                            BW debajo. Entrar a una herramienta o al login (hash #/login) quita la

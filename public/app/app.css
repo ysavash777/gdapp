@@ -225,72 +225,100 @@ html, body {
   overflow: hidden;
 }
 
-/* --- Inicio sin sesión: una sola herramienta es pública, así que no
-   tiene sentido un "catálogo" con 3 huecos bloqueados al lado — ni dos
-   tarjetas del mismo tamaño compitiendo por atención (la vieja
-   .hg-login-card, con el mismo formato que la tarjeta de la
-   herramienta, se leía como "otra opción más" en vez de la puerta de
-   atrás del equipo). Jerarquía nueva: marca chica arriba, la tarjeta
-   pública como hero (grande, con su CTA propio) y el acceso del
-   equipo de inventario como un link discreto al pie — nunca una
-   tarjeta. --- */
-.hg-brand {
-  flex: 0 0 auto;
-  margin: 0;
-  padding-top: var(--sp-1);
-  font-size: var(--text-sm);
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--ink-3);
+/* --- Inicio sin sesión (welcomeScreenHTML en app.js): con una sola
+   herramienta pública disponible, ni un "catálogo" con huecos
+   bloqueados al lado ni una tarjeta de herramienta agrandada tienen
+   sentido — se leen como relleno. Es su propia composición, pensada
+   como una pantalla de bienvenida (no una lista): un ícono de acceso a
+   cuentas chico y discreto arriba (nunca texto explicando "equipo de
+   inventario" — contaminaría la única acción real de la pantalla), el
+   glifo de la herramienta con un halo de su propio color como foco
+   central, y su acción al pie, a un toque de distancia. --- */
+.hg-screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-/* El hero hereda color de fondo, tc-icon y tc-body de las reglas
-   .tool-card[data-key="..."] ya existentes (más abajo) — acá solo se
-   agranda todo y se agrega la CTA, sin duplicar esas reglas de color. */
-.hg-hero-card {
-  flex: 1 1 auto;
-  justify-content: center;
-  align-items: flex-start;
-  gap: var(--sp-4);
-}
-.hg-hero-card .tc-icon { width: 60px; height: 60px; }
-.hg-hero-card .tc-body h3 { font-size: 22px; white-space: normal; }
-.hg-hero-card .tc-body p {
-  margin-top: 6px;
-  font-size: var(--text-sm);
-  line-height: 1.4;
-  -webkit-line-clamp: 3;
-}
-.hg-hero-cta {
-  display: inline-flex;
+.hg-topbar { flex: 0 0 auto; display: flex; justify-content: flex-end; }
+.hg-signin { color: var(--ink-3); }
+
+.hg-center {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 7px;
-  padding: 13px 20px;
-  border-radius: var(--r-full);
-  background: rgba(255, 255, 255, 0.16);
-  font-weight: 700;
-  font-size: var(--text-sm);
+  justify-content: center;
+  text-align: center;
+  gap: var(--sp-2);
 }
 
-/* Acceso del equipo de inventario: a propósito chico y sin color
-   propio (borde punteado en vez de una tarjeta sólida) — visible y
-   fácil de encontrar, pero nunca compitiendo con la acción pública. */
-.hg-staff-link {
+/* Halo: un círculo grande y tenue del color propio de la herramienta
+   detrás del glifo sólido — dos círculos concéntricos lisos, sin blur
+   ni sombra (el tema es flat a propósito), pero con el color como
+   protagonista en vez de un ícono chico perdido en el medio de la
+   pantalla. */
+.hg-glyph-wrap {
+  position: relative;
+  width: 148px;
+  height: 148px;
+  display: grid;
+  place-items: center;
+  margin-bottom: var(--sp-2);
+}
+.hg-glyph-wrap::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-full);
+  opacity: 0.14;
+}
+.hg-glyph {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  color: #fff;
+}
+.hg-glyph-wrap[data-key="consultas"]::before,
+.hg-glyph-wrap[data-key="consultas"] .hg-glyph { background: var(--icon-consultas); }
+
+.hg-center h1 {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.hg-center p {
+  max-width: 280px;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+
+.hg-cta {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: var(--sp-3);
-  border: 1px dashed var(--line);
-  border-radius: var(--r-lg);
-  background: none;
-  color: var(--ink-2);
-  font-size: var(--text-sm);
+  gap: 9px;
+  width: 100%;
+  padding: 17px;
+  border: none;
+  border-radius: var(--r-full);
+  color: #fff;
+  font-weight: 700;
+  font-size: var(--text-base);
+  transition: transform var(--t-fast), filter var(--t-fast);
 }
-.hg-staff-link strong { color: var(--ink); font-weight: 700; }
-.hg-staff-link:active { background: var(--surface); }
+.hg-cta:active { transform: scale(0.98); filter: brightness(1.12); }
+.hg-cta[data-key="consultas"] { background: var(--icon-consultas); }
+
+.hg-screen .app-footer { flex: 0 0 auto; padding-top: var(--sp-3); }
 
 /* --- Tarjeta de herramienta: icono arriba-izquierda, texto abajo,
    usando el alto completo en vez de centrar todo en una fila. --- */

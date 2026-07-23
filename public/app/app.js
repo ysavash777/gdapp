@@ -186,22 +186,32 @@ function toolCardHTML(key, t) {
   `;
 }
 
-// Versión "hero" de una tarjeta pública: mismo .tool-card/.tc-icon/
-// .tc-body que el resto (así hereda gratis el color propio de cada
-// herramienta, ya definido por data-key), pero de mayor jerarquía
-// visual y con una llamada a la acción explícita — es la ÚNICA cosa
-// que un operativo sin cuenta puede hacer acá, así que tiene que
-// leerse como protagonista, no como una tarjeta más de una lista.
-function heroCardHTML(key, t) {
+// Pantalla de bienvenida sin sesión — a propósito NO es una tarjeta de
+// herramienta agrandada: con una sola herramienta pública disponible,
+// una tarjeta ocupando toda la pantalla se leía como "relleno". Es su
+// propia composición (glifo con halo de color + titular + acción única
+// al pie) y el acceso a cuentas es un ícono chico y discreto arriba —
+// sin explicar "equipo de inventario" ni nada por el estilo, para no
+// contaminar la única acción real de esta pantalla.
+function welcomeScreenHTML(key, t) {
   return `
-    <button class="tool-card hg-hero-card" data-key="${key}">
-      <div class="tc-icon">${icon(t.icon, 30)}</div>
-      <div class="tc-body">
-        <h3>${t.title}</h3>
+    <div class="hg-screen">
+      <div class="hg-topbar">
+        <button type="button" class="btn-icon hg-signin" id="loginCta" title="Iniciar sesión" aria-label="Iniciar sesión">${icon('user', 19)}</button>
+      </div>
+      <div class="hg-center">
+        <div class="hg-glyph-wrap" data-key="${key}">
+          <div class="hg-glyph">${icon(t.icon, 32)}</div>
+        </div>
+        <h1>${t.title}</h1>
         <p>${t.description || ''}</p>
       </div>
-      <span class="hg-hero-cta">${icon('scan', 16)} Escanear código</span>
-    </button>
+      <button type="button" class="hg-cta" data-key="${key}">
+        ${icon('scan', 19)}
+        <span>Escanear código</span>
+      </button>
+      <p class="app-footer">GStock 1.0.0</p>
+    </div>
   `;
 }
 
@@ -274,30 +284,14 @@ function renderHome() {
   const outlet = document.getElementById('outlet');
 
   // Sin sesión hoy existe una sola herramienta real (Consultar grupo,
-  // pública) — llenar la pantalla con 3 skeletons "bloqueados" al lado
-  // de una sola tarjeta real se leía como relleno, no como catálogo.
-  // La jerarquía tiene que ser inequívoca: la tarjeta pública es la
-  // protagonista (heroCardHTML, grande, con su propia llamada a la
-  // acción) porque es lo único que un operativo sin cuenta necesita; el
-  // acceso del equipo de inventario es a propósito chico y discreto
-  // (borde punteado, sin color propio) al pie — nunca otra tarjeta del
-  // mismo tamaño/formato, que competiría por atención con la única
-  // acción real de esta pantalla y se leería como "otra herramienta más".
+  // pública) — welcomeScreenHTML() es su propia pantalla dedicada
+  // (nunca una tarjeta agrandada, que con una sola opción se leía como
+  // relleno): toma la primera herramienta pública que haya, sin
+  // pretender diseñar para un catálogo de varias que hoy no existe.
   if (!user) {
-    outlet.innerHTML = `
-      <div class="home-layout home-guest">
-        <p class="hg-brand">GStock</p>
-        ${enabled.map(([key, t]) => heroCardHTML(key, t)).join('')}
-        <button type="button" class="hg-staff-link" id="loginCta">
-          ${icon('key', 15)}
-          <span>¿Sos del equipo de inventario? <strong>Iniciar sesión</strong></span>
-        </button>
-        <p class="app-footer">GStock 1.0.0</p>
-      </div>
-    `;
-    outlet.querySelectorAll('.tool-card[data-key]').forEach((btn) => {
-      btn.addEventListener('click', () => pushRoute(btn.dataset.key));
-    });
+    const [key, t] = enabled[0];
+    outlet.innerHTML = welcomeScreenHTML(key, t);
+    outlet.querySelector('.hg-cta').addEventListener('click', () => pushRoute(key));
     outlet.querySelector('#loginCta').addEventListener('click', () => pushRoute('login'));
     return;
   }
