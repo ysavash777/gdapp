@@ -217,9 +217,17 @@ public/
   app/                     PWA móvil.
     index.html             Shell HTML (header opcional + outlet).
     app.css                Layout propio de la app (lista de herramientas, safe areas iOS).
-    app.js                 Sin sesión: sin cabecera; el inicio empieza directo con la lista de
-                           herramientas (Consultas en color arriba, el resto en BW sin permiso
-                           debajo, botón de ancho completo "Iniciar sesión" al final).
+    app.js                 Sin sesión: sin cabecera; el inicio es una sola pantalla con jerarquía
+                           clara — marca chica (.hg-brand) arriba, la(s) herramienta(s) pública(s)
+                           como "hero" (heroCardHTML(): mismo .tool-card/.tc-icon/.tc-body que el
+                           resto, así hereda el color propio de la herramienta, pero más grande y
+                           con su propia CTA — hoy solo Consultar grupo) ocupando la mayoría de la
+                           pantalla, y el acceso del equipo de inventario como un link discreto al
+                           pie (.hg-staff-link, borde punteado, sin color propio) — nunca una
+                           tarjeta del mismo tamaño/formato que la pública: esa era la versión
+                           anterior (.hg-login-card, ya retirada) y competía por atención con la
+                           única acción real de esta pantalla, leyéndose como "otra herramienta más"
+                           en vez de la puerta de atrás del equipo.
                            Con sesión: cabecera de una fila (saludo + avatar); mismo formato de
                            lista, orden alfabético, habilitadas en color arriba y sin permiso en
                            BW debajo. Entrar a una herramienta o al login (hash #/login) quita la

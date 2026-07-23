@@ -186,6 +186,25 @@ function toolCardHTML(key, t) {
   `;
 }
 
+// Versión "hero" de una tarjeta pública: mismo .tool-card/.tc-icon/
+// .tc-body que el resto (así hereda gratis el color propio de cada
+// herramienta, ya definido por data-key), pero de mayor jerarquía
+// visual y con una llamada a la acción explícita — es la ÚNICA cosa
+// que un operativo sin cuenta puede hacer acá, así que tiene que
+// leerse como protagonista, no como una tarjeta más de una lista.
+function heroCardHTML(key, t) {
+  return `
+    <button class="tool-card hg-hero-card" data-key="${key}">
+      <div class="tc-icon">${icon(t.icon, 30)}</div>
+      <div class="tc-body">
+        <h3>${t.title}</h3>
+        <p>${t.description || ''}</p>
+      </div>
+      <span class="hg-hero-cta">${icon('scan', 16)} Escanear código</span>
+    </button>
+  `;
+}
+
 // "Bloqueada" nunca revela qué herramienta es (con o sin sesión): todo
 // icono y texto se reemplaza por un skeleton estático (sin animación,
 // es un estado permanente, no una carga en curso).
@@ -257,26 +276,22 @@ function renderHome() {
   // Sin sesión hoy existe una sola herramienta real (Consultar grupo,
   // pública) — llenar la pantalla con 3 skeletons "bloqueados" al lado
   // de una sola tarjeta real se leía como relleno, no como catálogo.
-  // Tampoco alcanza con centrar esa única tarjeta en la pantalla: deja
-  // huecos enormes arriba y abajo, poco profesional. En su lugar, el
-  // inicio de sesión se presenta como un segundo bloque con el mismo
-  // formato exacto que una tarjeta de herramienta (.tool-card/.tc-top/
-  // .tc-body: icono arriba, texto abajo) — mismo tamaño de icono y
-  // tipografía, ocupando el espacio con contenido real en vez de relleno.
+  // La jerarquía tiene que ser inequívoca: la tarjeta pública es la
+  // protagonista (heroCardHTML, grande, con su propia llamada a la
+  // acción) porque es lo único que un operativo sin cuenta necesita; el
+  // acceso del equipo de inventario es a propósito chico y discreto
+  // (borde punteado, sin color propio) al pie — nunca otra tarjeta del
+  // mismo tamaño/formato, que competiría por atención con la única
+  // acción real de esta pantalla y se leería como "otra herramienta más".
   if (!user) {
     outlet.innerHTML = `
       <div class="home-layout home-guest">
-        ${enabled.map(([key, t]) => toolCardHTML(key, t)).join('')}
-        <div class="tool-card hg-login-card">
-          <div class="tc-top">
-            <div class="tc-icon">${icon('key', 18)}</div>
-          </div>
-          <div class="tc-body">
-            <h3>¿Sos del equipo de gestión de stock?</h3>
-            <p>Inicia sesión para acceder a más herramientas.</p>
-          </div>
-          <button type="button" class="btn btn-primary btn-block" id="loginCta">Iniciar sesión</button>
-        </div>
+        <p class="hg-brand">GStock</p>
+        ${enabled.map(([key, t]) => heroCardHTML(key, t)).join('')}
+        <button type="button" class="hg-staff-link" id="loginCta">
+          ${icon('key', 15)}
+          <span>¿Sos del equipo de inventario? <strong>Iniciar sesión</strong></span>
+        </button>
         <p class="app-footer">GStock 1.0.0</p>
       </div>
     `;
