@@ -35,6 +35,7 @@ import * as mapear from '/app/modules/mapear/index.js';
 import * as vencimientos from '/app/modules/vencimientos.js';
 import * as vacios from '/app/modules/vacios.js';
 import * as consultas from '/app/modules/consultas/index.js';
+import * as settings from '/app/modules/settings.js';
 
 const TOOLS = {
   consultas: { ...consultas, icon: 'search' },
@@ -165,6 +166,7 @@ function renderRoute() {
 
   const hash = location.hash.replace('#/', '');
   if (hash === 'login') { renderLogin(); return; }
+  if (hash === 'settings') { renderSettings(); return; }
 
   const key = currentToolKey();
   if (key) renderTool(key);
@@ -275,6 +277,8 @@ function renderHome() {
       e.stopPropagation();
       notifMenu.hidden = !notifMenu.hidden;
     });
+
+    document.getElementById('settingsBtn').addEventListener('click', () => pushRoute('settings'));
   } else {
     setHeader('');
   }
@@ -333,6 +337,13 @@ function renderSubpage(title, fillContent) {
 function renderTool(key) {
   const tool = TOOLS[key];
   renderSubpage(tool.title, (body) => tool.render(body));
+}
+
+// Solo con sesión (el gear que la abre solo existe en la cabecera con
+// sesión) — el propio módulo decide qué mostrar según el permiso
+// 'basesdatos' del usuario, ver app/modules/settings.js.
+function renderSettings() {
+  renderSubpage('Configuración', (body) => settings.render(body, user));
 }
 
 // El login va a pantalla completa (sin el padding de .subpage), así

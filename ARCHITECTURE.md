@@ -25,10 +25,17 @@ server/
   routes/auth.js           API: login / logout / me. Sin auto-registro: las cuentas las crea un admin
                            desde Gestión de usuarios. Usa store/users.store.js + store/sessions.store.js.
   routes/users.js          API: listar (con búsqueda+paginación), crear, editar, cambiar contraseña, eliminar.
-  routes/database.js       API del módulo Bases de datos: POST /refresh dispara una corrida del motor
-                           (todas las fuentes configuradas), GET /status trae el estado de cada una y
-                           GET /rows?source=referencia|coordenadas|variables (paginado+búsqueda+orden) lee sus filas.
-                           Exige el permiso 'basesdatos', no un rol fijo.
+  routes/database.js       API del módulo Bases de datos: POST /refresh, con body opcional { source }, dispara
+                           una corrida del motor — sin body, TODAS las fuentes (botón masivo); con
+                           { source: 'referencia' }, solo esa (botón puntual de cada tarjeta, mismo motor filtrado —
+                           ver refresh(sourceKeys) en inventory-engine.js). GET /status trae el estado de cada
+                           fuente + runningKeys (null, o el array de fuentes que la corrida en curso está
+                           trayendo — todas o solo una) para que quien pregunta sepa CUÁL tarjeta animar
+                           aunque la corrida la haya disparado otra pestaña/dispositivo. GET
+                           /rows?source=referencia|coordenadas|variables (paginado+búsqueda+orden) lee sus filas.
+                           Lo consumen tanto desk/modules/basesdatos.js como app/modules/settings.js (la misma
+                           acción, gateada por el mismo permiso 'basesdatos', ahora también desde el celular).
+                           Exige ese permiso, no un rol fijo.
   routes/mapeos.js         API de mapeos: listar/crear/renombrar/eliminar mapeos + agregar/editar/quitar
                            códigos escaneados, más GET /lookup-catalog (catálogo liviano de Variables para
                            el catálogo local offline del celular, ver mapear/lookup-catalog.js — tiene que
@@ -91,20 +98,28 @@ server/
                            por el texto del mensaje — la API no trae códigos propios.
   services/inventory-engine.js  Orquesta una corrida completa: un login, una consulta por cada fuente en
                            SOURCES (hoy referencia + coordenadas + variables) en secuencia, un solo logout — nunca un
-                           login por fuente. Si una fuente falla, las demás igual se intentan. Lock en
-                           memoria + en disco: nunca corren dos corridas en simultáneo y el motor nunca se
-                           auto-invoca — el único disparador es refresh(), llamado por routes/database.js.
-                           Si detecta que quedó una sesión colgada de una corrida anterior (proceso caído a
-                           mitad de camino), la cierra con el uid del lock persistido y reintenta el login
-                           una sola vez — nunca en loop.
+                           login por fuente, ni siquiera para una corrida puntual (refresh(['referencia']),
+                           filtra SOURCES a esa sola — Copernico exige login sin importar cuántas fuentes se
+                           pidan). Si una fuente falla, las demás igual se intentan. Lock en memoria + en
+                           disco: nunca corren dos corridas en simultáneo (masiva o puntual, es el mismo
+                           lock) y el motor nunca se auto-invoca — el único disparador es refresh(), llamado
+                           por routes/database.js. runningKeysInMemory (getRunningKeys()) guarda qué fuentes
+                           está trayendo la corrida en curso, para que GET /status pueda contestarlo. Cada
+                           fuente mide aparte durationMs (fetch a Copernico) y el tiempo de su espejo en
+                           Supabase (mirrorDurationMs, vía store.recordMirror(ok, error, durationMs)) — el
+                           estimador de la barra de progreso (shared/js/db-refresh.js) usa la suma de los
+                           dos, tiempo REAL medido, no un número adivinado. Si detecta que quedó una sesión
+                           colgada de una corrida anterior (proceso caído a mitad de camino), la cierra con
+                           el uid del lock persistido y reintenta el login una sola vez — nunca en loop.
   store/create-data-source-store.js  Fábrica: misma lógica de columnas genéricas + status (empty/ok/error)
                            + persistencia en disco + paginado, instanciada por cada fuente (inventory.store.js
                            = 'referencia'/'inventario_cajas', coordenadas.store.js = 'coordenadas'/
                            'layout_coordenadas', variables.store.js = 'variables'/'variables_logisticas').
-                           `status` refleja solo si COPERNICO contestó bien — `mirrorStatus`/`mirrorError`
-                           (recordMirror(ok, error), llamado por inventory-engine.js tras cada intento de
-                           espejar en Supabase) es aparte: pueden discrepar (status:'ok' con
-                           mirrorStatus:'error'), y ESO es justamente lo que hay que poder ver — ver el bug
+                           `status` refleja solo si COPERNICO contestó bien — `mirrorStatus`/`mirrorError`/
+                           `mirrorDurationMs` (recordMirror(ok, error, durationMs), llamado por
+                           inventory-engine.js tras cada intento de espejar en Supabase) es aparte: pueden
+                           discrepar (status:'ok' con mirrorStatus:'error'), y ESO es justamente lo que hay
+                           que poder ver — ver el bug
                            real de inventario_cajas en services/supabase-sync.js. No se persiste a disco:
                            es del intento de ESTA corrida, no del último dato bueno.
                            Agregar una fuente nueva es una línea nueva
@@ -171,6 +186,17 @@ public/
                            catálogo vacío toda la sesión aunque el login fuera exitoso.
     js/auth-view.js        Pantalla de login (sin registro) reutilizada por desk y app.
     js/api.js              Cliente fetch mínimo (JSON + manejo de error) usado por los módulos.
+    js/db-refresh.js        Lógica compartida de actualización de bases de datos (GET/POST /api/database/*)
+                           entre desk/modules/basesdatos.js y app/modules/settings.js: cada uno con su
+                           propia UI/polling, pero la MISMA cuenta para estimar cuánto va a tardar una
+                           corrida. estimateSourceMs(sourcesMeta, key) usa durationMs+mirrorDurationMs
+                           REALES de la última corrida buena de esa fuente (Copernico + espejo en Supabase,
+                           ver inventory-engine.js) — si esa fuente nunca corrió sola, estima proporcional
+                           al peso en filas (rowCount) contra cualquier otra fuente de `sourcesMeta` que sí
+                           tenga un dato real (más preciso que un número fijo igual para todas: Coordenadas
+                           trae ~20000 filas y Referencia ~11000, tardan distinto). Solo si NINGUNA fuente
+                           tiene nunca un dato real se usa DEFAULT_ESTIMATE_MS como último recurso.
+                           estimateTotalMs() suma estimateSourceMs() de varias keys (la corrida masiva).
     js/product-catalog.js  Catálogo local de existencia de producto (referencia/descripcion/ean),
                            descargado una vez (GET /api/catalog/lookup, arrays, sin sesión) y cacheado en
                            localStorage (`gd.productCatalog.v1`). Lo usan app/modules/mapear/editor-view.js y
@@ -200,19 +226,24 @@ public/
                            renombrar, borrar un código suelto o el mapeo entero) de los mismos mapeos que
                            se escanean desde app/modules/mapear — mismo /api/mapeos, sin store propio.
                            Escanear sigue siendo exclusivo de /app (requiere cámara).
-    modules/basesdatos.js  Bases de datos: un solo botón "Actualizar DB" (dispara /api/database/refresh
-                           para todas las fuentes) y una tarjeta por fuente (Referencia, Coordenadas,
-                           Variables, Líneas picking — solo la última todavía no tiene motor real) con
-                           filas + horario en números y un ícono de estado (actualizado/error/sin datos,
-                           sin texto). Un cuarto estado visual (STATUS_ICON.mirrorError, ícono ámbar
-                           .is-warn) aparece cuando status==='ok' (Copernico contestó bien) PERO
-                           mirrorStatus==='error' (el espejo en Supabase — lo único que sobrevive un
-                           restart/deploy en Render — está fallando): sin esto, ese desperfecto (ver el bug
-                           real de inventario_cajas en services/supabase-sync.js) era invisible hasta el
-                           próximo restart, cuando los datos "volvían" solos a una corrida vieja. Nunca
-                           muestra las filas en sí — ese detalle vive en el servidor, listo para
-                           consultarse desde otro módulo (/api/database/rows?source=...) sin que el
-                           navegador tenga que cargarlo.
+    modules/basesdatos.js  Bases de datos: un botón "Actualizar DB" (dispara /api/database/refresh masivo)
+                           y una tarjeta por fuente (Referencia, Coordenadas, Variables, Líneas picking —
+                           solo la última todavía no tiene motor real) con filas + horario en números, un
+                           ícono de estado (actualizado/error/sin datos, sin texto) y, en las tres activas,
+                           un botón puntual (.db-source-refresh, ícono nomás) para actualizar SOLO esa
+                           fuente — mismo lock del servidor: nunca corren dos actualizaciones juntas, sea
+                           masiva o puntual, así que tocar cualquier botón deshabilita todos los demás. Un
+                           cuarto estado visual (STATUS_ICON.mirrorError, ícono ámbar .is-warn) aparece
+                           cuando status==='ok' (Copernico contestó bien) PERO mirrorStatus==='error' (el
+                           espejo en Supabase — lo único que sobrevive un restart/deploy en Render — está
+                           fallando): sin esto, ese desperfecto (ver el bug real de inventario_cajas en
+                           services/supabase-sync.js) era invisible hasta el próximo restart, cuando los
+                           datos "volvían" solos a una corrida vieja. El relleno de progreso (del botón
+                           masivo Y de cada tarjeta puntual, .db-source-progress) usa shared/js/db-refresh.js
+                           para estimar cuánto va a tardar con datos REALES, no un número fijo igual para
+                           todas — ver esa entrada para la cuenta completa. Nunca muestra las filas en sí —
+                           ese detalle vive en el servidor, listo para consultarse desde otro módulo
+                           (/api/database/rows?source=...) sin que el navegador tenga que cargarlo.
 
   app/                     PWA móvil.
     index.html             Shell HTML (header opcional + outlet).
@@ -229,15 +260,13 @@ public/
                            lisos, sin blur ni sombra) como foco central, y su acción al pie (.hg-cta,
                            mismo color que el halo) — toma la primera herramienta de PUBLIC_TOOLS sin
                            pretender diseñar para un catálogo de varias que hoy no existe. Con
-                           sesión: cabecera de una fila (saludo + avatar); lista de herramientas
-                           (.home-layout/.tool-card, sin relación con welcomeScreenHTML) en orden
-                           alfabético, habilitadas en color arriba y sin permiso en BW debajo.
-                           Entrar a una herramienta o al login (hash #/login) quita la cabecera y
-                           muestra solo un enlace "Volver" sobre el contenido.
-                           Con sesión: cabecera de una fila (saludo + avatar); mismo formato de
-                           lista, orden alfabético, habilitadas en color arriba y sin permiso en
-                           BW debajo. Entrar a una herramienta o al login (hash #/login) quita la
-                           cabecera y muestra solo un enlace "Volver" sobre el contenido.
+                           sesión: cabecera de una fila (saludo + avatar, más el ícono de
+                           Configuración — #settingsBtn, pushRoute('settings') → renderSettings() →
+                           modules/settings.js); lista de herramientas (.home-layout/.tool-card, sin
+                           relación con welcomeScreenHTML) en orden alfabético, habilitadas en color
+                           arriba y sin permiso en BW debajo. Entrar a una herramienta, a Configuración
+                           o al login (hashes #/settings, #/login) quita la cabecera y muestra solo un
+                           enlace "Volver" sobre el contenido.
     manifest.webmanifest   Manifiesto PWA (start_url /app).
     sw.js                  Service worker (cache básico app-shell).
     icons/icon.png         Icono de la app (favicon, ícono de instalación PWA y splash al abrirla).
@@ -382,6 +411,14 @@ public/
       store.js                 findProduct(code) — cliente de GET /api/consultas/lookup.
     modules/vencimientos.js Herramienta Vencimientos.
     modules/vacios.js      Herramienta Vacíos.
+    modules/settings.js    Configuración — no es una "herramienta" de TOOLS/PUBLIC_TOOLS (no aparece en el
+                           inicio, solo se llega desde el ícono de la cabecera con sesión). Hoy solo
+                           "Actualizar bases de datos": botón masivo + uno por fuente (Referencia,
+                           Variables, Coordenadas), misma lógica/estimación que desk/modules/basesdatos.js
+                           vía shared/js/db-refresh.js. Exige el permiso 'basesdatos' (el mismo que ya
+                           protege /api/database/* en el servidor) — si el usuario no lo tiene, render(root,
+                           user) no le pide nada al servidor: solo muestra "No tenés configuraciones
+                           disponibles", sin ruta nueva que proteger.
 ```
 
 ## Reglas

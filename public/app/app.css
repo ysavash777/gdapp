@@ -1451,3 +1451,79 @@ html, body {
   outline: none;
 }
 .otro-input:focus { box-shadow: 0 0 0 3px var(--accent-100); }
+
+/* ============================================================
+   Configuración (app/modules/settings.js) — "Actualizar bases de
+   datos", visible solo con el permiso 'basesdatos'. Mismo criterio
+   visual que el resto de /app (flat, sin sombras) adaptado a una
+   lista vertical en vez de la grilla de tarjetas del desk: en una
+   pantalla angosta, una fila por fuente aprovecha mejor el ancho.
+   ============================================================ */
+.settings-screen { display: flex; flex-direction: column; gap: var(--sp-4); }
+.settings-empty { text-align: center; color: var(--ink-3); font-size: var(--text-sm); padding: var(--sp-6) 0; }
+
+.settings-block { display: flex; flex-direction: column; gap: var(--sp-3); }
+.settings-block-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); }
+.settings-block-head h2 { font-size: var(--text-lg); font-weight: 700; letter-spacing: -0.01em; }
+.settings-hint { margin-top: 2px; font-size: var(--text-xs); color: var(--ink-3); }
+
+/* Botón masivo: ícono giratorio mientras corre (mismo lenguaje que el
+   botón puntual de cada fila, ver .settings-source-refresh) — el
+   progreso real vive aparte, en .settings-progress, no en el botón. */
+.settings-refresh-all.is-loading svg { animation: settings-icon-spin 900ms linear infinite; }
+@keyframes settings-icon-spin { to { transform: rotate(360deg); } }
+
+/* Progreso de la corrida masiva — mismo criterio en toda la app: 0%
+   a ~92% animado contra una estimación real (shared/js/db-refresh.js),
+   nunca en loop, salto a 100% cuando la corrida real termina. */
+.settings-progress {
+  height: 3px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.settings-progress-fill { height: 100%; width: 0%; background: var(--accent-500); }
+
+.settings-source-list { display: flex; flex-direction: column; gap: var(--sp-2); }
+.settings-source-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.settings-source-top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.settings-source-info { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.settings-source-icon {
+  width: 32px; height: 32px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.settings-source-info h3 { font-size: var(--text-sm); font-weight: 700; }
+.settings-source-info p { margin-top: 1px; font-size: 11px; color: var(--ink-3); }
+
+.settings-source-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.settings-source-refresh svg { transition: transform 160ms ease; }
+.settings-source-refresh.is-loading svg { animation: settings-icon-spin 900ms linear infinite; }
+.settings-source-refresh:disabled { opacity: 0.35; }
+
+.settings-status-icon {
+  width: 26px; height: 26px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: var(--r-full);
+}
+.settings-status-icon.is-ok { background: var(--ok-bg); color: var(--ok); }
+.settings-status-icon.is-error { background: var(--danger-bg); color: var(--danger); }
+.settings-status-icon.is-empty { background: var(--surface-2); color: var(--ink-3); }
+.settings-status-icon.is-warn { background: var(--warn-bg); color: var(--warn); }
+
+.settings-source-progress {
+  height: 3px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.settings-source-progress-fill { height: 100%; width: 0%; background: var(--accent-500); }

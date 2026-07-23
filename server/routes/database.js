@@ -23,10 +23,12 @@ const STORES = {
 
 router.use(requirePermission('basesdatos'));
 
-// POST /api/database/refresh — dispara una corrida del motor (todas
-// las fuentes configuradas, un solo login) y responde de inmediato,
-// sin esperar a que termine. Nunca se llama a sí misma ni se
-// reprograma: sigue siendo este POST el único disparador.
+// POST /api/database/refresh — body opcional { source: 'referencia' }
+// para actualizar SOLO esa fuente (el botón puntual de cada tarjeta);
+// sin body, corren TODAS (el botón masivo "Actualizar DB") — mismo
+// login único en los dos casos (ver inventory-engine.js). Responde de
+// inmediato, sin esperar a que termine. Nunca se llama a sí misma ni
+// se reprograma: sigue siendo este POST el único disparador.
 //
 // A propósito no se hace `await engine.refresh()` acá: una corrida
 // real tarda 30-100+ segundos (depende de Copernico, no de nosotros),
@@ -38,11 +40,15 @@ router.use(requirePermission('basesdatos'));
 // el tiempo completo (proxies/CDN suelen cortar conexiones largas
 // antes de tiempo) y libera al navegador de tener un fetch pendiente
 // gigante todo ese rato.
-router.post('/refresh', (_req, res) => {
+router.post('/refresh', (req, res) => {
   if (engine.isRunning()) {
     return res.status(409).json({ ok: false, error: 'ALREADY_RUNNING' });
   }
-  engine.refresh().catch((e) => {
+  const { source } = req.body || {};
+  if (source && !STORES[source]) {
+    return res.status(400).json({ ok: false, error: 'UNKNOWN_SOURCE' });
+  }
+  engine.refresh(source ? [source] : undefined).catch((e) => {
     // engine.refresh() ya atrapa sus propios errores y siempre resuelve
     // (nunca rechaza) — este catch es solo una red de seguridad por si
     // eso cambiara algún día, para que nunca quede un rechazo silencioso.
@@ -51,11 +57,16 @@ router.post('/refresh', (_req, res) => {
   res.status(202).json({ ok: true, started: true });
 });
 
-// GET /api/database/status — estado de todas las fuentes configuradas.
+// GET /api/database/status — estado de todas las fuentes configuradas
+// + runningKeys (null si no hay corrida en curso; si hay, el array de
+// fuentes que esa corrida está trayendo — todas, o solo una si la
+// disparó el botón puntual de una tarjeta) para que quien pregunta
+// sepa CUÁL tarjeta mostrar en progreso, aunque la corrida la haya
+// disparado otra pestaña/dispositivo.
 router.get('/status', (_req, res) => {
   const sources = {};
   for (const key in STORES) sources[key] = STORES[key].getMeta();
-  res.json({ ok: true, running: engine.isRunning(), sources });
+  res.json({ ok: true, running: engine.isRunning(), runningKeys: engine.getRunningKeys(), sources });
 });
 
 // GET /api/database/rows?source=referencia&q=&page=&pageSize=&sortBy=&sortDir=

@@ -66,6 +66,12 @@ function createDataSourceStore(name, supabaseTable) {
     // en silencio, hasta que un restart mostraba datos viejos de la nada).
     mirrorStatus: 'unknown',
     mirrorError: null,
+    // Tiempo real del espejo en Supabase de la última corrida (éxito o
+    // error) — junto con durationMs (que es solo Copernico), es lo que
+    // usa el estimador de la barra de progreso (shared/js/db-refresh.js)
+    // para calcular cuánto va a tardar de punta a punta, en vez de
+    // adivinar un número fijo igual para todas las fuentes.
+    mirrorDurationMs: null,
   };
 
   function persist() {
@@ -108,7 +114,13 @@ function createDataSourceStore(name, supabaseTable) {
 
     rows = newRows;
     haystacks = newHaystacks;
+    // `...meta` primero: preserva mirrorStatus/mirrorError/
+    // mirrorDurationMs de la corrida anterior hasta que recordMirror()
+    // los actualice de nuevo (pasa unos cientos de ms después, para la
+    // misma fuente) — sin esto, quedaban en `undefined` (ni siquiera el
+    // 'unknown' inicial) durante esa ventana.
     meta = {
+      ...meta,
       status: 'ok',
       lastUpdatedAt: new Date().toISOString(),
       rowCount: rows.length,
@@ -183,8 +195,13 @@ function createDataSourceStore(name, supabaseTable) {
   // Lo llama inventory-engine.js después de cada intento de espejar
   // esta fuente en Supabase (éxito o error) — no se persiste a disco:
   // es información de esta corrida puntual, no del último dato bueno.
-  function recordMirror(ok, error) {
-    meta = { ...meta, mirrorStatus: ok ? 'ok' : 'error', mirrorError: ok ? null : (error || 'UNKNOWN') };
+  function recordMirror(ok, error, durationMs) {
+    meta = {
+      ...meta,
+      mirrorStatus: ok ? 'ok' : 'error',
+      mirrorError: ok ? null : (error || 'UNKNOWN'),
+      mirrorDurationMs: durationMs ?? meta.mirrorDurationMs,
+    };
     return meta;
   }
 

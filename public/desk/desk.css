@@ -107,9 +107,34 @@
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: var(--sp-4);
 }
-.db-source-card { display: flex; flex-direction: column; gap: var(--sp-4); }
+.db-source-card { display: flex; flex-direction: column; gap: var(--sp-4); position: relative; }
 .db-source-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.db-source-head-actions { display: flex; align-items: center; gap: 6px; }
 .db-source-name { display: flex; align-items: center; gap: var(--sp-3); }
+
+/* Botón puntual "actualizar esta fuente" — mismo ícono/animación que
+   el botón masivo (gira mientras corre), pero chico y sin texto: cada
+   tarjeta ya dice de qué fuente se trata. */
+.db-source-refresh svg { transition: transform 160ms ease; }
+.db-source-refresh.is-loading svg { animation: db-icon-spin 900ms linear infinite; }
+.db-source-refresh:disabled { opacity: 0.35; }
+
+/* Relleno de progreso por tarjeta — mismo criterio que
+   .db-refresh-btn-fill (0% a ~92% animado, salto a 100% al terminar),
+   pero como una barra fina al pie de la tarjeta en vez de un overlay
+   sobre un botón grande. Vacía (width:0, sin altura visual) cuando no
+   hay corrida puntual de esta fuente. */
+.db-source-progress {
+  height: 3px;
+  border-radius: var(--r-full);
+  background: var(--n-100);
+  overflow: hidden;
+}
+.db-source-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent-500);
+}
 .db-source-name .tc-icon-sm {
   width: 34px; height: 34px; flex-shrink: 0;
   display: grid; place-items: center;

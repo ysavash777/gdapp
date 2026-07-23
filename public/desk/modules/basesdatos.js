@@ -1,22 +1,34 @@
 /* ============================================================
    Módulo Desk · Bases de datos
-   Un solo botón "Actualizar DB" para todas las fuentes — hoy dispara
-   el motor de "Referencia", "Coordenadas" y "Variables" (server/
-   services/inventory-engine.js, un solo login, una consulta por
-   fuente, un solo logout). Líneas picking todavía no tiene motor
-   propio: la tarjeta ya existe con la forma final, pero no hace nada
-   al tocarla.
+   Un botón "Actualizar DB" para todas las fuentes de una — hoy
+   dispara el motor de "Referencia", "Coordenadas" y "Variables"
+   (server/services/inventory-engine.js, un solo login, una consulta
+   por fuente, un solo logout) — y, además, un botón puntual en cada
+   tarjeta para actualizar SOLO esa fuente (mismo motor, mismo login
+   único, filtrado a una sola — ver refresh(sourceKeys) en
+   inventory-engine.js). Los dos disparadores comparten el mismo lock
+   del servidor: nunca pueden correr dos actualizaciones en simultáneo,
+   sea masiva o puntual. Líneas picking todavía no tiene motor propio:
+   la tarjeta ya existe con la forma final, pero no hace nada al
+   tocarla (sin botón de actualizar).
 
-   Cada tarjeta es solo una vidriera de estado (ícono, sin texto) —
-   nunca tienen su propia acción. Tampoco se muestran las filas
-   traídas acá, solo la cantidad y el horario (el detalle vive en el
-   servidor, listo para consultarse desde otro módulo sin que el
-   navegador tenga que cargarlo).
+   Cada tarjeta es sobre todo una vidriera de estado (ícono, sin
+   texto). Tampoco se muestran las filas traídas acá, solo la cantidad
+   y el horario (el detalle vive en el servidor, listo para
+   consultarse desde otro módulo sin que el navegador tenga que
+   cargarlo).
+
+   La barra de progreso (botón masivo Y cada tarjeta puntual) usa
+   shared/js/db-refresh.js para estimar cuánto va a tardar — tiempo
+   REAL medido de la última corrida de cada fuente (Copernico + espejo
+   en Supabase), nunca un número fijo igual para todas: no tiene
+   sentido animar Referencia y Coordenadas al mismo ritmo si una trae
+   ~11000 filas y la otra ~20000.
    ============================================================ */
 
 import { icon } from '/shared/js/icons.js';
-import { apiFetch } from '/shared/js/api.js';
 import { formatDateTime, escapeHtml } from '/shared/js/format.js';
+import { fetchStatus, triggerRefresh, estimateSourceMs, estimateTotalMs } from '/shared/js/db-refresh.js';
 
 const ERROR_MESSAGES = {
   LICENSE_LIMIT: 'No hay licencias disponibles en Copernico en este momento. Probá de nuevo más tarde.',
@@ -30,6 +42,7 @@ const ERROR_MESSAGES = {
   TIMEOUT: 'Copernico no respondió a tiempo. Probá de nuevo en un momento.',
   FORBIDDEN: 'No tienes permiso para esta acción.',
   UNAUTHORIZED: 'Tu sesión expiró. Vuelve a iniciar sesión.',
+  UNKNOWN_SOURCE: 'Esa fuente no existe.',
 };
 
 function errorMessage(err) {
@@ -49,7 +62,7 @@ const STATUS_ICON = {
   mirrorError: { name: 'alertTriangle', cls: 'is-warn', title: 'Actualizado, pero el respaldo en Supabase está fallando: no sobrevivirá un restart' },
 };
 
-const EMPTY_SOURCE = { status: 'empty', lastUpdatedAt: null, rowCount: 0, durationMs: null, mirrorStatus: 'unknown', mirrorError: null };
+const EMPTY_SOURCE = { status: 'empty', lastUpdatedAt: null, rowCount: 0, durationMs: null, mirrorDurationMs: null, mirrorStatus: 'unknown', mirrorError: null };
 
 const SOURCES = [
   { key: 'referencia', label: 'Referencia', icon: 'database', active: true },
@@ -58,6 +71,7 @@ const SOURCES = [
   { key: 'lineas_picking', label: 'Líneas picking', icon: 'grid', active: false },
 ];
 const ACTIVE_SOURCES = SOURCES.filter((s) => s.active);
+const ACTIVE_KEYS = ACTIVE_SOURCES.map((s) => s.key);
 
 export const title = 'Bases de datos';
 
@@ -68,17 +82,10 @@ export function render(outlet) {
   mount(root);
 }
 
-// Sin datos de progreso real (Copernico no informa avance, solo
-// responde entero al final), así que el relleno se calibra contra la
-// suma de las últimas corridas exitosas conocidas — no es una barra
-// "de mentira" que da vueltas para siempre, es una estimación que
-// avanza una sola vez de 0 a ~92% y se completa de golpe cuando la
-// corrida real termina (antes o después de lo estimado).
-const DEFAULT_ESTIMATE_MS = 30_000;
-
 async function mount(root) {
   const state = {
     refreshing: false,
+    runningKeys: null, // null = nada corriendo; array = corrida en curso (masiva o de una sola fuente)
     error: null,
     sources: Object.fromEntries(ACTIVE_SOURCES.map((s) => [s.key, { ...EMPTY_SOURCE }])),
   };
@@ -95,57 +102,81 @@ async function mount(root) {
         lastUpdatedAt: meta.lastUpdatedAt,
         rowCount: meta.rowCount,
         durationMs: meta.durationMs || state.sources[key].durationMs,
+        mirrorDurationMs: meta.mirrorDurationMs || state.sources[key].mirrorDurationMs,
         mirrorStatus: meta.mirrorStatus,
         mirrorError: meta.mirrorError,
       };
     }
   }
 
-  function estimateMs() {
-    const known = ACTIVE_SOURCES.map((s) => state.sources[s.key].durationMs).filter(Boolean);
-    return known.length ? known.reduce((a, b) => a + b, 0) : DEFAULT_ESTIMATE_MS * ACTIVE_SOURCES.length;
+  // Sin datos de progreso real (Copernico no informa avance, solo
+  // responde entero al final): el relleno avanza una sola vez de 0 a
+  // ~92% calibrado contra la estimación real (nunca en loop) y se
+  // completa de golpe cuando la corrida real termina (antes o después
+  // de lo estimado) — ver finishFill().
+  function startFill(fillEl, ms) {
+    if (!fillEl) return;
+    fillEl.style.transition = 'none';
+    fillEl.style.width = '0%';
+    void fillEl.offsetWidth; // fuerza reflow: sin esto el navegador podía fusionar este cambio con el de abajo y saltar directo a 92%, sin animar
+    fillEl.style.transition = `width ${ms}ms linear`;
+    fillEl.style.width = '92%';
   }
 
-  function startProgress() {
-    const fill = root.querySelector('.db-refresh-btn-fill');
-    if (!fill) return;
-    fill.style.transition = 'none';
-    fill.style.width = '0%';
-    void fill.offsetWidth; // fuerza reflow: sin esto, el navegador puede fusionar este cambio con el de abajo y saltar directo a 92%, sin animar
-    fill.style.transition = `width ${estimateMs()}ms linear`;
-    fill.style.width = '92%';
-  }
-
-  function finishProgress() {
-    const fill = root.querySelector('.db-refresh-btn-fill');
-    if (!fill) return;
-    fill.style.transition = 'width 250ms ease';
-    fill.style.width = '100%';
+  function finishFill(fillEl) {
+    if (!fillEl) return;
+    fillEl.style.transition = 'width 250ms ease';
+    fillEl.style.width = '100%';
     setTimeout(() => {
-      fill.style.transition = 'none';
-      fill.style.width = '0%';
+      fillEl.style.transition = 'none';
+      fillEl.style.width = '0%';
     }, 300);
   }
 
+  function isMassRun(keys) {
+    return !!keys && keys.length === ACTIVE_KEYS.length && ACTIVE_KEYS.every((k) => keys.includes(k));
+  }
+
+  // Arranca la animación correcta según qué se esté corriendo: si son
+  // TODAS las fuentes activas, el relleno del botón masivo; si es una
+  // sola, el relleno de esa tarjeta puntual — nunca los dos a la vez,
+  // porque el servidor no deja correr dos actualizaciones juntas.
+  function startProgressFor(keys) {
+    if (isMassRun(keys)) {
+      startFill(root.querySelector('.db-refresh-btn-fill'), estimateTotalMs(state.sources, ACTIVE_KEYS));
+    } else if (keys?.length === 1) {
+      startFill(root.querySelector(`.db-source-card[data-key="${keys[0]}"] .db-source-progress-fill`), estimateSourceMs(state.sources, keys[0]));
+    }
+  }
+
+  function finishProgressFor(keys) {
+    if (isMassRun(keys)) {
+      finishFill(root.querySelector('.db-refresh-btn-fill'));
+    } else if (keys?.length === 1) {
+      finishFill(root.querySelector(`.db-source-card[data-key="${keys[0]}"] .db-source-progress-fill`));
+    }
+  }
+
   async function loadStatus() {
-    let running = false;
+    let data = null;
     try {
-      const data = await apiFetch('/api/database/status');
+      data = await fetchStatus();
       applySources(data.sources);
-      running = data.running;
     } catch {
       // Sin conexión al status: se queda con el último estado local
       // conocido (por defecto "Sin datos") en vez de romper la vista.
     }
     drawCards();
-    if (running) {
+    if (data?.running) {
       // Alguien más (otra pestaña/persona) ya disparó una corrida —
-      // el botón se muestra ocupado igual, en vez de dejar pensar que
-      // se puede tocar de nuevo, y se refleja cuando esa corrida ajena
-      // termine. Nunca dispara una corrida nueva por su cuenta.
+      // los botones se muestran ocupados igual, en vez de dejar pensar
+      // que se puede tocar de nuevo, y se refleja cuando esa corrida
+      // ajena termine. Nunca dispara una corrida nueva por su cuenta.
       state.refreshing = true;
+      state.runningKeys = data.runningKeys || ACTIVE_KEYS;
       drawButton();
-      startProgress();
+      drawCards();
+      startProgressFor(state.runningKeys);
       await pollUntilDone();
     } else {
       drawButton();
@@ -157,37 +188,42 @@ async function mount(root) {
       await new Promise((r) => setTimeout(r, 2000));
       if (!root.isConnected) return;
       try {
-        const data = await apiFetch('/api/database/status');
+        const data = await fetchStatus();
         if (!data.running) { applySources(data.sources); break; }
       } catch {
         break;
       }
     }
-    finishProgress();
+    finishProgressFor(state.runningKeys);
     state.refreshing = false;
+    state.runningKeys = null;
     drawButton();
     drawCards();
   }
 
-  async function handleRefresh() {
+  // sourceKey: omitido = corrida masiva (botón de arriba); con valor,
+  // solo esa fuente (botón puntual de la tarjeta).
+  async function handleRefresh(sourceKey) {
     if (state.refreshing) return;
     state.refreshing = true;
+    state.runningKeys = sourceKey ? [sourceKey] : ACTIVE_KEYS;
     state.error = null;
     drawButton();
     drawCards();
-    startProgress();
+    startProgressFor(state.runningKeys);
     try {
       // Solo dispara la corrida — no espera a que termine (eso puede
       // tardar 30-100+ segundos, según Copernico). El resultado final
       // se conoce por polling a /status, igual que cuando la corrida
       // la arranca otra pestaña — mismo pollUntilDone() para los dos
       // casos, sin mantener una conexión HTTP gigante abierta.
-      await apiFetch('/api/database/refresh', { method: 'POST' });
+      await triggerRefresh(sourceKey);
     } catch (err) {
       // No llegó ni a arrancar (ej. ALREADY_RUNNING) — no hay nada
       // que esperar.
-      finishProgress();
+      finishProgressFor(state.runningKeys);
       state.refreshing = false;
+      state.runningKeys = null;
       state.error = err;
       drawButton();
       drawCards();
@@ -212,14 +248,14 @@ async function mount(root) {
       <p class="form-error" id="refreshError" style="display:none;"></p>
       <div class="db-source-grid" id="sourceGrid"></div>
     `;
-    root.querySelector('#btnRefresh').addEventListener('click', handleRefresh);
+    root.querySelector('#btnRefresh').addEventListener('click', () => handleRefresh());
   }
 
   function drawButton() {
     const btn = root.querySelector('#btnRefresh');
     if (!btn) return;
     btn.disabled = state.refreshing;
-    btn.classList.toggle('is-loading', state.refreshing);
+    btn.classList.toggle('is-loading', isMassRun(state.runningKeys));
 
     const errEl = root.querySelector('#refreshError');
     if (errEl) {
@@ -232,6 +268,7 @@ async function mount(root) {
     const s = src.active ? state.sources[src.key] : EMPTY_SOURCE;
     const st = (s.status === 'ok' && s.mirrorStatus === 'error') ? STATUS_ICON.mirrorError : (STATUS_ICON[s.status] || STATUS_ICON.empty);
     const hasData = s.rowCount > 0;
+    const isRunningThis = !!state.runningKeys && state.runningKeys.length === 1 && state.runningKeys[0] === src.key;
 
     return `
       <div class="card db-source-card" data-key="${src.key}">
@@ -240,7 +277,12 @@ async function mount(root) {
             <div class="tc-icon-sm">${icon(src.icon, 18)}</div>
             <h3>${src.label}</h3>
           </div>
-          <div class="db-status-icon ${st.cls}" title="${st.title}">${icon(st.name, 16)}</div>
+          <div class="db-source-head-actions">
+            ${src.active ? `
+              <button type="button" class="btn-icon db-source-refresh${isRunningThis ? ' is-loading' : ''}" data-key="${src.key}" title="Actualizar ${src.label}" ${state.refreshing ? 'disabled' : ''}>${icon('refresh', 15)}</button>
+            ` : ''}
+            <div class="db-status-icon ${st.cls}" title="${st.title}">${icon(st.name, 16)}</div>
+          </div>
         </div>
         <div class="db-source-metrics">
           <div class="metric">
@@ -252,6 +294,11 @@ async function mount(root) {
             <span class="lbl">Actualizado</span>
           </div>
         </div>
+        ${src.active ? `
+          <div class="db-source-progress">
+            <div class="db-source-progress-fill"></div>
+          </div>
+        ` : ''}
       </div>
     `;
   }
@@ -260,5 +307,11 @@ async function mount(root) {
     const grid = root.querySelector('#sourceGrid');
     if (!grid) return;
     grid.innerHTML = SOURCES.map(sourceCardHTML).join('');
+    grid.querySelectorAll('.db-source-refresh').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleRefresh(btn.dataset.key);
+      });
+    });
   }
 }

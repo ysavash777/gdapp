@@ -1,12 +1,16 @@
 /* ============================================================
    Motor de actualización de la base de datos (Copernico WMS).
 
-   Un solo botón dispara TODAS las fuentes configuradas (ver SOURCES
-   más abajo): un login, una consulta por fuente en secuencia, un
-   solo logout — nunca un login por fuente. Si una fuente falla, las
-   demás igual se intentan (ya se pagó el costo de la licencia con el
-   login); el resultado final trae el detalle de cada una por separado
-   para que cada tarjeta del desk muestre su propio estado.
+   refresh(sourceKeys?) — sin argumento, corren TODAS las fuentes
+   configuradas (ver SOURCES más abajo, "Actualizar DB" masivo); con
+   un array (ej. ['referencia'], el botón puntual de cada tarjeta),
+   solo esas. En ambos casos: un login, una consulta por fuente en
+   secuencia, un solo logout — nunca un login por fuente, ni siquiera
+   para una corrida puntual (Copernico exige login sin importar
+   cuántas fuentes se pidan). Si una fuente falla, las demás igual se
+   intentan (ya se pagó el costo de la licencia con el login); el
+   resultado final trae el detalle de cada una por separado para que
+   cada tarjeta del desk muestre su propio estado.
 
    Cada fuente que trae datos con éxito también se espeja en Supabase
    (proyecto "bodega-47-inventario", ver services/supabase-sync.js) —
@@ -76,6 +80,12 @@ const LOCK_FILE = path.join(__dirname, '..', 'data', 'refresh.lock');
 const UID_FILE = path.join(__dirname, '..', 'data', 'known-uid.json');
 
 let runningInMemory = false;
+// Qué fuentes está trayendo la corrida en curso — null si no hay
+// ninguna. Con una corrida puntual (refresh(['referencia'])) es un
+// array de un solo elemento; con la masiva, todas. Lo consulta GET
+// /status para que la tarjeta correcta (no todas) muestre su propio
+// progreso, incluso si quien lo pidió fue otra pestaña/dispositivo.
+let runningKeysInMemory = null;
 
 function readLock() {
   try {
@@ -117,6 +127,10 @@ function isRunning() {
   return runningInMemory;
 }
 
+function getRunningKeys() {
+  return runningKeysInMemory;
+}
+
 // Se llama una sola vez al arrancar el proceso (server/index.js, antes
 // de escuchar) — no es un refresh: no toca Copernico ni consume una
 // licencia, solo trae de Supabase la última corrida buena de cada
@@ -155,13 +169,25 @@ async function loginWithRecovery() {
   }
 }
 
-async function refresh() {
+// sourceKeys: opcional — si se pasa (ej. ['referencia']), solo esa(s)
+// fuente(s) se consultan y espejan, pero el login/logout sigue siendo
+// uno solo igual que con la corrida masiva (Copernico exige login sin
+// importar cuántas fuentes se pidan, así que un refresh puntual paga
+// el mismo costo de licencia que uno completo). Sin el parámetro,
+// corren TODAS (mismo comportamiento de siempre — "Actualizar DB").
+async function refresh(sourceKeys) {
   if (runningInMemory) {
     return { ok: false, error: 'ALREADY_RUNNING' };
   }
 
+  const sources = sourceKeys ? SOURCES.filter((s) => sourceKeys.includes(s.key)) : SOURCES;
+  if (!sources.length) {
+    return { ok: false, error: 'UNKNOWN_SOURCE' };
+  }
+
   const startedAt = Date.now();
   runningInMemory = true;
+  runningKeysInMemory = sources.map((s) => s.key);
   let session = null;
   let result;
 
@@ -195,7 +221,7 @@ async function refresh() {
         // si esa fuente salió bien, sin necesitar una forma distinta
         // en la respuesta de refresh() vs. la de status().
         const perSource = {};
-        for (const src of SOURCES) {
+        for (const src of sources) {
           const sourceStartedAt = Date.now();
           try {
             const rawRows = await src.fetch(session.token, config.COPERNICO_BODEGA);
@@ -210,19 +236,25 @@ async function refresh() {
             // bien, no si Supabase también) — un problema acá se loguea
             // y queda en sync_log, pero no tira abajo la corrida ni
             // hace que la tarjeta se vea en error si Copernico sí
-            // contestó bien.
+            // contestó bien. Se mide aparte de durationMs (que es solo
+            // Copernico) porque el estimador de la barra de progreso
+            // (ver desk/modules/basesdatos.js y shared/js/db-refresh.js)
+            // necesita el tiempo REAL de punta a punta de cada fuente,
+            // no solo la mitad Copernico.
             const supabaseStartedAt = Date.now();
             try {
               const syncResult = await supabaseSync.replaceTable(src.supabaseTable, src.store.getRowsForExport(), { conflictKey: src.conflictKey });
+              const mirrorDurationMs = Date.now() - supabaseStartedAt;
               if (syncResult.skipped) {
                 console.log(`[inventory-engine] ${src.key} → Supabase: omitido (sin configurar).`);
               } else {
-                await supabaseSync.logSync(src.key, { status: 'ok', rowCount: rawRows.length, durationMs: Date.now() - supabaseStartedAt });
-                console.log(`[inventory-engine] ${src.key} → Supabase (${src.supabaseTable}): ${Date.now() - supabaseStartedAt}ms`);
-                src.store.recordMirror(true);
+                await supabaseSync.logSync(src.key, { status: 'ok', rowCount: rawRows.length, durationMs: mirrorDurationMs });
+                console.log(`[inventory-engine] ${src.key} → Supabase (${src.supabaseTable}): ${mirrorDurationMs}ms`);
+                src.store.recordMirror(true, null, mirrorDurationMs);
               }
             } catch (supaErr) {
-              await supabaseSync.logSync(src.key, { status: 'error', errorMessage: supaErr.message, durationMs: Date.now() - supabaseStartedAt });
+              const mirrorDurationMs = Date.now() - supabaseStartedAt;
+              await supabaseSync.logSync(src.key, { status: 'error', errorMessage: supaErr.message, durationMs: mirrorDurationMs });
               console.error(`[inventory-engine] ${src.key} → Supabase falló:`, supaErr.message);
               // Esto es lo único que distingue, en la tarjeta del desk,
               // "Copernico contestó bien pero el respaldo en Supabase está
@@ -230,7 +262,7 @@ async function refresh() {
               // — sin esto, un desperfecto como el de inventario_cajas
               // (ver supabase-sync.js) solo se nota recién en el próximo
               // restart, cuando ya es tarde.
-              src.store.recordMirror(false, supaErr.message);
+              src.store.recordMirror(false, supaErr.message, mirrorDurationMs);
             }
           } catch (err) {
             console.log(`[inventory-engine] ${src.key}: falló a los ${Date.now() - sourceStartedAt}ms · error: ${err.code || 'FETCH_FAILED'}`);
@@ -255,16 +287,17 @@ async function refresh() {
     const loggedOut = session ? await copernico.logout(session.token, session.uid) : true;
     if (loggedOut) writeLock(null);
     runningInMemory = false;
+    runningKeysInMemory = null;
   }
 
-  // Falla a nivel login (nunca se llegó a intentar ninguna fuente):
-  // se refleja en TODAS las fuentes configuradas, para que ninguna
-  // tarjeta quede mostrando "sin datos" cuando en realidad la
-  // corrida sí se intentó y falló.
+  // Falla a nivel login (nunca se llegó a intentar ninguna fuente): se
+  // refleja en las fuentes que se habían pedido (todas, o solo la
+  // puntual), para que ninguna tarjeta relevante quede mostrando "sin
+  // datos" cuando en realidad la corrida sí se intentó y falló.
   if (!result.sources) {
-    for (const src of SOURCES) src.store.recordError({ code: result.error, message: result.message });
+    for (const src of sources) src.store.recordError({ code: result.error, message: result.message });
   }
   return result;
 }
 
-module.exports = { refresh, isRunning, hydrate };
+module.exports = { refresh, isRunning, getRunningKeys, hydrate };
