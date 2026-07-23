@@ -849,32 +849,22 @@ html, body {
 /* Último producto escaneado — una tarjeta chica, siempre el mismo
    lugar, nunca una lista: cada escaneo nuevo pisa esta misma tarjeta
    (ver saveLastScanned()/renderLastScanned() en scanner-view.js).
-   Vacía (primera vez en este dispositivo) no ocupa espacio. Deslizar
-   hacia arriba (o tocarla) reabre la ficha completa — la "manija"
-   (.cq-last-scanned-handle) es la única pista visual de que se puede
-   deslizar, mismo lenguaje que el tirador de un bottom sheet. Dos
-   líneas en vez de una sola apretada: la descripción con su propio
-   renglón, sin acortarla contra el código al lado — y sin EAN, que
-   ya se ve completo al reabrir la ficha (deslizando).*/
+   Vacía (primera vez en este dispositivo) no ocupa espacio. Tocarla
+   reabre la ficha completa. Tres datos con ícono premium real (nunca
+   CSS dibujado, ver icons.js): barcode + referencia, etiqueta + EAN,
+   caja + grupo — cada uno se distingue de un vistazo sin tener que
+   leer una etiqueta de texto al lado. */
 .cq-last-scanned {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   margin-top: var(--sp-2);
-  padding: 8px 14px 10px;
+  padding: 10px 14px;
   border-radius: var(--r-md);
   background: var(--surface-2);
   text-align: center;
   cursor: pointer;
-}
-.cq-last-scanned-handle {
-  width: 30px;
-  height: 3px;
-  border-radius: var(--r-full);
-  background: var(--ink-3);
-  opacity: 0.5;
-  margin-bottom: 3px;
 }
 .cq-last-scanned-label {
   font-size: 10px;
@@ -892,7 +882,21 @@ html, body {
   font-weight: 700;
   color: var(--ink);
 }
-.cq-last-scanned-code { font-size: 11px; color: var(--ink-3); }
+.cq-last-scanned-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+.cq-last-scanned-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.cq-last-scanned-item svg { flex-shrink: 0; color: var(--ink-3); }
 
 /* --- Registros: dos columnas fijas (Unidades | Info) — el mismo alto
    para todas las tarjetas sin importar cuánto texto tenga cada una.

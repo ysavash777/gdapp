@@ -49,6 +49,8 @@ const PATHS = {
   alertTriangle: '<path d="M12 3.5 2.5 20h19L12 3.5Z"/><path d="M12 9.5v4.2"/><circle cx="12" cy="17" r="0.4" fill="currentColor" stroke="none"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
   arrowRight: '<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>',
+  barcode: '<path d="M3 5v14"/><path d="M7 5v14"/><path d="M10 5v14"/><path d="M14 5v14"/><path d="M17 5v14"/><path d="M21 5v14"/>',
+  tag: '<path d="M11.5 3h-5A2 2 0 0 0 4.5 5v5c0 .5.2 1 .6 1.4l9 9a2 2 0 0 0 2.8 0l4-4a2 2 0 0 0 0-2.8l-9-9A2 2 0 0 0 11.5 3Z"/><circle cx="8.3" cy="8.3" r="1.3" fill="currentColor" stroke="none"/>',
 };
 
 export function icon(name, size = 20, strokeWidth = 1.7) {

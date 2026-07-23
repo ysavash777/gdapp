@@ -418,13 +418,13 @@ public/
                                con findLocal() del mismo catálogo (sin "hueso") si ya los tiene — solo Grupo
                                y ubicaciones esperan a findProduct() (necesitan el cruce real del servidor).
                                Debajo del ingreso manual, una tarjeta fija (#lastScanned/renderLastScanned(),
-                               localStorage `gd.consultas.lastScanned.v1`, SIN EAN — solo descripción y
-                               referencia) muestra el ÚLTIMO producto escaneado con éxito — nunca una
-                               lista/historial: cada escaneo válido nuevo PISA por completo el anterior (un
-                               "no encontrado" nunca lo pisa). Deslizar hacia arriba sobre ella (o tocarla)
-                               reabre la ficha completa con datos frescos (mismo lookupCode() de un escaneo
-                               nuevo, no una foto vieja) — la "manija" (.cq-last-scanned-handle, una barrita
-                               chica) es la única pista visual de que se puede deslizar. La descripción ES el
+                               localStorage `gd.consultas.lastScanned.v1`) muestra el ÚLTIMO producto
+                               escaneado con éxito — nunca una lista/historial: cada escaneo válido nuevo
+                               PISA por completo el anterior (un "no encontrado" nunca lo pisa). Referencia,
+                               EAN y grupo, cada uno con su ícono premium real (icons.js: barcode/tag/package
+                               — nunca CSS dibujado). Tocarla reabre la ficha completa con datos frescos
+                               (mismo lookupCode() de un escaneo nuevo, no una foto vieja guardada). La
+                               descripción ES el
                                título del sheet (sin "Producto encontrado" ni un encabezado "Descripción"
                                aparte) — nunca más de 2 líneas (titleSizeClass() la achica en escalones
                                is-md/is-sm antes de llegar al -webkit-line-clamp:2 de .reg-sheet-title, que

@@ -47,19 +47,21 @@ function loadLastScanned() {
   }
 }
 
-// Sin EAN acá (solo referencia): este renglón es un acceso rápido, no
-// una ficha — el EAN ya se ve completo si se vuelve a abrir la ficha
-// deslizando hacia arriba. El "manija" (barra chica arriba) es la
-// única pista visual de que se puede deslizar — sin ella, un renglón
-// que reacciona a un gesto pero no lo insinúa se siente roto.
+// Referencia (con ícono de barcode), EAN (ícono de etiqueta) y Grupo
+// (ícono de caja) — íconos premium reales (icons.js), nunca CSS
+// dibujado, para que cada dato se distinga de un vistazo sin tener
+// que leer una etiqueta de texto al lado.
 function lastScannedHTML(product) {
   if (!product) return '';
   return `
     <div class="cq-last-scanned" id="lastScannedCard">
-      <span class="cq-last-scanned-handle"></span>
       <span class="cq-last-scanned-label">Último escaneado</span>
       <span class="cq-last-scanned-desc">${escapeHtml(product.description || 'Producto sin descripción')}</span>
-      <span class="cq-last-scanned-code">${escapeHtml(product.code)}</span>
+      <div class="cq-last-scanned-meta">
+        <span class="cq-last-scanned-item">${icon('barcode', 13)} ${escapeHtml(product.code)}</span>
+        <span class="cq-last-scanned-item">${icon('tag', 13)} ${product.ean ? escapeHtml(product.ean) : '-'}</span>
+        <span class="cq-last-scanned-item">${icon('package', 13)} ${product.group ? escapeHtml(product.group) : '-'}</span>
+      </div>
     </div>
   `;
 }
@@ -93,29 +95,18 @@ export function openScanner() {
 
   const lastScannedEl = overlay.querySelector('#lastScanned');
 
-  // Repinta el renglón Y le vuelve a conectar los gestos — innerHTML
+  // Repinta el renglón Y le vuelve a conectar el toque — innerHTML
   // tira cualquier listener anterior, así que esto se llama tanto al
   // abrir el escáner como cada vez que hay un escaneo nuevo (ver
-  // showResult() más abajo), nunca una sola vez.
+  // showResult() más abajo), nunca una sola vez. Tocarlo reabre la
+  // ficha completa (ubicación sugerida, rango, etc.) con datos
+  // frescos — el mismo camino que un escaneo nuevo del mismo código,
+  // nunca una foto vieja guardada en el celular.
   function renderLastScanned(product) {
     lastScannedEl.innerHTML = lastScannedHTML(product);
     const card = lastScannedEl.querySelector('#lastScannedCard');
     if (!card) return;
-
     card.addEventListener('click', () => lookupCode(product.code));
-
-    // Deslizar hacia arriba reabre la ficha completa (ubicación
-    // sugerida, rango, etc.) — el mismo camino que un escaneo nuevo
-    // del mismo código, así siempre trae el dato más fresco en vez de
-    // una foto vieja guardada en el celular.
-    let startY = null;
-    card.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; }, { passive: true });
-    card.addEventListener('touchend', (e) => {
-      if (startY == null) return;
-      const draggedUp = startY - (e.changedTouches[0]?.clientY ?? startY);
-      startY = null;
-      if (draggedUp > 24) lookupCode(product.code);
-    });
   }
   renderLastScanned(loadLastScanned());
   const cameraBox = overlay.querySelector('#scanCamera');
@@ -311,7 +302,7 @@ export function openScanner() {
       // encontrado" o un error de red nunca deben pisar el último
       // escaneado válido que ya había.
       if (!lookupError && product) {
-        const scanned = { code, description: product.description };
+        const scanned = { code, description: product.description, ean: product.ean, group: product.group };
         saveLastScanned(scanned);
         renderLastScanned(scanned);
       }
