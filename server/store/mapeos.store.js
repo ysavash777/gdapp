@@ -125,22 +125,24 @@ async function remove(id) {
 // Cantidad y condición quedan con valores por defecto al escanear —
 // se completan después sin frenar el ritmo de un escaneo masivo
 // (mismo comportamiento que tenía el store del navegador). Descripción,
-// EAN y Grupo, en cambio, se completan solos en este mismo paso: se
-// busca el código escaneado (un EAN-13) contra la columna "referencia"
-// de la fuente Variables (variables.store, hidratada desde Supabase —
-// antes se buscaba en Referencia, pero Variables es la única de las
-// dos que además tiene el grupo/familia del producto, "codgrupoprm")
-// — si hay match, "descripcion" queda como título del producto,
-// "productoean" (el código corto interno, no el de barras) y
-// "codgrupoprm" se muestran en la ficha de registro — si no hay match
-// (código fuera de catálogo o fuente vacía), los tres quedan '' y el
-// front los muestra como "sin datos".
+// EAN y Grupo, en cambio, se completan solos en este mismo paso:
+// findByCode() busca el código escaneado (un EAN-13, o el código de
+// una caja/bulto — ver parseDunCodes() en variables.store.js) contra
+// "referencia" O cualquiera de los códigos en "dun" de la fuente
+// Variables (variables.store, hidratada desde Supabase — antes se
+// buscaba en Referencia, pero Variables es la única de las dos que
+// además tiene el grupo/familia del producto, "codgrupoprm") — si hay
+// match, "descripcion" queda como título del producto, "productoean"
+// (el código corto interno, no el de barras) y "codgrupoprm" se
+// muestran en la ficha de registro — si no hay match (código fuera de
+// catálogo o fuente vacía), los tres quedan '' y el front los muestra
+// como "sin datos".
 async function addCode(mapeoId, rawCode, actor) {
   const supabase = requireClient();
   const code = String(rawCode).trim();
   if (!code) throw new Error('EMPTY_CODE');
 
-  const match = variablesStore.findBy('referencia', code);
+  const match = variablesStore.findByCode(code);
   const description = match?.descripcion || '';
   const ean = match?.productoean || '';
   const grupo = match?.codgrupoprm || '';

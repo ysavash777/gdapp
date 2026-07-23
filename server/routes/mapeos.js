@@ -38,10 +38,22 @@ router.get('/', async (_req, res) => {
 // antes de GET /:id — si no, Express intentaría matchear
 // "lookup-catalog" como si fuera un id. Arrays en vez de objetos: con
 // 14000+ filas, no repetir las claves por fila ahorra buena parte del
-// payload.
+// payload. Una fila por referencia Y una fila más por cada código de
+// bulto en su "dun" (ver parseDunCodes() en variables.store.js) —
+// mismo criterio que routes/catalog.js, para que el autocompletado
+// offline reconozca también un código de caja/pallet escaneado.
 router.get('/lookup-catalog', (_req, res) => {
   try {
-    const items = variablesStore.getRowsForExport().map((r) => [r.referencia || '', r.descripcion || '', r.productoean || '', r.codgrupoprm || '']);
+    const items = [];
+    for (const r of variablesStore.getRowsForExport()) {
+      const ref = r.referencia || '';
+      if (!ref) continue;
+      const row = [ref, r.descripcion || '', r.productoean || '', r.codgrupoprm || ''];
+      items.push(row);
+      for (const dunCode of variablesStore.parseDunCodes(r.dun)) {
+        if (dunCode && dunCode !== ref) items.push([dunCode, row[1], row[2], row[3]]);
+      }
+    }
     // Ídem catalog.js: 'no-cache' fuerza a revalidar por ETag en vez de
     // heurística del navegador — si Variables no cambió desde la última
     // vez, el celular recibe un 304 sin cuerpo en vez de bajar de nuevo

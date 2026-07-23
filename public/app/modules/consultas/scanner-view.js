@@ -47,13 +47,19 @@ function loadLastScanned() {
   }
 }
 
+// Sin EAN acá (solo referencia): este renglón es un acceso rápido, no
+// una ficha — el EAN ya se ve completo si se vuelve a abrir la ficha
+// deslizando hacia arriba. El "manija" (barra chica arriba) es la
+// única pista visual de que se puede deslizar — sin ella, un renglón
+// que reacciona a un gesto pero no lo insinúa se siente roto.
 function lastScannedHTML(product) {
   if (!product) return '';
   return `
-    <div class="cq-last-scanned-row">
+    <div class="cq-last-scanned" id="lastScannedCard">
+      <span class="cq-last-scanned-handle"></span>
       <span class="cq-last-scanned-label">Último escaneado</span>
       <span class="cq-last-scanned-desc">${escapeHtml(product.description || 'Producto sin descripción')}</span>
-      <span class="cq-last-scanned-meta">${escapeHtml(product.code)}${product.ean ? ` · EAN ${escapeHtml(product.ean)}` : ''}</span>
+      <span class="cq-last-scanned-code">${escapeHtml(product.code)}</span>
     </div>
   `;
 }
@@ -80,12 +86,38 @@ export function openScanner() {
         <input type="text" inputmode="numeric" placeholder="Ingresar código manualmente" id="scanManualInput" autocomplete="off" />
         <button type="submit" class="btn btn-primary" title="Buscar">${icon('search', 18)}</button>
       </form>
-      <div id="lastScanned">${lastScannedHTML(loadLastScanned())}</div>
+      <div id="lastScanned"></div>
     </div>
   `;
   document.body.appendChild(overlay);
 
   const lastScannedEl = overlay.querySelector('#lastScanned');
+
+  // Repinta el renglón Y le vuelve a conectar los gestos — innerHTML
+  // tira cualquier listener anterior, así que esto se llama tanto al
+  // abrir el escáner como cada vez que hay un escaneo nuevo (ver
+  // showResult() más abajo), nunca una sola vez.
+  function renderLastScanned(product) {
+    lastScannedEl.innerHTML = lastScannedHTML(product);
+    const card = lastScannedEl.querySelector('#lastScannedCard');
+    if (!card) return;
+
+    card.addEventListener('click', () => lookupCode(product.code));
+
+    // Deslizar hacia arriba reabre la ficha completa (ubicación
+    // sugerida, rango, etc.) — el mismo camino que un escaneo nuevo
+    // del mismo código, así siempre trae el dato más fresco en vez de
+    // una foto vieja guardada en el celular.
+    let startY = null;
+    card.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; }, { passive: true });
+    card.addEventListener('touchend', (e) => {
+      if (startY == null) return;
+      const draggedUp = startY - (e.changedTouches[0]?.clientY ?? startY);
+      startY = null;
+      if (draggedUp > 24) lookupCode(product.code);
+    });
+  }
+  renderLastScanned(loadLastScanned());
   const cameraBox = overlay.querySelector('#scanCamera');
   const videoEl = overlay.querySelector('#scanVideo');
   const hintEl = overlay.querySelector('#scanHint');
@@ -116,7 +148,7 @@ export function openScanner() {
     if (activeSheetBackdrop) return;
     if (navigator.vibrate) navigator.vibrate(35);
     if (hasData() && !existsLocal(rawValue)) {
-      showToast('Código no encontrado', { variant: 'warn' });
+      showToast(`Código no encontrado: ${rawValue}`, { variant: 'warn' });
       return;
     }
     const sheet = openResultSheet(rawValue);
@@ -279,9 +311,9 @@ export function openScanner() {
       // encontrado" o un error de red nunca deben pisar el último
       // escaneado válido que ya había.
       if (!lookupError && product) {
-        const scanned = { code, description: product.description, ean: product.ean };
+        const scanned = { code, description: product.description };
         saveLastScanned(scanned);
-        if (lastScannedEl) lastScannedEl.innerHTML = lastScannedHTML(scanned);
+        renderLastScanned(scanned);
       }
 
       const bodyEl = backdrop.querySelector('#resultBody');

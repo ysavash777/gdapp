@@ -846,35 +846,53 @@ html, body {
 .cq-camera { flex: 1; min-height: 0; }
 .cq-sheet { flex: 0 0 auto; }
 
-/* Último producto escaneado — un solo renglón chico, siempre el
-   mismo lugar, nunca una lista: cada escaneo nuevo pisa este mismo
-   contenedor (ver saveLastScanned() en scanner-view.js). Vacío
-   (primera vez en este dispositivo) no ocupa espacio. */
-.cq-last-scanned-row {
+/* Último producto escaneado — una tarjeta chica, siempre el mismo
+   lugar, nunca una lista: cada escaneo nuevo pisa esta misma tarjeta
+   (ver saveLastScanned()/renderLastScanned() en scanner-view.js).
+   Vacía (primera vez en este dispositivo) no ocupa espacio. Deslizar
+   hacia arriba (o tocarla) reabre la ficha completa — la "manija"
+   (.cq-last-scanned-handle) es la única pista visual de que se puede
+   deslizar, mismo lenguaje que el tirador de un bottom sheet. Dos
+   líneas en vez de una sola apretada: la descripción con su propio
+   renglón, sin acortarla contra el código al lado — y sin EAN, que
+   ya se ve completo al reabrir la ficha (deslizando).*/
+.cq-last-scanned {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 8px 2px 0;
-  font-size: var(--text-xs);
-  overflow: hidden;
-  white-space: nowrap;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin-top: var(--sp-2);
+  padding: 8px 14px 10px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  text-align: center;
+  cursor: pointer;
+}
+.cq-last-scanned-handle {
+  width: 30px;
+  height: 3px;
+  border-radius: var(--r-full);
+  background: var(--ink-3);
+  opacity: 0.5;
+  margin-bottom: 3px;
 }
 .cq-last-scanned-label {
-  flex-shrink: 0;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--ink-3);
 }
 .cq-last-scanned-desc {
-  flex-shrink: 1;
-  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 600;
-  color: var(--ink-2);
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--ink);
 }
-.cq-last-scanned-meta { flex-shrink: 0; color: var(--ink-3); }
+.cq-last-scanned-code { font-size: 11px; color: var(--ink-3); }
 
 /* --- Registros: dos columnas fijas (Unidades | Info) — el mismo alto
    para todas las tarjetas sin importar cuánto texto tenga cada una.

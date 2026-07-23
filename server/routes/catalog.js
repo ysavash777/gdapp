@@ -24,12 +24,24 @@ const variablesStore = require('../store/variables.store');
 
 // GET /api/catalog/lookup — arrays en vez de objetos: con 14000+
 // filas, no repetir las claves por fila ahorra buena parte del
-// payload (mismo criterio que /api/mapeos/lookup-catalog).
+// payload (mismo criterio que /api/mapeos/lookup-catalog). Una fila
+// por referencia Y una fila más por cada código de bulto en su "dun"
+// (ver parseDunCodes() en variables.store.js) — así existsLocal(code)
+// del lado del cliente (shared/js/product-catalog.js) reconoce
+// también un código de caja/pallet escaneado, no solo la unidad. El
+// DUN en sí nunca se expone: cada fila extra repite la MISMA
+// descripcion/ean del producto, solo cambia la clave (el código).
 router.get('/lookup', (_req, res) => {
   try {
-    const items = variablesStore.getRowsForExport()
-      .filter((r) => r.referencia)
-      .map((r) => [r.referencia, r.descripcion || '', r.productoean || '']);
+    const items = [];
+    for (const r of variablesStore.getRowsForExport()) {
+      if (!r.referencia) continue;
+      const row = [r.referencia, r.descripcion || '', r.productoean || ''];
+      items.push(row);
+      for (const dunCode of variablesStore.parseDunCodes(r.dun)) {
+        if (dunCode && dunCode !== r.referencia) items.push([dunCode, row[1], row[2]]);
+      }
+    }
     // 'no-cache' (a pesar del nombre) NO significa "no cachear" — significa
     // "podés servir la copia guardada, pero primero preguntame si sigue
     // vigente". Express ya pone un ETag automático en cada respuesta

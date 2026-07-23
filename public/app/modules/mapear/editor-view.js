@@ -282,7 +282,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
     // catálogo local todavía está vacío (sin red desde el primer uso),
     // igual que en Consultar grupo (ver scanner-view.js).
     if (hasData() && !existsLocal(rawValue)) {
-      showToast('Código no encontrado', { variant: 'warn' });
+      showToast(`Código no encontrado: ${rawValue}`, { variant: 'warn' });
       registering = false;
       return;
     }

@@ -44,20 +44,29 @@ server/
   routes/mapeos.js         API de mapeos: listar/crear/renombrar/eliminar mapeos + agregar/editar/quitar
                            códigos escaneados, más GET /lookup-catalog (catálogo liviano de Variables para
                            el catálogo local offline del celular, ver mapear/lookup-catalog.js — tiene que
-                           estar declarado antes de GET /:id). Exige el permiso 'mapear' (app) o 'mapeos' (desk) —
+                           estar declarado antes de GET /:id). Una fila por referencia Y una fila más por
+                           cada código de bulto en su "dun" (ver parseDunCodes() en variables.store.js),
+                           mismo criterio que routes/catalog.js — así el autocompletado offline reconoce
+                           también una caja/pallet escaneado, no solo la unidad. Cache-Control: no-cache
+                           (ETag) para no volver a bajar el catálogo completo si Variables no cambió.
+                           Exige el permiso 'mapear' (app) o 'mapeos' (desk) —
                            cualquiera de los dos alcanza (requirePermission acepta varias claves), porque
                            la usan tanto app/modules/mapear (escanea y crea) como desk/modules/mapeos.js
                            (solo consulta/administra lo ya escaneado — misma data, sin nada propio). El
                            actor de cada mutación lo fija esta ruta desde la sesión autenticada
                            (req.user.username), nunca lo manda el cliente. Usa store/mapeos.store.js, que a
-                           su vez consulta store/variables.store.js al agregar un código: si el código
-                           (un EAN-13) coincide con la columna "referencia" de esa fuente, su "descripcion"
-                           queda como título del producto, "productoean" (el código corto interno, no el de
-                           barras) y "codgrupoprm" (grupo/familia) se guardan aparte — los tres en columnas
-                           propias de `mapeo_codes` (ver store/mapeos.store.js). Antes se buscaba en
-                           Referencia, pero solo Variables tiene el grupo/familia del producto.
+                           su vez consulta store/variables.store.js (findByCode(), NO findBy('referencia', ...))
+                           al agregar un código: si el código (un EAN-13, o el código de una caja/bulto en
+                           "dun") coincide con la columna "referencia" de esa fuente, o con cualquiera de
+                           sus DUN, su "descripcion" queda como título del producto, "productoean" (el
+                           código corto interno, no el de barras) y "codgrupoprm" (grupo/familia) se
+                           guardan aparte — los tres en columnas propias de `mapeo_codes` (ver
+                           store/mapeos.store.js). Antes se buscaba en Referencia, pero solo Variables
+                           tiene el grupo/familia del producto.
   routes/consultas.js      API de Consultar grupo, de solo lectura: GET /lookup?code=... busca el código en
-                           Variables (mismo catálogo que Mapear) y, si tiene un grupo real (ni vacío ni "SIN
+                           Variables (mismo catálogo que Mapear, por referencia O por cualquiera de sus
+                           códigos de bulto en "dun" — findByCode() en variables.store.js) y, si tiene un
+                           grupo real (ni vacío ni "SIN
                            GRUPO" — ese valor cubre 8000+ productos y cruzarlo daría un rango sin sentido),
                            cruza contra Coordenadas por la columna "tipo_producto" (confirmado con datos
                            reales que es el mismo código de grupo/familia que "codgrupoprm" de Variables) —
@@ -90,12 +99,17 @@ server/
   routes/catalog.js       API de catálogo liviano de existencia: GET /lookup devuelve [referencia,
                            descripcion, ean] (arrays, mismo criterio que /api/mapeos/lookup-catalog) de
                            TODA Variables, sin "grupo" (ese dato solo lo necesita el autocompletado de
-                           Mapear, no la validación de existencia). Lo consumen shared/js/product-catalog.js
+                           Mapear, no la validación de existencia) — una fila por referencia Y una fila más
+                           por cada código de bulto en su "dun" (parseDunCodes() en variables.store.js), con
+                           la MISMA descripcion/ean, solo cambia la clave: el DUN en sí nunca se expone al
+                           cliente. Lo consumen shared/js/product-catalog.js
                            desde Mapear Y Consultar grupo para decidir ANTES de escanear si vale la pena
                            abrir una ventana — SIN requireAuth, por el mismo motivo que routes/consultas.js:
                            Consultar grupo es de acceso libre, así que lo que usa para validar existencia
                            también tiene que serlo (mapear/lookup-catalog.js, que SÍ exige sesión, sigue
-                           aparte porque solo lo usa Mapear, que nunca es de acceso libre).
+                           aparte porque solo lo usa Mapear, que nunca es de acceso libre). Cache-Control:
+                           no-cache (ETag) — ver el comentario de index.js sobre compression() para el
+                           ahorro de datos móviles que esto habilita.
                            `Cache-Control: no-cache` (mismo criterio en /api/mapeos/lookup-catalog) fuerza
                            al navegador a revalidar por ETag en cada apertura de la app en vez de decidirlo
                            por heurística propia — Express ya pone un ETag automático (hash del cuerpo);
@@ -148,6 +162,19 @@ server/
                            última corrida buena desde Supabase si el caché en disco está vacío — sin esto el
                            desk se veía vacío después de cada deploy nuevo en Render (contenedor sin el
                            server/data/*.json de la corrida anterior) hasta apretar "Actualizar DB" a mano.
+  store/variables.store.js  Instancia de la fábrica de arriba + dos funciones propias de Variables:
+                           parseDunCodes(rawDun) separa la columna "dun" (un string con TODOS los códigos
+                           de bulto de un producto, ej. "7791905002598:1, 17791905002595:12" — confirmado
+                           con datos reales) en un array de códigos limpios, sin el ":multiplo" (nunca se
+                           usa ni se muestra en ningún lado); findByCode(code) busca un código escaneado
+                           contra "referencia" O cualquiera de esos DUN — reemplaza a findBy('referencia',
+                           code) en routes/consultas.js y store/mapeos.store.js, así un operario puede
+                           escanear la unidad o la caja/pallet indistintamente y el sistema reconoce el
+                           mismo producto. routes/catalog.js y routes/mapeos.js (GET /lookup-catalog) usan
+                           parseDunCodes() para agregar una fila extra por cada DUN al catálogo que bajan
+                           los clientes (misma descripcion/ean/grupo que su referencia, solo cambia la
+                           clave) — así el gate de existencia y el autocompletado offline también
+                           reconocen un DUN escaneado, no solo la referencia.
   services/supabase-client.js  Cliente Supabase compartido (proyecto "bodega-47-inventario", service_role
                            key). getClient() devuelve null si no está configurada (lo usan inventory/
                            coordenadas, que tienen caché local de respaldo); requireClient() lanza en ese
@@ -355,9 +382,12 @@ public/
                                cada código tiene cantidad, condición (rotura/unidades/vencido/otro) y
                                descripción editables, con ingreso manual como respaldo. registerCode()
                                valida primero contra /shared/js/product-catalog.js (existsLocal) si el
-                               código existe en Variables — si no, solo una alerta flotante (showToast,
-                               shared/js/toast.js): nunca agrega el código ni abre su ventana de registro
-                               para algo que ya se sabe que no está en el catálogo. Guard de reentrancia
+                               código existe en Variables (por referencia o por DUN, ver variables.store.js)
+                               — si no, solo una alerta flotante (showToast, shared/js/toast.js) CON el
+                               código escaneado incluido en el texto (para distinguir un problema de
+                               lectura de un código que de verdad no existe): nunca agrega el código ni abre
+                               su ventana de registro para algo que ya se sabe que no está en el catálogo.
+                               Guard de reentrancia
                                (`registering`, junto con activeSheetBackdrop): mientras un registro está
                                en curso o su ventana sigue abierta, cualquier escaneo nuevo (cámara o
                                manual) se ignora — sin esto, dos lecturas casi simultáneas del mismo código
@@ -377,18 +407,24 @@ public/
       index.js               Entrada — abre el escáner directo, no hay paso intermedio.
       scanner-view.js          Cámara (vía scanner/camera.js) + ficha de resultado. lookupCode() valida
                                primero contra /shared/js/product-catalog.js (existsLocal) si el código
-                               existe en Variables — si no, solo una alerta flotante (showToast,
-                               shared/js/toast.js) y nunca abre la ficha, que hubiera terminado igual en
+                               existe en Variables (por referencia o por DUN, ver variables.store.js) — si
+                               no, solo una alerta flotante (showToast, shared/js/toast.js) CON el código
+                               escaneado incluido en el texto — así se distingue de un vistazo si el
+                               problema es que el código no está bien leído (OCR/cámara) o si de verdad no
+                               existe en la base — y nunca abre la ficha, que hubiera terminado igual en
                                "Sin datos en la base" después de gastar una llamada al servidor. Si ya hay
                                una ficha abierta (activeSheetBackdrop), ignora cualquier escaneo nuevo —
                                nunca dos fichas encimadas. openResultSheet() pinta Descripción/EAN de una,
                                con findLocal() del mismo catálogo (sin "hueso") si ya los tiene — solo Grupo
                                y ubicaciones esperan a findProduct() (necesitan el cruce real del servidor).
-                               Debajo del ingreso manual, un renglón fijo (#lastScanned,
-                               localStorage `gd.consultas.lastScanned.v1`) muestra el ÚLTIMO producto
-                               escaneado con éxito — nunca una lista/historial: cada escaneo válido nuevo
-                               PISA por completo el anterior (un "no encontrado" nunca lo pisa). La
-                               descripción ES el
+                               Debajo del ingreso manual, una tarjeta fija (#lastScanned/renderLastScanned(),
+                               localStorage `gd.consultas.lastScanned.v1`, SIN EAN — solo descripción y
+                               referencia) muestra el ÚLTIMO producto escaneado con éxito — nunca una
+                               lista/historial: cada escaneo válido nuevo PISA por completo el anterior (un
+                               "no encontrado" nunca lo pisa). Deslizar hacia arriba sobre ella (o tocarla)
+                               reabre la ficha completa con datos frescos (mismo lookupCode() de un escaneo
+                               nuevo, no una foto vieja) — la "manija" (.cq-last-scanned-handle, una barrita
+                               chica) es la única pista visual de que se puede deslizar. La descripción ES el
                                título del sheet (sin "Producto encontrado" ni un encabezado "Descripción"
                                aparte) — nunca más de 2 líneas (titleSizeClass() la achica en escalones
                                is-md/is-sm antes de llegar al -webkit-line-clamp:2 de .reg-sheet-title, que

@@ -10,8 +10,10 @@
    recibía 401 y veía "no se pudo completar la búsqueda", como si la
    base estuviera caída.
 
-   Al escanear una referencia, se busca en Variables (mismo catálogo
-   que usa Mapear) para saber su grupo/familia ("codgrupoprm") y, si
+   Al escanear un código, se busca en Variables (mismo catálogo que usa
+   Mapear, por referencia O por cualquiera de sus códigos de bulto en
+   "dun" — ver findByCode()/parseDunCodes() en variables.store.js) para
+   saber su grupo/familia ("codgrupoprm") y, si
    tiene uno real (ni vacío ni "SIN GRUPO" — ese valor cubre 8000+
    productos en la base real y cruzarlo daría un rango sin sentido),
    se cruza contra Coordenadas: ahí el grupo/familia es la columna
@@ -98,7 +100,7 @@ router.get('/lookup', (req, res) => {
     const code = String(req.query.code || '').trim();
     if (!code) return res.status(400).json({ ok: false, error: 'EMPTY_CODE' });
 
-    const match = variablesStore.findBy('referencia', code);
+    const match = variablesStore.findByCode(code);
     if (!match) return res.json({ ok: true, product: null });
 
     const grupo = match.codgrupoprm || '';
