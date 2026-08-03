@@ -185,7 +185,7 @@ export async function renderList(outlet, { onNew }) {
       outlet.querySelectorAll('.mapeo-menu').forEach((m) => { m.hidden = true; });
       if (action === 'rename') openRenameModal(id);
       if (action === 'delete') openDeleteModal(id);
-      if (action === 'download') showToast('La descarga estará disponible próximamente.');
+      if (action === 'download') downloadMapeo(id);
     });
   });
 }
@@ -198,6 +198,20 @@ document.addEventListener('click', (e) => {
   const titleActions = document.getElementById('subpageTitleActions');
   if (titleActions) titleActions.querySelectorAll('.mapeo-menu').forEach((m) => { m.hidden = true; });
 });
+
+// Descarga directa vía <a download> — GET normal del mismo origen, la
+// cookie de sesión va sola. El servidor arma el XLSX (una hoja por
+// motivo, ver server/services/mapeo-export.js); acá no se procesa
+// nada, solo se dispara la descarga sin salir de la SPA (el ancla
+// nunca se agrega visible ni se navega con location.href).
+function downloadMapeo(id) {
+  const a = document.createElement('a');
+  a.href = `/api/mapeos/${id}/export`;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
 
 function showToast(text) {
   const old = document.getElementById('mapearToast');

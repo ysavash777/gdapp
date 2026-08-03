@@ -140,6 +140,7 @@ async function mount(root) {
       const row = wrap.querySelector(`tr[data-id="${m.id}"]`);
       row.addEventListener('dblclick', () => openDetailModal(m.id));
       row.querySelector('[data-action="view"]').addEventListener('click', () => openDetailModal(m.id));
+      row.querySelector('[data-action="download"]').addEventListener('click', () => downloadMapeo(m.id));
       row.querySelector('[data-action="delete"]').addEventListener('click', () => confirmDelete(m));
     });
   }
@@ -153,10 +154,24 @@ async function mount(root) {
         <td class="small muted">${m.updatedBy ? escapeHtml(m.updatedBy) : '—'}</td>
         <td style="text-align:right;">
           <button class="btn-icon" data-action="view" title="Ver detalle">${icon('eye', 17)}</button>
+          <button class="btn-icon" data-action="download" title="Descargar XLSX">${icon('download', 17)}</button>
           <button class="btn-icon" data-action="delete" title="Eliminar" style="color:var(--danger);">${icon('trash', 17)}</button>
         </td>
       </tr>
     `;
+  }
+
+  // Descarga directa vía <a download> — GET normal del mismo origen,
+  // la cookie de sesión va sola. El servidor arma el XLSX (una hoja
+  // por motivo, ver server/services/mapeo-export.js) — acá no se
+  // procesa nada, solo se dispara la descarga.
+  function downloadMapeo(id) {
+    const a = document.createElement('a');
+    a.href = `/api/mapeos/${id}/export`;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   }
 
   // ---- Detalle ----

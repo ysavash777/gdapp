@@ -49,6 +49,9 @@ server/
                            mismo criterio que routes/catalog.js — así el autocompletado offline reconoce
                            también una caja/pallet escaneado, no solo la unidad. Cache-Control: no-cache
                            (ETag) para no volver a bajar el catálogo completo si Variables no cambió.
+                           GET /:id/export descarga el mapeo como XLSX (services/mapeo-export.js, una hoja
+                           por motivo) — misma ruta consumida por app/modules/mapear/list-view.js y
+                           desk/modules/mapeos.js, ninguno de los dos genera el archivo por su cuenta.
                            Exige el permiso 'mapear' (app) o 'mapeos' (desk) —
                            cualquiera de los dos alcanza (requirePermission acepta varias claves), porque
                            la usan tanto app/modules/mapear (escanea y crea) como desk/modules/mapeos.js
@@ -175,6 +178,16 @@ server/
                            los clientes (misma descripcion/ean/grupo que su referencia, solo cambia la
                            clave) — así el gate de existencia y el autocompletado offline también
                            reconocen un DUN escaneado, no solo la referencia.
+  services/mapeo-export.js  buildWorkbook(mapeo) → libro ExcelJS para GET /api/mapeos/:id/export. Una hoja
+                           por motivo (Rotura/Unidades/Vencido/Otro/Sin motivo) — una hoja se OMITE por
+                           completo si ese motivo no tiene ningún código (nunca una hoja vacía con solo el
+                           encabezado). Cada motivo tiene su propia columna extra, nunca todas las columnas
+                           posibles en todas las hojas (ej. "Vencimiento" no tiene sentido en la hoja de
+                           Rotura): Responsable en Rotura/Vencido, Vencimiento en Unidades, Motivo en Otro.
+                           Encabezado en negrita, texto blanco, relleno azul (FF1D4ED8) — TODAS las celdas
+                           (encabezado y datos) centradas y con borde en los cuatro lados, pedido explícito.
+                           Si el mapeo no tiene ningún código todavía, agrega una hoja "Sin datos" (ExcelJS
+                           no genera un archivo válido con cero hojas).
   services/supabase-client.js  Cliente Supabase compartido (proyecto "bodega-47-inventario", service_role
                            key). getClient() devuelve null si no está configurada (lo usan inventory/
                            coordenadas, que tienen caché local de respaldo); requireClient() lanza en ese
@@ -275,7 +288,9 @@ public/
                            por scope (Web/App) — antes una lista vertical de checkboxes, una fila por
                            permiso, empujaba el formulario fuera de la vista con 7+ módulos.
     modules/mapeos.js      Mapeos: consulta y administración (buscar, ver detalle con sus códigos,
-                           renombrar, borrar un código suelto o el mapeo entero) de los mismos mapeos que
+                           renombrar, descargar como XLSX — downloadMapeo(), mismo <a download> temporal
+                           que app/modules/mapear/list-view.js, contra la misma GET /api/mapeos/:id/export
+                           —, borrar un código suelto o el mapeo entero) de los mismos mapeos que
                            se escanean desde app/modules/mapear — mismo /api/mapeos, sin store propio.
                            Escanear sigue siendo exclusivo de /app (requiere cámara).
     modules/basesdatos.js  Bases de datos: un botón "Actualizar DB" (dispara /api/database/refresh masivo)
@@ -381,8 +396,10 @@ public/
                                incluso sin conexión, no solo una vez que el motor de sync confirma el alta
                                (que igual los corrige después con el dato fresco del servidor). Se refresca
                                solo al cargar el módulo y en cada evento 'online'.
-      list-view.js             Listado de mapeos + menú de opciones por fila (renombrar, descargar —
-                               pendiente de implementar—, eliminar con confirmación). Mientras store.list()
+      list-view.js             Listado de mapeos + menú de opciones por fila (renombrar, descargar como
+                               XLSX — downloadMapeo(), un <a download> temporal a GET /api/mapeos/:id/export,
+                               la cookie de sesión va sola en el GET del mismo origen —, eliminar con
+                               confirmación). Mientras store.list()
                                contesta, muestra 3 tarjetas "hueso" (mapeoCardSkeletonHTML, con .cq-skeleton)
                                en vez de pantalla en blanco — la lista real reemplaza eso con un fundido. Si
                                store.list() tira (sin red y sin ninguna foto guardada todavía — recién

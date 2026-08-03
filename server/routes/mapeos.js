@@ -13,6 +13,7 @@ const router = express.Router();
 const store = require('../store/mapeos.store');
 const variablesStore = require('../store/variables.store');
 const { requirePermission } = require('../middleware/auth');
+const { buildWorkbook } = require('../services/mapeo-export');
 
 router.use(requirePermission('mapear', 'mapeos'));
 
@@ -74,6 +75,31 @@ router.get('/:id', async (req, res) => {
     res.json({ ok: true, mapeo });
   } catch (e) {
     console.error('[routes/mapeos] get falló:', e.message);
+    res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
+  }
+});
+
+// GET /api/mapeos/:id/export — descarga el mapeo como XLSX (una hoja
+// por motivo, ver services/mapeo-export.js). Usado tanto desde
+// app/modules/mapear/list-view.js como desk/modules/mapeos.js — misma
+// ruta para las dos, ninguna genera el archivo por su cuenta.
+router.get('/:id/export', async (req, res) => {
+  try {
+    const mapeo = await store.get(Number(req.params.id));
+    if (!mapeo) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+
+    const workbook = buildWorkbook(mapeo);
+    // Nombre de archivo: solo caracteres seguros para Content-Disposition
+    // y para el sistema de archivos del que lo descarga (sin comillas,
+    // barras, etc. que vengan del título libre del mapeo).
+    const safeName = (mapeo.title || `mapeo-${mapeo.id}`).replace(/[^a-z0-9-_ ]/gi, '').trim() || `mapeo-${mapeo.id}`;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}.xlsx"`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (e) {
+    console.error('[routes/mapeos] export falló:', e.message);
     res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
   }
 });
