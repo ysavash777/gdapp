@@ -189,7 +189,14 @@ server/
                            Encabezado en negrita, texto blanco, relleno azul (FF1D4ED8) — TODAS las celdas
                            (encabezado y datos) centradas y con borde en los cuatro lados, pedido explícito.
                            Si el mapeo no tiene ningún código todavía, agrega una hoja "Sin datos" (ExcelJS
-                           no genera un archivo válido con cero hojas).
+                           no genera un archivo válido con cero hojas). consolidate(): dentro de cada hoja,
+                           códigos repetidos con el MISMO dato extra de esa hoja (vencimiento en Unidades,
+                           responsable en Rotura/Vencido) se fusionan en una sola fila sumando la cantidad
+                           — pedido explícito y permanente, confirmado con datos reales: "123 rotura x6" +
+                           "123 rotura x8" (mismo responsable) → una fila "123 rotura x14"; dos "unidades"
+                           del mismo código con vencimiento DISTINTO nunca se fusionan, quedan en filas
+                           separadas. Nunca toca los datos originales en Supabase — la consolidación es
+                           solo para este archivo, calculada en memoria en cada exportación.
   services/supabase-client.js  Cliente Supabase compartido (proyecto "bodega-47-inventario", service_role
                            key). getClient() devuelve null si no está configurada (lo usan inventory/
                            coordenadas, que tienen caché local de respaldo); requireClient() lanza en ese

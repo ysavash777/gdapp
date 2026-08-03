@@ -11,6 +11,12 @@
    relleno de color, todas las celdas centradas y con biordes en
    los cuatro lados — pedido explícito, no una decisión de estilo
    improvisada.
+
+   Dentro de cada hoja, códigos repetidos se CONSOLIDAN en una sola
+   fila sumando la cantidad — ver consolidate() — pero solo si
+   coincide también el dato extra propio de esa hoja (vencimiento en
+   Unidades, responsable en Rotura/Vencido): comportamiento permanente
+   pedido explícitamente, no algo puntual de una corrida.
    ============================================================ */
 
 const ExcelJS = require('exceljs');
@@ -41,6 +47,30 @@ const BASE_COLUMNS = [
   { header: 'EAN', width: 14, value: (c) => c.ean || '' },
   { header: 'Cantidad', width: 10, value: (c) => c.quantity },
 ];
+
+// Consolida códigos repetidos DENTRO de una misma hoja (mismo motivo)
+// sumando su cantidad — pedido explícito y permanente: "123 rotura x6"
+// + "123 rotura x8" en el mismo mapeo pasan a ser una sola fila "123
+// rotura x14". La clave de agrupación es código + el MISMO dato extra
+// que ya distingue esa hoja (extraValue) — nunca solo el código: dos
+// "unidades" del mismo código con vencimiento distinto (o dos
+// "rotura"/"vencido" con responsable distinto) NO se mezclan, quedan
+// en filas separadas, porque esa diferencia es real y perderla sería
+// mentir en el reporte. Nunca toca los datos originales en Supabase
+// (mapeo.codes) — la consolidación es solo para este archivo.
+function consolidate(codes, extraValue) {
+  const groups = new Map();
+  for (const c of codes) {
+    const key = `${c.code}|${extraValue(c)}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.quantity += Number(c.quantity) || 0;
+    } else {
+      groups.set(key, { ...c, quantity: Number(c.quantity) || 0 });
+    }
+  }
+  return [...groups.values()];
+}
 
 function styleHeaderRow(row) {
   row.eachCell((cell) => {
@@ -75,7 +105,7 @@ function buildWorkbook(mapeo) {
     sheet.columns = columns.map((col) => ({ header: col.header, width: col.width }));
     styleHeaderRow(sheet.getRow(1));
 
-    for (const c of codes) {
+    for (const c of consolidate(codes, sheetDef.extraValue)) {
       const row = sheet.addRow(columns.map((col) => col.value(c)));
       styleDataRow(row);
     }
