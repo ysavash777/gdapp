@@ -516,10 +516,22 @@ export async function openEditor({ mapeoId, title, onClose }) {
 
     let quantity = entry.quantity;
     let condition = entry.condition;
+    let roturaResponsible = entry.roturaResponsible || null;
     const extraEl = backdrop.querySelector('#regExtra');
     const qtyInput = backdrop.querySelector('#qtyInput');
     const doneBtn = backdrop.querySelector('#regDone');
-    doneBtn.disabled = !condition;
+
+    // "Listo" solo se habilita con el registro realmente completo:
+    // motivo elegido siempre, y si el motivo es Rotura, ADEMÁS el
+    // responsable (IDL/Rappi) — sin este segundo chequeo, tocar el
+    // motivo "Rotura" ya habilitaba "Listo" aunque todavía no se
+    // hubiera elegido responsable (el bug real: filas guardadas con
+    // motivo pero sin responsable). El vencimiento de Unidades sigue
+    // sin ser obligatorio a propósito — nunca entra en este chequeo.
+    function updateDoneState() {
+      const ready = condition === 'rotura' ? !!roturaResponsible : !!condition;
+      doneBtn.disabled = !ready;
+    }
     // Al editar un registro existente se precarga la cantidad que ya
     // tenía (si no, "Listo" sin tocar el campo la pisaría con 1). Al
     // registrar uno nuevo queda vacío a propósito: Enter sin escribir
@@ -609,31 +621,33 @@ export async function openEditor({ mapeoId, title, onClose }) {
             <button type="button" class="rotura-pill" data-resp="rappi">Rappi</button>
           </div>
         `;
-        let responsible = entry.roturaResponsible || lastRoturaResponsible || null;
+        roturaResponsible = entry.roturaResponsible || lastRoturaResponsible || null;
         const pills = [...extraEl.querySelectorAll('.rotura-pill')];
         function paint() {
-          pills.forEach((p) => p.classList.toggle('is-selected', p.dataset.resp === responsible));
+          pills.forEach((p) => p.classList.toggle('is-selected', p.dataset.resp === roturaResponsible));
         }
         pills.forEach((btn) => {
           btn.addEventListener('click', () => {
-            responsible = btn.dataset.resp;
-            lastRoturaResponsible = responsible;
+            roturaResponsible = btn.dataset.resp;
+            lastRoturaResponsible = roturaResponsible;
             paint();
-            commit({ roturaResponsible: responsible });
+            commit({ roturaResponsible });
+            updateDoneState();
             if (isNew) qtyInput.focus();
           });
         });
-        if (responsible) {
+        if (roturaResponsible) {
           // Ya había (o se recuerda) un responsable: no hace falta
           // esperar el toque, se agiliza yendo directo a cantidad —
           // pero solo al registrar, nunca al editar uno existente.
           paint();
-          commit({ roturaResponsible: responsible });
+          commit({ roturaResponsible });
           if (isNew) qtyInput.focus();
         }
       } else if (condition === 'vencido') {
         // Vencido no pide nada: siempre queda atribuido a IDL.
         extraEl.innerHTML = '';
+        roturaResponsible = 'idl';
         if (entry.roturaResponsible !== 'idl') commit({ roturaResponsible: 'idl' });
         if (isNew) qtyInput.focus();
       } else if (condition === 'otro') {
@@ -653,16 +667,17 @@ export async function openEditor({ mapeoId, title, onClose }) {
       } else {
         extraEl.innerHTML = '';
       }
+      updateDoneState();
     }
 
-    // No se permite registrar sin motivo: el botón de confirmar queda
-    // deshabilitado hasta que se elija uno, y una vez elegido solo se
-    // puede cambiar por otro (no volver a "sin motivo").
+    // No se permite registrar sin motivo — y, si el motivo es Rotura,
+    // tampoco sin responsable (ver updateDoneState(), que renderExtra()
+    // llama al final): el botón "Listo" queda deshabilitado hasta que
+    // el registro esté realmente completo, nunca solo con el motivo.
     backdrop.querySelectorAll('.cond-pill').forEach((pill) => {
       pill.addEventListener('click', () => {
         condition = pill.dataset.condition;
         backdrop.querySelectorAll('.cond-pill').forEach((p) => p.classList.toggle('is-selected', p.dataset.condition === condition));
-        doneBtn.disabled = false;
         commit({ condition });
         renderExtra();
       });

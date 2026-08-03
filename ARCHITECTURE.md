@@ -435,6 +435,13 @@ public/
                                Grupo muestran un placeholder tipo "hueso" en vez de declarar "sin datos"
                                antes de tiempo — se resuelven con un fundido en cuanto el motor de sync
                                confirma el alta (mismo mecanismo que ya actualiza esos campos en vivo).
+                               "Listo" (updateDoneState(), en openRegisterSheet) solo se habilita con el
+                               registro realmente completo: motivo elegido siempre, y si el motivo es
+                               Rotura, ADEMÁS el responsable (IDL/Rappi) — bug real corregido: antes tocar
+                               el motivo "Rotura" ya habilitaba "Listo" (el click del cond-pill hacía
+                               doneBtn.disabled = false directo), así que se podían guardar filas con
+                               motivo pero sin responsable. El vencimiento de Unidades sigue sin ser
+                               obligatorio a propósito (pedido explícito) — nunca entra en ese chequeo.
       format.js                 Catálogo de condición — el formato genérico (fecha/hora, escape de
                                HTML) se reexporta desde /shared/js/format.js.
     modules/consultas/      Herramienta Consultar grupo: escáner de cámara de solo lectura, sin
