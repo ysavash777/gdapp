@@ -178,7 +178,9 @@ server/
                            los clientes (misma descripcion/ean/grupo que su referencia, solo cambia la
                            clave) — así el gate de existencia y el autocompletado offline también
                            reconocen un DUN escaneado, no solo la referencia.
-  services/mapeo-export.js  buildWorkbook(mapeo) → libro ExcelJS para GET /api/mapeos/:id/export. Una hoja
+  services/mapeo-export.js  buildWorkbook(mapeo) → libro ExcelJS para GET /api/mapeos/:id/export. Columnas
+                           base: Código/Descripción/EAN/Cantidad — a propósito SIN Grupo ni Escaneado
+                           (pedido explícito: esas dos nunca deben aparecer en el archivo). Una hoja
                            por motivo (Rotura/Unidades/Vencido/Otro/Sin motivo) — una hoja se OMITE por
                            completo si ese motivo no tiene ningún código (nunca una hoja vacía con solo el
                            encabezado). Cada motivo tiene su propia columna extra, nunca todas las columnas

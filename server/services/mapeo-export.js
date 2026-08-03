@@ -39,19 +39,8 @@ const BASE_COLUMNS = [
   { header: 'Código', width: 18, value: (c) => c.code },
   { header: 'Descripción', width: 42, value: (c) => c.description || 'Producto sin descripción' },
   { header: 'EAN', width: 14, value: (c) => c.ean || '' },
-  { header: 'Grupo', width: 12, value: (c) => c.grupo || '' },
   { header: 'Cantidad', width: 10, value: (c) => c.quantity },
-  { header: 'Escaneado', width: 18, value: (c) => formatDateTime(c.scannedAt) },
 ];
-
-function formatDateTime(iso) {
-  if (!iso) return '';
-  try {
-    return new Date(iso).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' });
-  } catch {
-    return '';
-  }
-}
 
 function styleHeaderRow(row) {
   row.eachCell((cell) => {
