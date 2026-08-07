@@ -5,7 +5,7 @@
    para no tener que tocar los imports existentes.
    ============================================================ */
 
-export { formatDateTime, formatTime, escapeHtml } from '/shared/js/format.js';
+export { formatDateTime, formatDateHeading, formatTime, escapeHtml } from '/shared/js/format.js';
 
 // Condición del producto encontrado al escanear (rotura, conteo de
 // unidades, vencimiento u otro motivo) — no es un estado del mapeo,

@@ -45,6 +45,28 @@ router.get('/me', requireAuth, (req, res) => {
   res.json({ ok: true, user: req.user });
 });
 
+// PATCH /api/auth/password  { currentPassword, newPassword } — el propio
+// usuario logueado cambia su contraseña (a diferencia de PATCH
+// /api/users/:id/password, que es la vía de un admin y no pide la
+// contraseña actual).
+router.patch('/password', requireAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!newPassword || newPassword.length < 4) {
+      return res.status(400).json({ ok: false, error: 'INVALID_PASSWORD' });
+    }
+    const user = await store.findById(req.user.id);
+    if (!user || !store.verifyPassword(currentPassword || '', user.passwordHash)) {
+      return res.status(401).json({ ok: false, error: 'INVALID_CURRENT_PASSWORD' });
+    }
+    await store.updatePassword(user.id, newPassword);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[routes/auth] password falló:', e.message);
+    res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
+  }
+});
+
 // POST /api/auth/logout
 router.post('/logout', async (req, res) => {
   const token = req.cookies && req.cookies.sid;

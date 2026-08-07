@@ -72,6 +72,18 @@ function descSizeClass(text) {
   return 'is-sm';
 }
 
+// Mismo criterio de "dato extra" que usa el consolidado del XLSX
+// (server/services/mapeo-export.js): responsable en Rotura/Vencido,
+// vencimiento en Unidades, texto libre en Otro — dos registros del
+// mismo código+motivo con este mismo dato son, a todos los efectos,
+// el mismo registro repetido.
+function extraKeyOf(c) {
+  if (c.condition === 'rotura' || c.condition === 'vencido') return c.roturaResponsible || '';
+  if (c.condition === 'unidades') return c.expiryDate || '';
+  if (c.condition === 'otro') return c.customReason || '';
+  return '';
+}
+
 // Rotura se colorea por responsable (IDL/Rappi) porque puede ser
 // cualquiera de los dos. Vencido siempre es IDL, así que no tiene
 // sentido colorearlo por responsable — queda con su propio color de
@@ -545,12 +557,8 @@ export async function openEditor({ mapeoId, title, onClose }) {
 
     // La cantidad se confirma recién al cerrar el flujo (botón "Listo"
     // o Enter, que equivale a tocarlo) — nunca antes, así los dos
-    // caminos quedan idénticos y ninguno pisa lo que se escribió.
-    async function finishQuantity() {
-      quantity = Math.max(1, Number(qtyInput.value) || 1);
-      qtyInput.value = quantity;
-      await commit({ quantity });
-    }
+    // caminos quedan idénticos y ninguno pisa lo que se escribió (ver
+    // confirmAndClose, que ahora hace esto y además la consolidación).
     qtyInput.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter') return;
       e.preventDefault();
@@ -703,18 +711,53 @@ export async function openEditor({ mapeoId, title, onClose }) {
 
     // El registro recién tocado (nuevo o editado) sube al tope de la
     // lista y se resalta con una animación breve al reaparecer —
-    // los que no cambiaron quedan donde estaban.
-    function closeSheet() {
+    // los que no cambiaron quedan donde estaban. Si se consolidó con
+    // otro (ver confirmAndClose), se resalta ESE en vez del propio.
+    function closeSheet(highlightClientId = clientId) {
       cleanupSheet();
-      flashId = clientId;
+      flashId = highlightClientId;
       renderCodes();
     }
 
+    // Busca, entre el resto de los códigos del mapeo, otro registro con
+    // el mismo código+motivo+dato extra que el que se está cerrando —
+    // si existe, son el mismo registro repetido y confirmarlo debe
+    // sumarse a ese en vez de quedar como una fila aparte. Nunca contra
+    // mapeos ya cerrados/exportados antes de este cambio: solo mira los
+    // códigos ya presentes en ESTE mapeo, así que un mapeo viejo con
+    // duplicados sin tocar sigue exactamente igual hasta que alguien
+    // vuelva a registrar sobre él.
+    function findConsolidationTarget() {
+      const current = currentEntry();
+      if (!current.condition) return null;
+      const key = extraKeyOf(current);
+      return codes.find((c) => (
+        c.clientId !== current.clientId && c.code === current.code && c.condition === current.condition && extraKeyOf(c) === key
+      )) || null;
+    }
+
     // "Listo" (o Enter, que lo dispara) es el único camino que confirma
-    // la cantidad escrita — cerrar con la cruz nunca la guarda.
+    // la cantidad escrita — cerrar con la cruz nunca la guarda. Si hay
+    // un duplicado consolidable, la cantidad se suma ahí y este registro
+    // (recién creado, o editado hasta coincidir con otro) se descarta —
+    // "elevar" el consolidado hacia arriba es efecto de updateCode()
+    // tocando su touchedAt, que visibleCodes() ordena de más a menos
+    // reciente, sin necesidad de ningún ordenamiento manual acá.
     async function confirmAndClose() {
-      await finishQuantity();
-      closeSheet();
+      quantity = Math.max(1, Number(qtyInput.value) || 1);
+      qtyInput.value = quantity;
+
+      const target = findConsolidationTarget();
+      if (target) {
+        const updated1 = await store.updateCode(mapeo.id, target.id, { quantity: target.quantity + quantity }, actor());
+        codes = updated1.codes;
+        const updated2 = await store.removeCode(mapeo.id, currentEntry().id, actor());
+        codes = updated2.codes;
+        closeSheet(target.clientId);
+      } else {
+        await commit({ quantity });
+        closeSheet();
+      }
     }
 
     async function discardEntry() {

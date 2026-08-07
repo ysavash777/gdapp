@@ -52,6 +52,18 @@ export async function refreshUser() {
   }
 }
 
+// El propio usuario cambia su contraseña (pide la actual, a diferencia
+// de la vía de admin en desk/modules/usuarios.js). No toca el caché
+// local: username/rol/permisos no cambian.
+export async function changePassword(currentPassword, newPassword) {
+  const res = await fetch('/api/auth/password', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  return res.json();
+}
+
 // No hace location.reload(): en una PWA instalada, una recarga completa
 // puede hacer que el navegador vuelva a calcular el layout como si fuera
 // una pestaña normal (se ha visto perder el modo standalone/responsive).

@@ -199,7 +199,7 @@ function welcomeScreenHTML(key, t) {
   return `
     <div class="hg-screen">
       <div class="hg-topbar">
-        <button type="button" class="btn-icon hg-signin" id="loginCta" title="Iniciar sesión" aria-label="Iniciar sesión">${icon('user', 19)}</button>
+        <button type="button" class="btn-icon hg-signin" id="loginCta" title="Iniciar sesión" aria-label="Iniciar sesión">${icon('user', 19)}<span>Iniciar sesión</span></button>
       </div>
       <div class="hg-center">
         <div class="hg-glyph-wrap" data-key="${key}">
@@ -313,10 +313,12 @@ function renderHome() {
   });
 }
 
-// Herramientas y login comparten esta plantilla: sin cabecera ni
-// botón de volver — la navegación hacia atrás es el gesto/botón
-// físico del dispositivo (ver el manejo de popstate más arriba).
-function renderSubpage(title, fillContent) {
+// Herramientas y login comparten esta plantilla: sin cabecera propia,
+// solo el gesto/botón físico del dispositivo para volver (ver el
+// manejo de popstate más arriba) — showBack agrega además la misma
+// flecha que usa el escáner de Consultar grupo, a la izquierda del
+// título, para quien prefiera tocarla en vez de usar el gesto.
+function renderSubpage(title, fillContent, { showBack = false } = {}) {
   lastRoute = 'subpage';
   setHeader('');
   const outlet = document.getElementById('outlet');
@@ -324,6 +326,7 @@ function renderSubpage(title, fillContent) {
     <div class="subpage">
       ${title ? `
         <div class="subpage-title-row">
+          ${showBack ? `<button type="button" class="btn-icon subpage-back" id="subpageBack" title="Volver" aria-label="Volver">${icon('arrowLeft', 20)}</button>` : ''}
           <h2 class="subpage-title">${title}</h2>
           <div class="subpage-title-actions" id="subpageTitleActions"></div>
         </div>
@@ -331,19 +334,20 @@ function renderSubpage(title, fillContent) {
       <div class="subpage-body" id="subpageBody"></div>
     </div>
   `;
+  if (showBack) outlet.querySelector('#subpageBack').addEventListener('click', () => history.back());
   fillContent(outlet.querySelector('#subpageBody'));
 }
 
 function renderTool(key) {
   const tool = TOOLS[key];
-  renderSubpage(tool.title, (body) => tool.render(body));
+  renderSubpage(tool.title, (body) => tool.render(body), { showBack: true });
 }
 
 // Solo con sesión (el gear que la abre solo existe en la cabecera con
 // sesión) — el propio módulo decide qué mostrar según el permiso
 // 'basesdatos' del usuario, ver app/modules/settings.js.
 function renderSettings() {
-  renderSubpage('Configuración', (body) => settings.render(body, user));
+  renderSubpage('Configuración', (body) => settings.render(body, user), { showBack: true });
 }
 
 // El login va a pantalla completa (sin el padding de .subpage), así

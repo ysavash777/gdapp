@@ -6,7 +6,7 @@
 
 import { icon } from '/shared/js/icons.js';
 import * as store from './store.js';
-import { formatDateTime, escapeHtml } from './format.js';
+import { formatDateTime, formatDateHeading, escapeHtml } from './format.js';
 import { openEditor } from './editor-view.js';
 import { currentUser } from '/shared/js/session.js';
 
@@ -41,6 +41,29 @@ function mapeoCardHTML(m) {
   `;
 }
 
+function dateKey(ts) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+// Agrupa por día de edición (updatedAt) — el listado ya llega
+// ordenado del más reciente al más viejo (ver store/mapeos.store.js),
+// así que alcanza con detectar el cambio de día e insertar un
+// sub-encabezado, nunca reordenar nada acá.
+function mapeoListHTML(mapeos) {
+  let lastKey = null;
+  const parts = [];
+  for (const m of mapeos) {
+    const key = dateKey(m.updatedAt);
+    if (key !== lastKey) {
+      parts.push(`<div class="mapeo-date-heading">${escapeHtml(formatDateHeading(m.updatedAt))}</div>`);
+      lastKey = key;
+    }
+    parts.push(mapeoCardHTML(m));
+  }
+  return parts.join('');
+}
+
 // Tarjeta "hueso" — misma forma que mapeoCardHTML pero con barras que
 // titilan en vez de texto, para no dejar la pantalla en blanco
 // mientras store.list() contesta (que puede tardar, sobre todo si
@@ -68,6 +91,7 @@ export async function renderList(outlet, { onNew }) {
       <div class="searchbar">
         ${icon('search', 18)}
         <input type="search" id="mapeoSearchInput" placeholder="Buscar mapeo..." autocomplete="off" disabled />
+        <button type="button" class="searchbar-clear" id="mapeoSearchClear" title="Limpiar búsqueda" aria-label="Limpiar búsqueda" hidden>${icon('x', 14)}</button>
       </div>
       <div id="mapeoListWrap">
         <div class="mapeo-list">${[1, 2, 3].map(mapeoCardSkeletonHTML).join('')}</div>
@@ -103,7 +127,7 @@ export async function renderList(outlet, { onNew }) {
       </div>
     `
     : mapeos.length
-    ? `<div class="mapeo-list cq-fade-in">${mapeos.map(mapeoCardHTML).join('')}</div>`
+    ? `<div class="mapeo-list cq-fade-in">${mapeoListHTML(mapeos)}</div>`
     : `
       <div class="card cq-fade-in">
         <div class="empty-state">
@@ -155,12 +179,36 @@ export async function renderList(outlet, { onNew }) {
   // fecha, cantidad de códigos, usuario que lo editó) — siempre abierto,
   // sin toggle: filtra en vivo a medida que se escribe.
   const searchInput = outlet.querySelector('#mapeoSearchInput');
-  searchInput.addEventListener('input', () => {
+  const searchClear = outlet.querySelector('#mapeoSearchClear');
+
+  function applyFilter() {
     const q = searchInput.value.trim().toLowerCase();
-    outlet.querySelectorAll('.mapeo-card').forEach((card) => {
-      const haystack = card.textContent.toLowerCase();
-      card.style.display = !q || haystack.includes(q) ? '' : 'none';
+    searchClear.hidden = !q;
+    const list = outlet.querySelector('.mapeo-list');
+    if (!list) return;
+    // Recorre en orden: un sub-encabezado de fecha se oculta si,
+    // después de filtrar, ninguna de sus tarjetas quedó visible.
+    let currentHeading = null;
+    let anyVisible = false;
+    Array.from(list.children).forEach((el) => {
+      if (el.classList.contains('mapeo-date-heading')) {
+        if (currentHeading) currentHeading.style.display = anyVisible ? '' : 'none';
+        currentHeading = el;
+        anyVisible = false;
+        return;
+      }
+      const visible = !q || el.textContent.toLowerCase().includes(q);
+      el.style.display = visible ? '' : 'none';
+      if (visible) anyVisible = true;
     });
+    if (currentHeading) currentHeading.style.display = anyVisible ? '' : 'none';
+  }
+
+  searchInput.addEventListener('input', applyFilter);
+  searchClear.addEventListener('click', () => {
+    searchInput.value = '';
+    applyFilter();
+    searchInput.focus();
   });
 
   outlet.querySelectorAll('.mapeo-open').forEach((btn) => {

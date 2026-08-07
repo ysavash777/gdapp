@@ -15,6 +15,7 @@
 import { icon } from '/shared/js/icons.js';
 import { formatDateTime, escapeHtml } from '/shared/js/format.js';
 import { fetchStatus, triggerRefresh, estimateSourceMs, estimateTotalMs } from '/shared/js/db-refresh.js';
+import { changePassword } from '/shared/js/session.js';
 
 const ERROR_MESSAGES = {
   LICENSE_LIMIT: 'No hay licencias disponibles en Copernico en este momento. Probá de nuevo más tarde.',
@@ -58,16 +59,24 @@ const KEYS = SOURCES.map((s) => s.key);
 export function render(root, user) {
   root.innerHTML = `<div class="settings-screen" id="settingsRoot"></div>`;
   const container = root.querySelector('#settingsRoot');
+  const hasDbPerm = user?.permissions?.includes('basesdatos');
 
-  if (!user?.permissions?.includes('basesdatos')) {
-    container.innerHTML = `<p class="settings-empty">No tenés configuraciones disponibles para tu cuenta.</p>`;
-    return;
+  if (hasDbPerm) {
+    const dbBlock = document.createElement('div');
+    container.appendChild(dbBlock);
+    mountDatabases(dbBlock);
+    // Separador minimalista: solo tiene sentido si arriba hay algo de
+    // qué separar — sin el permiso de bases de datos, la contraseña
+    // queda como única sección y no necesita línea previa.
+    container.appendChild(document.createElement('hr')).className = 'settings-separator';
   }
 
-  mount(container);
+  const pwBlock = document.createElement('div');
+  container.appendChild(pwBlock);
+  mountPassword(pwBlock);
 }
 
-async function mount(root) {
+async function mountDatabases(root) {
   const state = {
     refreshing: false,
     runningKeys: null,
@@ -259,4 +268,68 @@ async function mount(root) {
       btn.addEventListener('click', () => handleRefresh(btn.dataset.key));
     });
   }
+}
+
+const PASSWORD_ERROR_MESSAGES = {
+  INVALID_CURRENT_PASSWORD: 'La contraseña actual no es correcta.',
+  INVALID_PASSWORD: 'La contraseña nueva debe tener al menos 4 caracteres.',
+};
+
+// Sección de autogestión: cualquier usuario logueado la ve, sin
+// depender del permiso 'basesdatos' que sí exige el bloque de arriba.
+function mountPassword(root) {
+  root.innerHTML = `
+    <section class="settings-block">
+      <div class="settings-block-head">
+        <div>
+          <h2>Contraseña</h2>
+          <p class="settings-hint">Actualizá la contraseña de tu cuenta.</p>
+        </div>
+      </div>
+      <form id="pwForm" class="settings-password-form" autocomplete="off">
+        <div class="field">
+          <label for="pwCurrent">Contraseña actual</label>
+          <input id="pwCurrent" type="password" required minlength="4" autocomplete="current-password" placeholder="Ingresa tu contraseña actual" />
+        </div>
+        <div class="field">
+          <label for="pwNew">Contraseña nueva</label>
+          <input id="pwNew" type="password" required minlength="4" autocomplete="new-password" placeholder="Ingresa tu nueva contraseña" />
+        </div>
+        <p class="form-error" id="pwError" style="display:none;"></p>
+        <p class="form-success" id="pwSuccess" style="display:none;">Contraseña actualizada.</p>
+        <button type="submit" class="btn btn-primary" id="pwSubmit">Actualizar contraseña</button>
+      </form>
+    </section>
+  `;
+
+  const form = root.querySelector('#pwForm');
+  const errEl = root.querySelector('#pwError');
+  const okEl = root.querySelector('#pwSuccess');
+  const submitBtn = root.querySelector('#pwSubmit');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errEl.style.display = 'none';
+    okEl.style.display = 'none';
+    submitBtn.disabled = true;
+
+    const currentPassword = root.querySelector('#pwCurrent').value;
+    const newPassword = root.querySelector('#pwNew').value;
+
+    try {
+      const data = await changePassword(currentPassword, newPassword);
+      if (data.ok) {
+        form.reset();
+        okEl.style.display = '';
+      } else {
+        errEl.textContent = PASSWORD_ERROR_MESSAGES[data.error] || 'No se pudo actualizar la contraseña.';
+        errEl.style.display = '';
+      }
+    } catch {
+      errEl.textContent = 'Sin conexión. Probá de nuevo.';
+      errEl.style.display = '';
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
 }
