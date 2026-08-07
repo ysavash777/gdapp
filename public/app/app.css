@@ -632,6 +632,7 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.mapeo-editor strong { color: var(--icon-mapear); font-weight: 650; }
 
 .mapeo-actions { position: relative; flex-shrink: 0; }
 .mapeo-menu {
