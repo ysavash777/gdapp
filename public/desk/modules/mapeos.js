@@ -13,36 +13,16 @@
 
 import { icon } from '/shared/js/icons.js';
 import { apiFetch } from '/shared/js/api.js';
-import { showToast } from '/shared/js/toast.js';
 import { formatDateTime, escapeHtml, conditionLabel } from '/app/modules/mapear/format.js';
 
-// Ningún navegador deja elegir una impresora ni imprimir sin diálogo
-// desde JavaScript (restricción de seguridad, no algo que se pueda
-// programar alrededor) — esto solo GUARDA cuál usás habitualmente, para
-// recordártelo cuando se abra el diálogo de impresión real de "Rotular".
-const PRINTER_PREF_KEY = 'gdapp.desk.printerPref';
-
-function getPrinterPref() {
-  try {
-    return localStorage.getItem(PRINTER_PREF_KEY) || '';
-  } catch {
-    return '';
-  }
-}
-
-function setPrinterPref(value) {
-  try {
-    localStorage.setItem(PRINTER_PREF_KEY, value);
-  } catch (e) {
-    console.error('[desk/mapeos] No se pudo guardar la impresora preferida:', e.message);
-  }
-}
-
-// Imprime un cartel simple (letras grandes, centradas, solo el título
-// del mapeo) — un iframe oculto en vez de una pestaña nueva: no
-// depende de que el navegador permita popups, y desaparece solo tras
-// el diálogo de impresión (o a los 60s si el navegador nunca dispara
-// 'afterprint', red de seguridad para no dejarlo huérfano en el DOM).
+// Imprime un cartel simple (título del mapeo en mayúsculas, letras
+// grandes y centradas) — un iframe oculto en vez de una pestaña nueva:
+// no depende de que el navegador permita popups, y desaparece solo
+// tras el diálogo de impresión (o a los 60s si el navegador nunca
+// dispara 'afterprint', red de seguridad para no dejarlo huérfano en
+// el DOM). @page { size: landscape } pide horizontal por defecto —
+// el usuario puede cambiarlo a vertical desde el propio diálogo si
+// hace falta, pero el cartel siempre arranca apaisado.
 function printLabel(m) {
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
@@ -69,7 +49,7 @@ function printLabel(m) {
       <head>
         <title>${escapeHtml(m.title)}</title>
         <style>
-          @page { margin: 0; }
+          @page { margin: 0; size: landscape; }
           html, body { margin: 0; height: 100%; }
           body {
             display: flex;
@@ -83,6 +63,7 @@ function printLabel(m) {
             font-size: 84px;
             font-weight: 700;
             text-align: center;
+            text-transform: uppercase;
             line-height: 1.15;
             word-break: break-word;
           }
@@ -92,9 +73,6 @@ function printLabel(m) {
     </html>
   `);
   doc.close();
-
-  const pref = getPrinterPref();
-  if (pref) showToast(`Elegí "${pref}" en el diálogo de impresión.`);
 }
 
 const ERROR_MESSAGES = {
@@ -145,7 +123,6 @@ async function mount(root) {
           <h1>Mapeos</h1>
           <p class="ph-sub muted">Consulta y administración de los mapeos escaneados desde la app.</p>
         </div>
-        <button type="button" class="btn btn-ghost" id="btnPrinterConfig">${icon('printer', 17)} Configurar impresora</button>
       </div>
 
       <div class="searchbar" style="margin-bottom: var(--sp-4); max-width: 340px;">
@@ -161,37 +138,6 @@ async function mount(root) {
     root.querySelector('#searchInput').addEventListener('input', (e) => {
       state.q = e.target.value.trim().toLowerCase();
       drawTable();
-    });
-    root.querySelector('#btnPrinterConfig').addEventListener('click', openPrinterConfigModal);
-  }
-
-  function openPrinterConfigModal() {
-    openModal({
-      headTitle: 'Configurar impresora',
-      bodyHTML: `
-        <p class="small muted" style="margin-bottom:var(--sp-3);">
-          Ningún navegador permite elegir la impresora ni imprimir sin
-          diálogo — esto solo guarda cuál usás habitualmente, para
-          recordártelo cuando se abra el diálogo real de impresión.
-        </p>
-        <div class="field">
-          <label for="f-printer">Impresora habitual</label>
-          <input id="f-printer" name="printer" value="${escapeHtml(getPrinterPref())}" placeholder="Ej: HP LaserJet - Oficina" autocomplete="off" />
-        </div>
-      `,
-      footHTML: `
-        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
-        <button type="submit" class="btn btn-primary">Guardar</button>
-      `,
-      onMount: (overlay) => {
-        const input = overlay.querySelector('#f-printer');
-        input.focus();
-        input.select();
-      },
-      onSubmit: (overlay, form, close) => {
-        setPrinterPref(new FormData(form).get('printer').trim());
-        close();
-      },
     });
   }
 
