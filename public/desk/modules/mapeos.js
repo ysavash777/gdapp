@@ -13,7 +13,89 @@
 
 import { icon } from '/shared/js/icons.js';
 import { apiFetch } from '/shared/js/api.js';
+import { showToast } from '/shared/js/toast.js';
 import { formatDateTime, escapeHtml, conditionLabel } from '/app/modules/mapear/format.js';
+
+// Ningún navegador deja elegir una impresora ni imprimir sin diálogo
+// desde JavaScript (restricción de seguridad, no algo que se pueda
+// programar alrededor) — esto solo GUARDA cuál usás habitualmente, para
+// recordártelo cuando se abra el diálogo de impresión real de "Rotular".
+const PRINTER_PREF_KEY = 'gdapp.desk.printerPref';
+
+function getPrinterPref() {
+  try {
+    return localStorage.getItem(PRINTER_PREF_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function setPrinterPref(value) {
+  try {
+    localStorage.setItem(PRINTER_PREF_KEY, value);
+  } catch (e) {
+    console.error('[desk/mapeos] No se pudo guardar la impresora preferida:', e.message);
+  }
+}
+
+// Imprime un cartel simple (letras grandes, centradas, solo el título
+// del mapeo) — un iframe oculto en vez de una pestaña nueva: no
+// depende de que el navegador permita popups, y desaparece solo tras
+// el diálogo de impresión (o a los 60s si el navegador nunca dispara
+// 'afterprint', red de seguridad para no dejarlo huérfano en el DOM).
+function printLabel(m) {
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  document.body.appendChild(iframe);
+
+  const cleanup = () => iframe.remove();
+  iframe.addEventListener('load', () => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  });
+  iframe.contentWindow.addEventListener('afterprint', cleanup);
+  setTimeout(cleanup, 60000);
+
+  const doc = iframe.contentDocument;
+  doc.open();
+  doc.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>${escapeHtml(m.title)}</title>
+        <style>
+          @page { margin: 0; }
+          html, body { margin: 0; height: 100%; }
+          body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: Arimo, -apple-system, "Segoe UI", sans-serif;
+          }
+          h1 {
+            margin: 0;
+            padding: 48px;
+            font-size: 84px;
+            font-weight: 700;
+            text-align: center;
+            line-height: 1.15;
+            word-break: break-word;
+          }
+        </style>
+      </head>
+      <body><h1>${escapeHtml(m.title)}</h1></body>
+    </html>
+  `);
+  doc.close();
+
+  const pref = getPrinterPref();
+  if (pref) showToast(`Elegí "${pref}" en el diálogo de impresión.`);
+}
 
 const ERROR_MESSAGES = {
   NOT_FOUND: 'El mapeo ya no existe.',
@@ -63,6 +145,7 @@ async function mount(root) {
           <h1>Mapeos</h1>
           <p class="ph-sub muted">Consulta y administración de los mapeos escaneados desde la app.</p>
         </div>
+        <button type="button" class="btn btn-ghost" id="btnPrinterConfig">${icon('printer', 17)} Configurar impresora</button>
       </div>
 
       <div class="searchbar" style="margin-bottom: var(--sp-4); max-width: 340px;">
@@ -78,6 +161,37 @@ async function mount(root) {
     root.querySelector('#searchInput').addEventListener('input', (e) => {
       state.q = e.target.value.trim().toLowerCase();
       drawTable();
+    });
+    root.querySelector('#btnPrinterConfig').addEventListener('click', openPrinterConfigModal);
+  }
+
+  function openPrinterConfigModal() {
+    openModal({
+      headTitle: 'Configurar impresora',
+      bodyHTML: `
+        <p class="small muted" style="margin-bottom:var(--sp-3);">
+          Ningún navegador permite elegir la impresora ni imprimir sin
+          diálogo — esto solo guarda cuál usás habitualmente, para
+          recordártelo cuando se abra el diálogo real de impresión.
+        </p>
+        <div class="field">
+          <label for="f-printer">Impresora habitual</label>
+          <input id="f-printer" name="printer" value="${escapeHtml(getPrinterPref())}" placeholder="Ej: HP LaserJet - Oficina" autocomplete="off" />
+        </div>
+      `,
+      footHTML: `
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      `,
+      onMount: (overlay) => {
+        const input = overlay.querySelector('#f-printer');
+        input.focus();
+        input.select();
+      },
+      onSubmit: (overlay, form, close) => {
+        setPrinterPref(new FormData(form).get('printer').trim());
+        close();
+      },
     });
   }
 
@@ -141,6 +255,7 @@ async function mount(root) {
       row.addEventListener('dblclick', () => openDetailModal(m.id));
       row.querySelector('[data-action="view"]').addEventListener('click', () => openDetailModal(m.id));
       row.querySelector('[data-action="download"]').addEventListener('click', () => downloadMapeo(m.id));
+      row.querySelector('[data-action="print"]').addEventListener('click', () => printLabel(m));
       row.querySelector('[data-action="delete"]').addEventListener('click', () => confirmDelete(m));
     });
   }
@@ -155,6 +270,7 @@ async function mount(root) {
         <td style="text-align:right;">
           <button class="btn-icon" data-action="view" title="Ver detalle">${icon('eye', 17)}</button>
           <button class="btn-icon" data-action="download" title="Descargar XLSX">${icon('download', 17)}</button>
+          <button class="btn-icon" data-action="print" title="Rotular (imprimir cartel)">${icon('printer', 17)}</button>
           <button class="btn-icon" data-action="delete" title="Eliminar" style="color:var(--danger);">${icon('trash', 17)}</button>
         </td>
       </tr>

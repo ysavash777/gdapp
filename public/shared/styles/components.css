@@ -341,3 +341,29 @@
 
 @keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes modal-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+/* --- Alerta flotante temporal genérica (shared/js/toast.js) — usada
+   por /app y /desk. --- */
+@keyframes gd-toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
+.gd-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 22px);
+  transform: translateX(-50%);
+  background: var(--surface-2);
+  color: var(--ink);
+  padding: 10px 18px;
+  border-radius: var(--r-full);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  z-index: 80;
+  animation: gd-toast-in 160ms ease;
+  box-shadow: var(--shadow-2);
+}
+.gd-toast--warn {
+  background: var(--danger-bg);
+  color: var(--danger);
+}

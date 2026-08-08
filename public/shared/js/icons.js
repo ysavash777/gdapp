@@ -51,6 +51,7 @@ const PATHS = {
   arrowRight: '<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>',
   barcode: '<path d="M3 5v14"/><path d="M7 5v14"/><path d="M10 5v14"/><path d="M14 5v14"/><path d="M17 5v14"/><path d="M21 5v14"/>',
   tag: '<path d="M11.5 3h-5A2 2 0 0 0 4.5 5v5c0 .5.2 1 .6 1.4l9 9a2 2 0 0 0 2.8 0l4-4a2 2 0 0 0 0-2.8l-9-9A2 2 0 0 0 11.5 3Z"/><circle cx="8.3" cy="8.3" r="1.3" fill="currentColor" stroke="none"/>',
+  printer: '<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="1.5"/><path d="M6 17v4h12v-4"/><circle cx="17.5" cy="12.5" r="0.4" fill="currentColor" stroke="none"/>',
 };
 
 export function icon(name, size = 20, strokeWidth = 1.7) {
