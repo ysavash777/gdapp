@@ -33,11 +33,11 @@ function formatQty(saldo) {
   return saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 });
 }
 
-// Estructura FIJA de 2 líneas de metadatos (nunca 1 ni 3, sin importar
-// el largo de cada dato) — cada línea trunca con elipsis en vez de
-// saltar de renglón, así todas las tarjetas miden exactamente lo
-// mismo sin importar si la ubicación o la descripción son cortas o
-// largas (pedido explícito: "sin saltos de línea irregulares").
+// 3 chips de ANCHO IGUAL siempre (grid 1fr 1fr 1fr, nunca por
+// contenido) — cada uno trunca con elipsis en vez de estirar la
+// tarjeta o saltar de renglón, así todas miden exactamente lo mismo
+// sin importar si la ubicación, la caja o la fecha son cortas o
+// largas (pedido explícito: mismo ancho siempre, responsivo).
 function itemCardHTML(item) {
   const desc = item.descripcion || 'Producto sin descripción';
   const um = item.unidadmedida ? ` ${item.unidadmedida}` : '';
@@ -46,12 +46,10 @@ function itemCardHTML(item) {
       <div class="venc-card-days is-${item.severity}">${daysLabel(item.days)}</div>
       <div class="venc-card-info">
         <span class="venc-card-desc">${escapeHtml(desc)}</span>
-        <div class="venc-card-meta">
-          <span class="venc-meta-line">${icon('pin', 12)} ${escapeHtml(item.ubicacion || '-')}</span>
-          <span class="venc-meta-line venc-meta-split">
-            <span class="venc-meta-item">${icon('package', 12)} ${item.caja || '-'} · ${formatQty(item.saldo)}${um}</span>
-            <span class="venc-meta-item">${icon('calendar', 12)} ${escapeHtml(item.fv || '-')}</span>
-          </span>
+        <div class="venc-card-chips">
+          <span class="venc-chip" title="${escapeHtml(item.ubicacion || '-')} - ${escapeHtml(item.caja || '-')}">${escapeHtml(item.ubicacion || '-')} - ${escapeHtml(item.caja || '-')}</span>
+          <span class="venc-chip" title="${escapeHtml(item.fv || '-')}">${escapeHtml(item.fv || '-')}</span>
+          <span class="venc-chip" title="${formatQty(item.saldo)}${um}">${formatQty(item.saldo)}${escapeHtml(um)}</span>
         </div>
       </div>
       ${item.validated

@@ -1553,38 +1553,32 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Estructura FIJA de 2 líneas, cada una truncando con elipsis en vez
-   de saltar de renglón — así toda tarjeta mide exactamente lo mismo
-   sin importar el largo de la ubicación/caja/fecha (pedido explícito:
-   nunca más saltos de línea irregulares entre tarjetas). Misma
-   estructura en la ficha de validación (.venc-val-meta). */
-.venc-card-meta, .venc-val-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: var(--text-xs);
-  color: var(--ink-3);
-  min-width: 0;
+/* 3 chips de ANCHO IGUAL siempre (grid de 3 columnas 1fr, nunca por
+   contenido) — Ubicación-Caja / Vencimiento / Cantidad. Cada chip
+   trunca con elipsis en vez de estirar la tarjeta o saltar de
+   renglón, así todas miden exactamente lo mismo sin importar el largo
+   de cada dato (pedido explícito: mismo ancho siempre, responsivo —
+   %/fr en vez de un ancho fijo en px, para que se adapte a cualquier
+   pantalla). Misma estructura en la ficha de validación
+   (.venc-val-summary reutiliza .venc-card-chips). */
+.venc-card-chips {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 4px;
 }
-.venc-meta-line {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.venc-chip {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-}
-.venc-meta-split { justify-content: space-between; gap: var(--sp-2); }
-.venc-meta-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  flex-shrink: 1;
+  text-align: center;
+  background: var(--n-100);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 6px;
+  border-radius: var(--r-sm);
 }
 .venc-card-check { flex-shrink: 0; color: var(--ok); }
 .venc-card-arrow { flex-shrink: 0; color: var(--ink-3); }

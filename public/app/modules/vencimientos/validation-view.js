@@ -109,17 +109,16 @@ export function openValidation(item, { onDone }) {
 
   function itemSummaryHTML() {
     const daysLabel = item.days === 0 ? 'Hoy' : `${item.days}d`;
+    const um = item.unidadmedida ? ` ${item.unidadmedida}` : '';
     return `
       <div class="venc-val-summary">
         <p class="venc-val-desc">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
-        <div class="venc-val-meta">
-          <span class="venc-meta-line">${icon('pin', 13)} ${escapeHtml(item.ubicacion || '-')}</span>
-          <span class="venc-meta-line venc-meta-split">
-            <span class="venc-meta-item">${icon('package', 13)} ${item.caja || '-'} · ${formatQty(item.saldo)} ${item.unidadmedida ? escapeHtml(item.unidadmedida) : ''}</span>
-            <span class="venc-meta-item">${icon('calendar', 13)} ${escapeHtml(item.fv || '-')}</span>
-          </span>
-          <span class="venc-val-days is-${item.severity}">${daysLabel}</span>
+        <div class="venc-card-chips">
+          <span class="venc-chip">${escapeHtml(item.ubicacion || '-')} - ${escapeHtml(item.caja || '-')}</span>
+          <span class="venc-chip">${escapeHtml(item.fv || '-')}</span>
+          <span class="venc-chip">${formatQty(item.saldo)}${escapeHtml(um)}</span>
         </div>
+        <span class="venc-val-days is-${item.severity}">${daysLabel}</span>
       </div>
     `;
   }
