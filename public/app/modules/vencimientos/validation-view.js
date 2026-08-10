@@ -1,38 +1,43 @@
 /* ============================================================
    Módulo App · Vencimientos — validación de un ítem.
 
-   Un solo overlay de cámara para los 3 pasos, sin volver a pedir
-   permiso de cámara entre ellos ni parpadeos: 1) escanear la caja
-   (comparado contra `caja`), 2) si coincide, escanear el código de
-   barras (comparado contra `referencia`), 3) recién ahí, motivo
-   (OK/Vencido/Faltante/Otro). "Sin fricción" es literal: un match
-   avanza solo, sin pedir confirmación — el único freno es un
-   desacuerdo real entre lo escaneado y el dato del sistema.
+   Un solo overlay de cámara para todo el flujo, sin volver a pedir
+   permiso ni parpadear entre pasos:
+     1) Escanear la caja (contra `caja`) — NUNCA se puede saltar: es el
+        único paso que confirma que el operario está parado frente a
+        la posición correcta, saltarlo volvería inútil todo lo que
+        sigue.
+     2) Si coincide, escanear el código de barras (contra `referencia`)
+        — acá SÍ se puede reportar "faltante" sin escanear (si el
+        producto de verdad no está, insistir en escanearlo no tiene
+        sentido), pero exige una foto de la posición vacía como
+        evidencia.
+     3) Motivo: OK u Otro (personalizado) — "Faltante" no es una opción
+        de este paso, es su propio camino (2b) con su propia exigencia.
 
-   El valor esperado de cada paso NUNCA se muestra de entrada (mostrar
-   "tenés que leer 419532" antes de escanear volvería el paso un
-   trámite de tipeo, no una verificación real) — solo aparece si hay
-   un desacuerdo, para poder diagnosticarlo (¿la caja está mal rotulada?
-   ¿está en el lugar equivocado?), junto con un atajo para saltar el
-   resto del escaneo si el ítem realmente no está donde debería (ítem
-   faltante: no tiene sentido insistir en escanear algo que no existe).
+   Un match en cualquier paso avanza SOLO, sin pedir confirmación
+   ("sin fricción" es literal) — pero el cambio de paso se marca fuerte
+   (stepper + vibración + toast) para que nunca pase desapercibido que
+   ahora se espera escanear algo distinto.
+
+   El valor esperado de cada paso nunca se muestra de entrada (eso
+   volvería el paso un trámite de tipeo, no una verificación real) —
+   solo aparece si hay un desacuerdo, para poder diagnosticarlo.
    ============================================================ */
 
 import { icon } from '/shared/js/icons.js';
-import { escapeHtml, formatDateTime } from '/shared/js/format.js';
+import { escapeHtml } from '/shared/js/format.js';
 import { showToast } from '/shared/js/toast.js';
 import { createCameraScanner } from '../../scanner/camera.js';
 import * as store from './store.js';
 
-const MOTIVOS = [
-  { value: 'ok', label: 'OK', icon: 'check' },
-  { value: 'vencido', label: 'Vencido', icon: 'calendarAlert' },
-  { value: 'faltante', label: 'Faltante', icon: 'inbox' },
-  { value: 'otro', label: 'Otro', icon: 'edit' },
-];
-
 function norm(v) {
   return String(v ?? '').trim().toLowerCase();
+}
+
+function formatQty(saldo) {
+  if (saldo == null) return '-';
+  return saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 });
 }
 
 export function openValidation(item, { onDone }) {
@@ -71,10 +76,11 @@ export function openValidation(item, { onDone }) {
   const titleEl = overlay.querySelector('#vencStepTitle');
   const sheetEl = overlay.querySelector('#vencSheet');
 
-  let step = 'caja'; // 'caja' -> 'barcode' -> 'motivo'
+  let step = 'caja'; // 'caja' -> 'barcode' -> 'motivo' | 'foto'
   let mismatch = null; // { expected, scanned } — solo mientras se muestra el aviso
   let closed = false;
   let submitting = false;
+  let photoDataUrl = null;
 
   function expectedFor(s) {
     return s === 'caja' ? item.caja : item.referencia;
@@ -84,18 +90,34 @@ export function openValidation(item, { onDone }) {
     return s === 'caja' ? 'Escaneá la caja' : 'Escaneá el código de barras';
   }
 
+  // Stepper de 2 pasos, siempre visible arriba del contenido del
+  // sheet — junto con el toast al avanzar, es lo que hace imposible no
+  // notar que cambió qué hay que escanear (antes, solo el título de
+  // arriba cambiaba y pasaba desapercibido).
+  function stepperHTML(current) {
+    const cajaDone = current !== 'caja';
+    const prodActive = current === 'barcode';
+    const prodDone = current === 'motivo' || current === 'foto';
+    return `
+      <div class="venc-stepper">
+        <span class="venc-step ${cajaDone ? 'is-done' : 'is-active'}">${cajaDone ? icon('check', 12) : '1'} Caja</span>
+        <span class="venc-step-sep"></span>
+        <span class="venc-step ${prodDone ? 'is-done' : prodActive ? 'is-active' : ''}">${prodDone ? icon('check', 12) : '2'} Producto</span>
+      </div>
+    `;
+  }
+
   function itemSummaryHTML() {
-    // Sin la frase "Vencido hace"/"Vence en" — el signo del número ya
-    // lo dice todo (pedido explícito).
     const daysLabel = item.days === 0 ? 'Hoy' : `${item.days}d`;
-    const qty = item.saldo == null ? '-' : item.saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 });
     return `
       <div class="venc-val-summary">
         <p class="venc-val-desc">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
         <div class="venc-val-meta">
-          <span>${icon('pin', 13)} ${escapeHtml(item.ubicacion || '-')}</span>
-          <span>${icon('package', 13)} ${qty} ${item.unidadmedida ? escapeHtml(item.unidadmedida) : ''}</span>
-          <span>${icon('calendar', 13)} ${escapeHtml(item.fv || '-')}</span>
+          <span class="venc-meta-line">${icon('pin', 13)} ${escapeHtml(item.ubicacion || '-')}</span>
+          <span class="venc-meta-line venc-meta-split">
+            <span class="venc-meta-item">${icon('package', 13)} ${item.caja || '-'} · ${formatQty(item.saldo)} ${item.unidadmedida ? escapeHtml(item.unidadmedida) : ''}</span>
+            <span class="venc-meta-item">${icon('calendar', 13)} ${escapeHtml(item.fv || '-')}</span>
+          </span>
           <span class="venc-val-days is-${item.severity}">${daysLabel}</span>
         </div>
       </div>
@@ -114,14 +136,16 @@ export function openValidation(item, { onDone }) {
 
   function renderScanStep() {
     titleEl.textContent = stepTitle(step);
+    const isBarcode = step === 'barcode';
     sheetEl.innerHTML = `
+      ${stepperHTML(step)}
       ${itemSummaryHTML()}
       ${mismatchHTML()}
       <form class="scan-manual" id="vencManualForm">
         <input type="text" inputmode="numeric" placeholder="${step === 'caja' ? 'Ingresar número de caja' : 'Ingresar código de barras'}" id="vencManualInput" autocomplete="off" />
         <button type="submit" class="btn btn-primary" title="Confirmar">${icon('check', 18)}</button>
       </form>
-      <button type="button" class="venc-val-skip" id="vencSkip">No lo encuentro / saltar escaneo</button>
+      ${isBarcode ? `<button type="button" class="venc-val-skip" id="vencSkip">No lo encuentro — reportar faltante</button>` : ''}
     `;
     sheetEl.querySelector('#vencManualForm').addEventListener('submit', (e) => {
       e.preventDefault();
@@ -131,15 +155,17 @@ export function openValidation(item, { onDone }) {
       handleCode(value);
       input.value = '';
     });
-    sheetEl.querySelector('#vencSkip').addEventListener('click', goToMotivo);
+    if (isBarcode) sheetEl.querySelector('#vencSkip').addEventListener('click', goToFoto);
   }
 
   function renderMotivoStep() {
     titleEl.textContent = 'Motivo';
     sheetEl.innerHTML = `
+      ${stepperHTML(step)}
       ${itemSummaryHTML()}
-      <div class="venc-motivo-pills">
-        ${MOTIVOS.map((m) => `<button type="button" class="venc-motivo-pill is-${m.value}" data-motivo="${m.value}">${icon(m.icon, 16)} ${m.label}</button>`).join('')}
+      <div class="venc-motivo-pills venc-motivo-pills-2">
+        <button type="button" class="venc-motivo-pill is-ok" data-motivo="ok">${icon('check', 16)} OK</button>
+        <button type="button" class="venc-motivo-pill is-otro" data-motivo="otro">${icon('edit', 16)} Otro</button>
       </div>
       <div id="vencMotivoExtra"></div>
       <button type="button" class="btn btn-primary btn-block" id="vencConfirm" disabled>Confirmar</button>
@@ -189,6 +215,70 @@ export function openValidation(item, { onDone }) {
     });
   }
 
+  // Reportar faltante exige una foto de la posición vacía — un
+  // snapshot del video YA activo (misma cámara del escaneo, nunca pide
+  // permiso de nuevo ni cambia a la app de cámara nativa). El video
+  // sigue en vivo durante este paso (a diferencia de "motivo", donde
+  // ya no hace falta) para que el operario pueda encuadrar antes de
+  // tomarla.
+  function renderFotoStep() {
+    titleEl.textContent = 'Foto de la posición vacía';
+    photoDataUrl = null;
+    sheetEl.innerHTML = `
+      ${stepperHTML(step)}
+      ${itemSummaryHTML()}
+      <p class="venc-photo-hint">Encuadrá la posición vacía y tomá la foto — es obligatoria para reportar un faltante.</p>
+      <div class="venc-photo-preview" id="vencPhotoPreview" hidden><img id="vencPhotoImg" alt="Foto de la posición" /></div>
+      <button type="button" class="btn btn-primary btn-block" id="vencPhotoCapture">${icon('camera', 18)} Tomar foto</button>
+      <div class="venc-photo-actions" id="vencPhotoActions" hidden>
+        <button type="button" class="btn btn-ghost" id="vencPhotoRetake">Repetir foto</button>
+        <button type="button" class="btn btn-danger" id="vencPhotoConfirm">Confirmar faltante</button>
+      </div>
+    `;
+
+    const captureBtn = sheetEl.querySelector('#vencPhotoCapture');
+    const actionsEl = sheetEl.querySelector('#vencPhotoActions');
+    const previewEl = sheetEl.querySelector('#vencPhotoPreview');
+    const imgEl = sheetEl.querySelector('#vencPhotoImg');
+
+    captureBtn.addEventListener('click', () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoEl.videoWidth || 640;
+      canvas.height = videoEl.videoHeight || 480;
+      canvas.getContext('2d').drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+      photoDataUrl = canvas.toDataURL('image/jpeg', 0.6);
+      imgEl.src = photoDataUrl;
+      previewEl.hidden = false;
+      captureBtn.hidden = true;
+      actionsEl.hidden = false;
+      if (navigator.vibrate) navigator.vibrate(35);
+    });
+
+    sheetEl.querySelector('#vencPhotoRetake').addEventListener('click', () => {
+      photoDataUrl = null;
+      previewEl.hidden = true;
+      actionsEl.hidden = true;
+      captureBtn.hidden = false;
+    });
+
+    const confirmBtn = sheetEl.querySelector('#vencPhotoConfirm');
+    confirmBtn.addEventListener('click', async () => {
+      if (submitting || !photoDataUrl) return;
+      submitting = true;
+      confirmBtn.disabled = true;
+      try {
+        await store.validate(item, 'faltante', '', photoDataUrl);
+        if (navigator.vibrate) navigator.vibrate(35);
+        close();
+        onDone();
+      } catch {
+        showToast('No se pudo guardar. Probá de nuevo.', { variant: 'warn' });
+        submitting = false;
+        confirmBtn.disabled = false;
+      }
+    });
+  }
+
   function goToMotivo() {
     step = 'motivo';
     mismatch = null;
@@ -197,8 +287,15 @@ export function openValidation(item, { onDone }) {
     renderMotivoStep();
   }
 
+  function goToFoto() {
+    step = 'foto';
+    mismatch = null;
+    scanner.setPaused(true); // sin pauseView(): el video sigue en vivo para encuadrar la foto
+    renderFotoStep();
+  }
+
   function handleCode(raw) {
-    if (step === 'motivo') return;
+    if (step !== 'caja' && step !== 'barcode') return;
     const expected = expectedFor(step);
     if (!expected || norm(raw) === norm(expected)) {
       mismatch = null;
@@ -206,6 +303,7 @@ export function openValidation(item, { onDone }) {
       if (step === 'caja') {
         step = 'barcode';
         renderScanStep();
+        showToast('Caja verificada — ahora escaneá el producto.');
       } else {
         goToMotivo();
       }

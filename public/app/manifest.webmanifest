@@ -1,7 +1,7 @@
 {
-  "name": "GDapp",
-  "short_name": "GDapp",
-  "description": "GDapp — operación en campo: mapear, vencimientos, vacíos y consultas.",
+  "name": "GStock",
+  "short_name": "GStock",
+  "description": "GStock — operación en campo: mapear, vencimientos, vacíos y consultas.",
   "id": "/app",
   "start_url": "/app",
   "scope": "/app",

@@ -100,6 +100,7 @@ async function getValidationsMap() {
     map.set(itemKey(row.bodega, row.caja, row.ean), {
       motivo: row.motivo,
       motivoDetalle: row.motivo_detalle,
+      fotoUrl: row.foto_url,
       validatedBy: row.validated_by,
       validatedAt: row.validated_at,
     });
@@ -107,9 +108,32 @@ async function getValidationsMap() {
   return map;
 }
 
-async function validateItem({ bodega, caja, ean, referencia, ubicacion, descripcion, fv, motivo, motivoDetalle, actor }) {
+// Sube la foto obligatoria de un ítem "faltante" (data URL base64,
+// generada del lado del cliente con un snapshot del video ya activo —
+// nunca pide permiso de cámara de nuevo) al bucket público
+// 'vencimiento-fotos' y devuelve su URL pública para guardar en la fila.
+async function uploadPhoto(fotoBase64, key) {
+  const match = /^data:(image\/\w+);base64,(.+)$/.exec(fotoBase64 || '');
+  if (!match) throw new Error('INVALID_PHOTO');
+  const [, mime, b64] = match;
+  const ext = mime.split('/')[1] === 'jpeg' ? 'jpg' : mime.split('/')[1];
+  const buffer = Buffer.from(b64, 'base64');
+  const path = `${key.replace(/\|/g, '-')}-${Date.now()}.${ext}`;
+
+  const supabase = requireClient();
+  const { error } = await supabase.storage.from('vencimiento-fotos').upload(path, buffer, { contentType: mime, upsert: true });
+  if (error) throw error;
+  return supabase.storage.from('vencimiento-fotos').getPublicUrl(path).data.publicUrl;
+}
+
+async function validateItem({ bodega, caja, ean, referencia, ubicacion, descripcion, fv, motivo, motivoDetalle, fotoBase64, actor }) {
   if (!bodega || !caja || !ean) throw new Error('MISSING_KEY');
-  if (!['ok', 'vencido', 'faltante', 'otro'].includes(motivo)) throw new Error('INVALID_MOTIVO');
+  if (!['ok', 'faltante', 'otro'].includes(motivo)) throw new Error('INVALID_MOTIVO');
+  // Un ítem "faltante" exige evidencia — sin esto, "faltante" sería tan
+  // fácil de tildar como "ok" y perdería todo el sentido de auditoría.
+  if (motivo === 'faltante' && !fotoBase64) throw new Error('PHOTO_REQUIRED');
+
+  const fotoUrl = motivo === 'faltante' ? await uploadPhoto(fotoBase64, itemKey(bodega, caja, ean)) : null;
 
   const supabase = requireClient();
   const { error } = await supabase.from('vencimiento_validaciones').upsert({
@@ -120,6 +144,7 @@ async function validateItem({ bodega, caja, ean, referencia, ubicacion, descripc
     fv: fv || null,
     motivo,
     motivo_detalle: motivo === 'otro' ? (motivoDetalle || '').trim() || null : null,
+    foto_url: fotoUrl,
     validated_by: actor || null,
     validated_at: new Date().toISOString(),
   }, { onConflict: 'bodega,caja,ean' });
@@ -136,11 +161,12 @@ async function clearValidation(bodega, caja, ean) {
 
 // ---- Listado combinado ----
 
-// sortBy: 'urgencia' (días ascendente, más urgente primero) o
-// 'ubicacion' (A-Z, para el recorrido físico) — en ambos casos el
-// criterio secundario es el otro campo, así el orden es siempre
-// determinístico.
-async function list({ sortBy = 'urgencia' } = {}) {
+// Siempre ordenado por ubicación (A-Z, para el recorrido físico del
+// depósito) con los días como criterio secundario — un solo orden
+// posible ahora que la app separa "Pendiente"/"Validado" por FILTRO
+// (ver app/modules/vencimientos/list-view.js), no por otro criterio de
+// orden.
+async function list() {
   const [settings, validations] = await Promise.all([getSettings(), getValidationsMap()]);
   const today = new Date();
   const rows = inventoryStore.getRowsForExport();
@@ -175,17 +201,15 @@ async function list({ sortBy = 'urgencia' } = {}) {
       validated: !!validation,
       motivo: validation?.motivo || null,
       motivoDetalle: validation?.motivoDetalle || null,
+      fotoUrl: validation?.fotoUrl || null,
       validatedBy: validation?.validatedBy || null,
       validatedAt: validation?.validatedAt || null,
     });
   }
 
   items.sort((a, b) => {
-    if (sortBy === 'ubicacion') {
-      const cmp = String(a.ubicacion || '').localeCompare(String(b.ubicacion || ''), 'es');
-      return cmp !== 0 ? cmp : a.days - b.days;
-    }
-    return a.days !== b.days ? a.days - b.days : String(a.ubicacion || '').localeCompare(String(b.ubicacion || ''), 'es');
+    const cmp = String(a.ubicacion || '').localeCompare(String(b.ubicacion || ''), 'es');
+    return cmp !== 0 ? cmp : a.days - b.days;
   });
 
   return { items, excludedLocations: settings.excludedLocations, windowDays: WINDOW_DAYS, retirarDays: RETIRAR_DAYS };

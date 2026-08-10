@@ -90,7 +90,7 @@ function styleDataRow(row) {
 
 function buildWorkbook(mapeo) {
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'GDapp';
+  wb.creator = 'GStock';
   wb.created = new Date();
 
   for (const sheetDef of SHEETS) {

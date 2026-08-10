@@ -9,12 +9,18 @@
 
 import { apiFetch } from '/shared/js/api.js';
 
-export async function list(sortBy) {
-  const { items, excludedLocations, windowDays, retirarDays } = await apiFetch(`/api/vencimientos?sortBy=${sortBy}`);
+// Siempre ordenado por ubicación (el servidor ya no acepta otro orden
+// — Pendiente/Validado es un FILTRO del cliente sobre esta lista, ver
+// list-view.js).
+export async function list() {
+  const { items, excludedLocations, windowDays, retirarDays } = await apiFetch('/api/vencimientos');
   return { items, excludedLocations, windowDays, retirarDays };
 }
 
-export async function validate(item, motivo, motivoDetalle) {
+// fotoBase64 (data URL) es obligatoria cuando motivo === 'faltante' —
+// el servidor la exige igual, esto solo evita un viaje de red al pedo
+// si por algún motivo se llama sin ella.
+export async function validate(item, motivo, motivoDetalle, fotoBase64) {
   await apiFetch('/api/vencimientos/validate', {
     method: 'POST',
     body: {
@@ -27,6 +33,7 @@ export async function validate(item, motivo, motivoDetalle) {
       fv: item.fv,
       motivo,
       motivoDetalle,
+      fotoBase64,
     },
   });
 }

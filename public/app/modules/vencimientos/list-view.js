@@ -1,12 +1,12 @@
 /* ============================================================
    Módulo App · Vencimientos — listado.
 
-   Dos formas de ver la MISMA lista (nunca dos listas separadas):
-   "Urgencia" (días a vencer ascendente, agrupado en sub-encabezados
-   Vencido/Retirar/Próximo — para saber qué apagar primero) y
-   "Ubicación" (A-Z, sin agrupar — para caminar el depósito en orden,
-   sin ida y vuelta). El toggle vive en el propio header, no en un
-   menú: es la acción principal de la pantalla.
+   Un solo orden posible (ubicación A-Z, para el recorrido físico del
+   depósito — lo trae así el servidor) y un FILTRO por estado:
+   "Pendiente" (todo lo que falta validar) o "Validado" (lo ya
+   resuelto, para revisar/revertir). No hay más un modo "Urgencia": la
+   urgencia sigue visible en cada tarjeta (el color/número de días),
+   pero ya no reordena la lista — pedido explícito.
    ============================================================ */
 
 import { icon } from '/shared/js/icons.js';
@@ -14,28 +14,30 @@ import { escapeHtml, formatDateTime } from '/shared/js/format.js';
 import * as store from './store.js';
 import { openValidation } from './validation-view.js';
 
-const SEVERITY_LABEL = { vencido: 'Vencido', retirar: 'Retirar (≤4 días)', proximo: 'Próximo a vencer' };
-const MOTIVO_LABEL = { ok: 'OK', vencido: 'Vencido', faltante: 'Faltante', otro: 'Otro' };
+const MOTIVO_LABEL = { ok: 'OK', faltante: 'Faltante', otro: 'Otro' };
 
 let outletRef = null;
-let refreshRef = null;
 
-// Pedido explícito: sin la frase "Vencido hace" — el signo ya lo dice
-// todo (negativo = vencido, 0 = hoy, positivo = días que faltan).
+// Sin la frase "Vencido hace"/"Vence en" — el signo del número ya lo
+// dice todo (negativo, 0, positivo).
 function daysLabel(days) {
-  if (days === 0) return 'Hoy';
-  return `${days}d`;
+  return days === 0 ? 'Hoy' : `${days}d`;
 }
 
 // Copernico puede mandar el saldo con ceros de relleno ("144.0000") —
 // ya llega limpio como Number desde el servidor (ver
-// server/store/vencimientos.store.js), esto solo evita que una
-// fracción real se vea con más de 2 decimales.
+// server/store/vencimientos.store.js); esto solo evita más de 2
+// decimales si alguna vez hay una fracción real.
 function formatQty(saldo) {
   if (saldo == null) return '-';
   return saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 });
 }
 
+// Estructura FIJA de 2 líneas de metadatos (nunca 1 ni 3, sin importar
+// el largo de cada dato) — cada línea trunca con elipsis en vez de
+// saltar de renglón, así todas las tarjetas miden exactamente lo
+// mismo sin importar si la ubicación o la descripción son cortas o
+// largas (pedido explícito: "sin saltos de línea irregulares").
 function itemCardHTML(item) {
   const desc = item.descripcion || 'Producto sin descripción';
   const um = item.unidadmedida ? ` ${item.unidadmedida}` : '';
@@ -45,9 +47,11 @@ function itemCardHTML(item) {
       <div class="venc-card-info">
         <span class="venc-card-desc">${escapeHtml(desc)}</span>
         <div class="venc-card-meta">
-          <span>${icon('pin', 12)} ${escapeHtml(item.ubicacion || '-')}</span>
-          <span>${icon('package', 12)} ${item.caja || '-'} · ${formatQty(item.saldo)}${um}</span>
-          <span>${icon('calendar', 12)} ${escapeHtml(item.fv || '-')}</span>
+          <span class="venc-meta-line">${icon('pin', 12)} ${escapeHtml(item.ubicacion || '-')}</span>
+          <span class="venc-meta-line venc-meta-split">
+            <span class="venc-meta-item">${icon('package', 12)} ${item.caja || '-'} · ${formatQty(item.saldo)}${um}</span>
+            <span class="venc-meta-item">${icon('calendar', 12)} ${escapeHtml(item.fv || '-')}</span>
+          </span>
         </div>
       </div>
       ${item.validated
@@ -57,31 +61,17 @@ function itemCardHTML(item) {
   `;
 }
 
-function groupByUrgencia(items) {
-  const parts = [];
-  let lastSeverity = null;
-  for (const item of items) {
-    if (item.severity !== lastSeverity) {
-      parts.push(`<div class="venc-group-heading">${SEVERITY_LABEL[item.severity]}</div>`);
-      lastSeverity = item.severity;
-    }
-    parts.push(itemCardHTML(item));
-  }
-  return parts.join('');
-}
-
 export async function renderList(outlet) {
   outletRef = outlet;
-  refreshRef = () => renderList(outlet);
 
-  const state = { sortBy: 'urgencia', items: [], loading: true, error: null };
+  const state = { view: 'pendiente', items: [], loading: true, error: null };
 
   outlet.innerHTML = `
     <div class="action-hero">
       <div class="venc-toolbar">
-        <div class="venc-sort-toggle" id="vencSortToggle">
-          <button type="button" class="is-active" data-sort="urgencia">Urgencia</button>
-          <button type="button" data-sort="ubicacion">Ubicación</button>
+        <div class="venc-sort-toggle" id="vencViewToggle">
+          <button type="button" class="is-active" data-view="pendiente">Pendiente</button>
+          <button type="button" data-view="validado">Validado</button>
         </div>
         <div class="venc-toolbar-actions">
           <button type="button" class="btn-icon" id="vencSettingsBtn" title="Ubicaciones excluidas">${icon('settings', 18)}</button>
@@ -105,12 +95,12 @@ export async function renderList(outlet) {
     </div>
   `;
 
-  outlet.querySelectorAll('#vencSortToggle button').forEach((btn) => {
+  outlet.querySelectorAll('#vencViewToggle button').forEach((btn) => {
     btn.addEventListener('click', () => {
-      if (btn.dataset.sort === state.sortBy) return;
-      state.sortBy = btn.dataset.sort;
-      outlet.querySelectorAll('#vencSortToggle button').forEach((b) => b.classList.toggle('is-active', b === btn));
-      load();
+      if (btn.dataset.view === state.view) return;
+      state.view = btn.dataset.view;
+      outlet.querySelectorAll('#vencViewToggle button').forEach((b) => b.classList.toggle('is-active', b === btn));
+      draw();
     });
   });
   outlet.querySelector('#vencSettingsBtn').addEventListener('click', openSettingsModal);
@@ -120,7 +110,7 @@ export async function renderList(outlet) {
     state.loading = true;
     state.error = null;
     try {
-      const data = await store.list(state.sortBy);
+      const data = await store.list();
       state.items = data.items;
     } catch (err) {
       state.error = err;
@@ -128,6 +118,10 @@ export async function renderList(outlet) {
     }
     state.loading = false;
     if (outlet.isConnected) draw();
+  }
+
+  function visibleItems() {
+    return state.items.filter((i) => (state.view === 'validado' ? i.validated : !i.validated));
   }
 
   function draw() {
@@ -151,26 +145,24 @@ export async function renderList(outlet) {
       return;
     }
 
-    if (!state.items.length) {
-      progressEl.textContent = '';
+    const validatedCount = state.items.filter((i) => i.validated).length;
+    progressEl.textContent = state.items.length ? `${validatedCount} de ${state.items.length} validados` : '';
+
+    const items = visibleItems();
+    if (!items.length) {
       wrap.innerHTML = `
         <div class="card cq-fade-in">
           <div class="empty-state">
             <div class="es-icon">${icon('calendarAlert', 26)}</div>
-            <h3>Sin vencimientos próximos</h3>
-            <p>No hay productos por vencer dentro de la ventana configurada.</p>
+            <h3>${state.view === 'validado' ? 'Nada validado todavía' : '¡Todo al día!'}</h3>
+            <p>${state.view === 'validado' ? 'Los ítems que valides van a aparecer acá.' : 'No hay productos pendientes de validar en la ventana configurada.'}</p>
           </div>
         </div>
       `;
       return;
     }
 
-    const validatedCount = state.items.filter((i) => i.validated).length;
-    progressEl.textContent = `${validatedCount} de ${state.items.length} validados`;
-
-    wrap.innerHTML = `<div class="mapeo-list venc-list cq-fade-in">${
-      state.sortBy === 'urgencia' ? groupByUrgencia(state.items) : state.items.map(itemCardHTML).join('')
-    }</div>`;
+    wrap.innerHTML = `<div class="mapeo-list venc-list cq-fade-in">${items.map(itemCardHTML).join('')}</div>`;
 
     wrap.querySelectorAll('.venc-card').forEach((card) => {
       const item = state.items.find((i) => i.key === card.dataset.key);
@@ -194,6 +186,7 @@ export async function renderList(outlet) {
         <div class="modal-body">
           <p style="margin-bottom:var(--sp-2);">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
           ${item.motivoDetalle ? `<p class="muted small" style="margin-bottom:var(--sp-2);">${escapeHtml(item.motivoDetalle)}</p>` : ''}
+          ${item.fotoUrl ? `<img src="${escapeHtml(item.fotoUrl)}" alt="Foto de la posición" class="venc-detail-photo" />` : ''}
           <p class="muted small">Validado por <strong>${escapeHtml(item.validatedBy || '-')}</strong> · ${escapeHtml(formatDateTime(item.validatedAt))}</p>
         </div>
         <div class="modal-foot">

@@ -16,7 +16,11 @@ const app = express();
 // para este volumen. Nunca afecta el contenido, solo cuánto viaja por
 // la red — el navegador lo descomprime solo, de forma transparente.
 app.use(compression());
-app.use(express.json());
+// Límite por defecto (100kb) alcanza para todo excepto la foto de un
+// ítem "faltante" en Vencimientos (snapshot del video, base64 en el
+// body JSON — ver routes/vencimientos.js) — 4mb da margen de sobra
+// para una imagen ya comprimida en el cliente (JPEG, unas decenas de KB).
+app.use(express.json({ limit: '4mb' }));
 app.use(cookieParser());
 
 // / → /desk | /app según dispositivo

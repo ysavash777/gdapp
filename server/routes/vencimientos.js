@@ -18,11 +18,11 @@ function actorOf(req) {
   return req.user.username;
 }
 
-// GET /api/vencimientos?sortBy=urgencia|ubicacion
-router.get('/', async (req, res) => {
+// GET /api/vencimientos — siempre ordenado por ubicación; el filtro
+// Pendiente/Validado lo aplica el cliente sobre esta misma lista.
+router.get('/', async (_req, res) => {
   try {
-    const sortBy = req.query.sortBy === 'ubicacion' ? 'ubicacion' : 'urgencia';
-    const data = await store.list({ sortBy });
+    const data = await store.list();
     res.json({ ok: true, ...data });
   } catch (e) {
     console.error('[routes/vencimientos] list falló:', e.message);
@@ -57,13 +57,15 @@ router.put('/settings', async (req, res) => {
 });
 
 // POST /api/vencimientos/validate
-// { bodega, caja, ean, referencia, ubicacion, descripcion, fv, motivo, motivoDetalle }
+// { bodega, caja, ean, referencia, ubicacion, descripcion, fv, motivo,
+//   motivoDetalle, fotoBase64 } — fotoBase64 (data URL) es obligatoria
+// cuando motivo === 'faltante' (ver store.validateItem).
 router.post('/validate', async (req, res) => {
   try {
     await store.validateItem({ ...req.body, actor: actorOf(req) });
     res.json({ ok: true });
   } catch (e) {
-    if (e.message === 'MISSING_KEY' || e.message === 'INVALID_MOTIVO') {
+    if (e.message === 'MISSING_KEY' || e.message === 'INVALID_MOTIVO' || e.message === 'PHOTO_REQUIRED' || e.message === 'INVALID_PHOTO') {
       return res.status(400).json({ ok: false, error: e.message });
     }
     console.error('[routes/vencimientos] validateItem falló:', e.message);
@@ -87,7 +89,7 @@ router.delete('/validate', async (req, res) => {
 // GET /api/vencimientos/export — XLSX con todo el estado actual
 router.get('/export', async (_req, res) => {
   try {
-    const { items } = await store.list({ sortBy: 'ubicacion' });
+    const { items } = await store.list();
     const workbook = buildWorkbook(items);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="vencimientos.xlsx"`);

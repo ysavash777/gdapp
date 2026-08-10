@@ -125,12 +125,17 @@ server/
                            bajar el ~1MB completo, sin excepción (el service worker de /app explícitamente
                            nunca cachea /api/*, ver app/sw.js — esto no lo contradice: el 304 lo maneja el
                            caché HTTP del navegador, una capa distinta, más abajo).
-  routes/vencimientos.js  API de Vencimientos: GET / (lista cruzada, ?sortBy=urgencia|ubicacion), GET/PUT
-                           /settings (ubicaciones excluidas, personalizable), POST /validate y DELETE
-                           /validate (revertir), GET /export (XLSX, services/vencimiento-export.js). Toda
-                           la lógica real vive en store/vencimientos.store.js — este archivo solo valida
-                           entrada y fija el actor desde la sesión. Exige el permiso 'vencimientos' (scope
-                           app, sin equivalente en desk todavía).
+  routes/vencimientos.js  API de Vencimientos: GET / (lista completa, siempre ordenada por ubicación —
+                           Pendiente/Validado es un filtro del CLIENTE sobre esta misma lista, no un
+                           parámetro de la API), GET/PUT /settings (ubicaciones excluidas, personalizable),
+                           POST /validate (motivo 'ok'/'faltante'/'otro' — 'faltante' exige fotoBase64, una
+                           data URL con el snapshot ya tomado del lado del cliente) y DELETE /validate
+                           (revertir), GET /export (XLSX de una sola hoja, services/vencimiento-export.js).
+                           Toda la lógica real vive en store/vencimientos.store.js — este archivo solo
+                           valida entrada y fija el actor desde la sesión. Exige el permiso 'vencimientos'
+                           (scope app, sin equivalente en desk todavía). El límite del body JSON global
+                           (server/index.js) se subió a 4mb solo por esta foto — el resto de la app nunca
+                           manda payloads así de grandes.
   services/copernico-client.js  Cliente HTTP de bajo nivel contra la API de Copernico WMS: login/logout +
                            fetchDataset() genérico (usado por fetchReferencia/fetchCoordenadas/fetchVariables,
                            mismo timeout y misma heurística para encontrar el array de filas en la respuesta).
@@ -207,11 +212,13 @@ server/
                            solo para este archivo, calculada en memoria en cada exportación.
   services/vencimiento-export.js  buildWorkbook(items) → libro ExcelJS para GET /api/vencimientos/export.
                            Mismo criterio visual que mapeo-export.js (encabezado negrita/blanco/relleno
-                           azul, todo centrado y con borde). Una hoja por ESTADO (Pendiente/OK/Vencido/
-                           Faltante/Otro, statusOf() = 'pendiente' si no fue validado, sino su motivo) en
-                           vez de por motivo — acá nunca hace falta consolidar (a diferencia de Mapeos): la
-                           clave bodega+caja+ean ya es única en el origen, así que cada fila del listado es
-                           un ítem real, sin duplicados posibles.
+                           azul, todo centrado y con borde) pero UNA SOLA hoja (pedido explícito, nunca una
+                           por estado) ordenada por ubicación, con una columna "Observación"
+                           (observacionOf(): "Pendiente" si no se validó, el texto libre si el motivo fue
+                           "Otro", "Faltante" u "OK") y una columna "Foto" con el link público a la
+                           evidencia cuando el motivo es "Faltante". Nunca hace falta consolidar (a
+                           diferencia de Mapeos): la clave bodega+caja+ean ya es única en el origen, así que
+                           cada fila del listado es un ítem real, sin duplicados posibles.
   services/supabase-client.js  Cliente Supabase compartido (proyecto "bodega-47-inventario", service_role
                            key). getClient() devuelve null si no está configurada (lo usan inventory/
                            coordenadas, que tienen caché local de respaldo); requireClient() lanza en ese
@@ -244,7 +251,7 @@ server/
                            entero en la memoria del NAVEGADOR (se perdía todo al recargar la página); ahora
                            es la única fuente real, con codes embebidos vía `select('*, mapeo_codes(*)')`.
   store/vencimientos.store.js  Cruza store/inventory.store.js (Referencia) con dos tablas de Supabase:
-                           `vencimiento_validaciones` (estado OK/vencido/faltante/otro por ítem, clave
+                           `vencimiento_validaciones` (estado ok/faltante/otro por ítem + foto_url, clave
                            bodega+caja+ean — el mismo UNIQUE natural de `inventario_cajas`, sobrevive a que
                            Referencia se refresque entera mientras el mismo producto siga en la misma caja)
                            y `vencimiento_settings` (fila única, ubicaciones excluidas — default RECUPERO/
@@ -253,10 +260,18 @@ server/
                            — calcula los días a vencer acá mismo desde "fv" (DD/MM/AAAA) contra HOY: el
                            criterio propio pedido explícitamente. severityOf(): 'vencido' (días negativos),
                            'retirar' (0 a 4 días — "solicitar retirar"), 'proximo' (5 a 15, el límite de la
-                           ventana del módulo — WINDOW_DAYS). list({sortBy}) devuelve todo ya cruzado y
-                           ordenado ('urgencia' = días asc, o 'ubicacion' = A-Z para el recorrido físico),
-                           nunca paginado: la ventana de 15 días ya acota el resultado a un tamaño chico
-                           (~300 ítems con datos reales), así que no hace falta.
+                           ventana del módulo — WINDOW_DAYS) — sigue calculándose y viajando en cada ítem
+                           para el color/badge de la tarjeta, aunque ya no determina ningún orden. list()
+                           devuelve todo ya cruzado y SIEMPRE ordenado por ubicación (A-Z, recorrido físico)
+                           con los días como criterio secundario — un solo orden posible: Pendiente/Validado
+                           es un filtro que aplica el CLIENTE sobre esta misma lista, no otro orden del
+                           servidor. Nunca paginado: la ventana de 15 días ya acota el resultado a un tamaño
+                           chico (~300 ítems con datos reales), así que no hace falta. validateItem(): motivo
+                           'ok'/'faltante'/'otro' (ya no 'vencido' — la fecha de vencimiento ya se ve en cada
+                           ítem, marcarlo de nuevo a mano no agregaba información); 'faltante' EXIGE
+                           fotoBase64 (rechaza con PHOTO_REQUIRED si falta) y sube esa foto al bucket público
+                           `vencimiento-fotos` de Supabase Storage antes de guardar la fila, guardando la URL
+                           pública resultante en foto_url.
   .env                     COPERNICO_EMAIL / COPERNICO_PASSWORD / COPERNICO_BODEGA del usuario consultor +
                            SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY — gitignored, nunca se envían al
                            navegador. config.js los carga a mano al arrancar.
@@ -539,24 +554,43 @@ public/
                            y con cada validación de cualquiera, así que no tiene sentido guardar una foto).
       index.js               Entrada — solo orquesta list-view.js y validation-view.js.
       store.js                Cliente de /api/vencimientos (list/validate/clearValidation/getSettings/
-                               updateSettings) — sin caché, siempre pide fresco.
-      list-view.js             Listado con un toggle de orden en el header (Urgencia: días asc, agrupado
-                               en sub-encabezados Vencido/Retirar/Próximo — o Ubicación: A-Z, sin agrupar,
-                               para el recorrido físico del depósito) + progreso ("X de Y validados") +
-                               ícono de ubicaciones excluidas (modal con los prefijos actuales, editable) +
-                               descarga XLSX. Un ítem ya validado se ve atenuado con un check (nunca
-                               desaparece de la lista — es un checklist compartido, no una cola que se
-                               vacía) y al tocarlo muestra motivo/quién/cuándo con un botón "Revertir".
-      validation-view.js       Un solo overlay de cámara para los 3 pasos de un ítem sin volver a pedir
-                               permiso ni parpadear entre ellos: 1) escanear la caja (contra `caja`), 2) si
-                               coincide, escanear el código de barras (contra `referencia`) — un match
-                               avanza SOLO, sin pedir confirmación ("sin fricción" es literal, el único
-                               freno es un desacuerdo real —, 3) motivo (OK/Vencido/Faltante/Otro, con texto
-                               libre en Otro). El valor esperado de cada paso nunca se muestra de entrada
-                               (mostrarlo de entrada volvería el paso un trámite de tipeo, no una
-                               verificación real) — solo aparece si hay un desacuerdo, para diagnosticarlo,
-                               junto con un atajo "No lo encuentro / saltar escaneo" directo a motivo (un
-                               ítem realmente faltante no tiene nada que escanear).
+                               updateSettings) — sin caché, siempre pide fresco. validate() manda
+                               fotoBase64 (data URL) además de motivo/motivoDetalle.
+      list-view.js             Listado con un FILTRO en el header — no un orden — entre "Pendiente" (todo
+                               lo que falta validar) y "Validado" (lo ya resuelto, para revisar/revertir):
+                               el servidor siempre trae la lista completa ordenada por ubicación (A-Z, para
+                               el recorrido físico del depósito), list-view.js solo filtra por
+                               item.validated en el cliente. La urgencia (severidad/color/días) sigue
+                               visible en cada tarjeta, pero ya no reordena nada — pedido explícito. Cada
+                               tarjeta tiene una estructura de 2 líneas de metadatos FIJA (ubicación en una,
+                               caja+saldo y fecha repartidos en la otra vía .venc-meta-split) que trunca con
+                               elipsis en vez de saltar de renglón, así todas miden lo mismo sin importar el
+                               largo del dato (pedido explícito: nunca más tarjetas con altura irregular).
+                               Progreso ("X de Y validados") + ícono de ubicaciones excluidas (modal
+                               editable) + descarga XLSX. Tocar un ítem validado muestra motivo/detalle/foto
+                               (si el motivo fue "Faltante")/quién/cuándo, con un botón "Revertir".
+      validation-view.js       Un solo overlay de cámara para todo el flujo de un ítem, sin volver a pedir
+                               permiso ni parpadear entre pasos:
+                                 1) Escanear la caja (contra `caja`) — NUNCA se puede saltar (pedido
+                                    explícito: es el único paso que confirma que el operario está parado en
+                                    la posición correcta; sin él, todo lo que sigue sería inútil).
+                                 2) Si coincide, escanear el código de barras (contra `referencia`) — acá SÍ
+                                    se puede reportar "faltante" sin escanear (insistir en escanear algo que
+                                    de verdad no está no tiene sentido), pero ese camino exige una foto de la
+                                    posición vacía como evidencia (ver más abajo).
+                                 3) Motivo: OK u Otro (personalizado, con texto libre) — "Faltante" no es una
+                                    opción de este paso, es su propio camino con su propia exigencia.
+                               Un match en cualquier paso avanza SOLO, sin pedir confirmación ("sin
+                               fricción" es literal) — pero el cambio de paso se marca fuerte a propósito
+                               (stepper de 2 pasos siempre visible + vibración + showToast "Caja verificada
+                               — ahora escaneá el producto") porque antes solo cambiaba el título de arriba
+                               y pasaba desapercibido. El valor esperado de cada paso nunca se muestra de
+                               entrada (eso volvería el paso un trámite de tipeo, no una verificación real)
+                               — solo aparece si hay un desacuerdo, para poder diagnosticarlo. Reportar
+                               "faltante" (goToFoto()) saca un snapshot del video YA activo vía canvas
+                               (nunca pide permiso de cámara de nuevo ni abre la app nativa) — la foto es
+                               obligatoria antes de poder confirmar, se manda como data URL JPEG en el mismo
+                               POST /validate.
     modules/vacios.js      Herramienta Vacíos.
     modules/settings.js    Configuración — no es una "herramienta" de TOOLS/PUBLIC_TOOLS (no aparece en el
                            inicio, solo se llega desde el ícono de la cabecera con sesión). Hoy solo
@@ -583,6 +617,8 @@ public/
 7. **"Consultas" es la única herramienta pública** (`PUBLIC_TOOLS` en `app.js`) — pensada para el equipo
    operativo, que no necesita cuenta. Sin sesión aparece igual arriba, en color; el resto se ve en BW
    como aviso de que hace falta loguearse (equipo de inventario).
-8. **Usuarios de prueba** (sembrados en la tabla `users` de Supabase — sobreviven un restart):
-   `admin / admin1234` (todos los permisos) · `operador / operador1234` (mapeos, mapear, vencimientos, vacíos) ·
-   `consulta / consulta1234` (basesdatos, consultas).
+8. **Usuarios reales, no de prueba.** La tabla `users` de Supabase ya tiene cuentas reales del equipo
+   (admin, agus, sofi, joan, todas role 'admin' con distintos permisos) — los usuarios `operador`/`consulta`
+   que existían al principio del proyecto YA NO EXISTEN, se reemplazaron por cuentas reales. `admin /
+   admin1234` sigue funcionando para pruebas rápidas; no asumir contraseñas de las demás cuentas ni recrear
+   `operador`/`consulta` sin preguntar — si una sesión de prueba necesita loguearse, usar `admin`.
