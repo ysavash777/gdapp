@@ -52,14 +52,14 @@ export async function refreshUser() {
   }
 }
 
-// El propio usuario cambia su contraseña (pide la actual, a diferencia
-// de la vía de admin en desk/modules/usuarios.js). No toca el caché
-// local: username/rol/permisos no cambian.
-export async function changePassword(currentPassword, newPassword) {
+// El propio usuario cambia su contraseña — la sesión ya autenticada es
+// la única puerta, no pide la contraseña actual (pedido explícito). No
+// toca el caché local: username/rol/permisos no cambian.
+export async function changePassword(newPassword) {
   const res = await fetch('/api/auth/password', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ currentPassword, newPassword }),
+    body: JSON.stringify({ newPassword }),
   });
   return res.json();
 }

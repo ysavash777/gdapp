@@ -1,0 +1,102 @@
+/* ============================================================
+   API de Vencimientos — todo lo que venza dentro de la ventana de
+   store/vencimientos.store.js (hoy 15 días, o ya vencido), cruzando
+   Referencia con el estado de validación (Supabase) y la
+   configuración de ubicaciones excluidas. Exige el permiso
+   'vencimientos' (scope app — no tiene equivalente en desk todavía).
+   ============================================================ */
+
+const express = require('express');
+const router = express.Router();
+const store = require('../store/vencimientos.store');
+const { requirePermission } = require('../middleware/auth');
+const { buildWorkbook } = require('../services/vencimiento-export');
+
+router.use(requirePermission('vencimientos'));
+
+function actorOf(req) {
+  return req.user.username;
+}
+
+// GET /api/vencimientos?sortBy=urgencia|ubicacion
+router.get('/', async (req, res) => {
+  try {
+    const sortBy = req.query.sortBy === 'ubicacion' ? 'ubicacion' : 'urgencia';
+    const data = await store.list({ sortBy });
+    res.json({ ok: true, ...data });
+  } catch (e) {
+    console.error('[routes/vencimientos] list falló:', e.message);
+    res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
+  }
+});
+
+// GET /api/vencimientos/settings
+router.get('/settings', async (_req, res) => {
+  try {
+    const settings = await store.getSettings();
+    res.json({ ok: true, ...settings });
+  } catch (e) {
+    console.error('[routes/vencimientos] getSettings falló:', e.message);
+    res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
+  }
+});
+
+// PUT /api/vencimientos/settings  { excludedLocations: string[] }
+router.put('/settings', async (req, res) => {
+  try {
+    const { excludedLocations } = req.body || {};
+    if (!Array.isArray(excludedLocations)) {
+      return res.status(400).json({ ok: false, error: 'INVALID_BODY' });
+    }
+    const result = await store.updateSettings(excludedLocations, actorOf(req));
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    console.error('[routes/vencimientos] updateSettings falló:', e.message);
+    res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
+  }
+});
+
+// POST /api/vencimientos/validate
+// { bodega, caja, ean, referencia, ubicacion, descripcion, fv, motivo, motivoDetalle }
+router.post('/validate', async (req, res) => {
+  try {
+    await store.validateItem({ ...req.body, actor: actorOf(req) });
+    res.json({ ok: true });
+  } catch (e) {
+    if (e.message === 'MISSING_KEY' || e.message === 'INVALID_MOTIVO') {
+      return res.status(400).json({ ok: false, error: e.message });
+    }
+    console.error('[routes/vencimientos] validateItem falló:', e.message);
+    res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
+  }
+});
+
+// DELETE /api/vencimientos/validate  { bodega, caja, ean } — revertir
+router.delete('/validate', async (req, res) => {
+  try {
+    const { bodega, caja, ean } = req.body || {};
+    if (!bodega || !caja || !ean) return res.status(400).json({ ok: false, error: 'MISSING_KEY' });
+    await store.clearValidation(bodega, caja, ean);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[routes/vencimientos] clearValidation falló:', e.message);
+    res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
+  }
+});
+
+// GET /api/vencimientos/export — XLSX con todo el estado actual
+router.get('/export', async (_req, res) => {
+  try {
+    const { items } = await store.list({ sortBy: 'ubicacion' });
+    const workbook = buildWorkbook(items);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="vencimientos.xlsx"`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (e) {
+    console.error('[routes/vencimientos] export falló:', e.message);
+    res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
+  }
+});
+
+module.exports = router;

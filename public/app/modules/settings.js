@@ -271,7 +271,6 @@ async function mountDatabases(root) {
 }
 
 const PASSWORD_ERROR_MESSAGES = {
-  INVALID_CURRENT_PASSWORD: 'La contraseña actual no es correcta.',
   INVALID_PASSWORD: 'La contraseña nueva debe tener al menos 4 caracteres.',
 };
 
@@ -287,10 +286,6 @@ function mountPassword(root) {
         </div>
       </div>
       <form id="pwForm" class="settings-password-form" autocomplete="off">
-        <div class="field">
-          <label for="pwCurrent">Contraseña actual</label>
-          <input id="pwCurrent" type="password" required minlength="4" autocomplete="current-password" placeholder="Ingresa tu contraseña actual" />
-        </div>
         <div class="field">
           <label for="pwNew">Contraseña nueva</label>
           <input id="pwNew" type="password" required minlength="4" autocomplete="new-password" placeholder="Ingresa tu nueva contraseña" />
@@ -313,11 +308,10 @@ function mountPassword(root) {
     okEl.style.display = 'none';
     submitBtn.disabled = true;
 
-    const currentPassword = root.querySelector('#pwCurrent').value;
     const newPassword = root.querySelector('#pwNew').value;
 
     try {
-      const data = await changePassword(currentPassword, newPassword);
+      const data = await changePassword(newPassword);
       if (data.ok) {
         form.reset();
         okEl.style.display = '';

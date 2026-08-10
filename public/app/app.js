@@ -32,7 +32,7 @@ import { currentUser, refreshUser, logout } from '/shared/js/session.js';
 import { renderAuth } from '/shared/js/auth-view.js';
 
 import * as mapear from '/app/modules/mapear/index.js';
-import * as vencimientos from '/app/modules/vencimientos.js';
+import * as vencimientos from '/app/modules/vencimientos/index.js';
 import * as vacios from '/app/modules/vacios.js';
 import * as consultas from '/app/modules/consultas/index.js';
 import * as settings from '/app/modules/settings.js';

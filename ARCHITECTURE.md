@@ -27,8 +27,10 @@ server/
                            (list/findById/create/update/...), solo que ahora todas son async.
   store/sessions.store.js  Repositorio de sesiones — Supabase (tabla `sessions`, token opaco -> user_id).
                            Antes en memoria: se perdían en cada restart del servidor, forzando relogueo.
-  routes/auth.js           API: login / logout / me. Sin auto-registro: las cuentas las crea un admin
-                           desde Gestión de usuarios. Usa store/users.store.js + store/sessions.store.js.
+  routes/auth.js           API: login / logout / me / PATCH password (el propio usuario cambia su
+                           contraseña — sin pedir la actual, pedido explícito: la sesión ya autenticada es
+                           la única puerta). Sin auto-registro: las cuentas las crea un admin desde Gestión
+                           de usuarios. Usa store/users.store.js + store/sessions.store.js.
   routes/users.js          API: listar (con búsqueda+paginación), crear, editar, cambiar contraseña, eliminar.
   routes/database.js       API del módulo Bases de datos: POST /refresh, con body opcional { source }, dispara
                            una corrida del motor — sin body, TODAS las fuentes (botón masivo); con
@@ -123,6 +125,12 @@ server/
                            bajar el ~1MB completo, sin excepción (el service worker de /app explícitamente
                            nunca cachea /api/*, ver app/sw.js — esto no lo contradice: el 304 lo maneja el
                            caché HTTP del navegador, una capa distinta, más abajo).
+  routes/vencimientos.js  API de Vencimientos: GET / (lista cruzada, ?sortBy=urgencia|ubicacion), GET/PUT
+                           /settings (ubicaciones excluidas, personalizable), POST /validate y DELETE
+                           /validate (revertir), GET /export (XLSX, services/vencimiento-export.js). Toda
+                           la lógica real vive en store/vencimientos.store.js — este archivo solo valida
+                           entrada y fija el actor desde la sesión. Exige el permiso 'vencimientos' (scope
+                           app, sin equivalente en desk todavía).
   services/copernico-client.js  Cliente HTTP de bajo nivel contra la API de Copernico WMS: login/logout +
                            fetchDataset() genérico (usado por fetchReferencia/fetchCoordenadas/fetchVariables,
                            mismo timeout y misma heurística para encontrar el array de filas en la respuesta).
@@ -197,6 +205,13 @@ server/
                            del mismo código con vencimiento DISTINTO nunca se fusionan, quedan en filas
                            separadas. Nunca toca los datos originales en Supabase — la consolidación es
                            solo para este archivo, calculada en memoria en cada exportación.
+  services/vencimiento-export.js  buildWorkbook(items) → libro ExcelJS para GET /api/vencimientos/export.
+                           Mismo criterio visual que mapeo-export.js (encabezado negrita/blanco/relleno
+                           azul, todo centrado y con borde). Una hoja por ESTADO (Pendiente/OK/Vencido/
+                           Faltante/Otro, statusOf() = 'pendiente' si no fue validado, sino su motivo) en
+                           vez de por motivo — acá nunca hace falta consolidar (a diferencia de Mapeos): la
+                           clave bodega+caja+ean ya es única en el origen, así que cada fila del listado es
+                           un ítem real, sin duplicados posibles.
   services/supabase-client.js  Cliente Supabase compartido (proyecto "bodega-47-inventario", service_role
                            key). getClient() devuelve null si no está configurada (lo usan inventory/
                            coordenadas, que tienen caché local de respaldo); requireClient() lanza en ese
@@ -228,6 +243,20 @@ server/
   store/mapeos.store.js    Repositorio de mapeos — Supabase (tablas `mapeos` + `mapeo_codes`). Antes vivía
                            entero en la memoria del NAVEGADOR (se perdía todo al recargar la página); ahora
                            es la única fuente real, con codes embebidos vía `select('*, mapeo_codes(*)')`.
+  store/vencimientos.store.js  Cruza store/inventory.store.js (Referencia) con dos tablas de Supabase:
+                           `vencimiento_validaciones` (estado OK/vencido/faltante/otro por ítem, clave
+                           bodega+caja+ean — el mismo UNIQUE natural de `inventario_cajas`, sobrevive a que
+                           Referencia se refresque entera mientras el mismo producto siga en la misma caja)
+                           y `vencimiento_settings` (fila única, ubicaciones excluidas — default RECUPERO/
+                           DIFERENCIAS/Z/BIN por prefijo, case-insensitive, personalizable). A propósito
+                           NO usa "gestioninv"/"diasvigenciaz" de Copernico (su propio criterio de vencido)
+                           — calcula los días a vencer acá mismo desde "fv" (DD/MM/AAAA) contra HOY: el
+                           criterio propio pedido explícitamente. severityOf(): 'vencido' (días negativos),
+                           'retirar' (0 a 4 días — "solicitar retirar"), 'proximo' (5 a 15, el límite de la
+                           ventana del módulo — WINDOW_DAYS). list({sortBy}) devuelve todo ya cruzado y
+                           ordenado ('urgencia' = días asc, o 'ubicacion' = A-Z para el recorrido físico),
+                           nunca paginado: la ventana de 15 días ya acota el resultado a un tamaño chico
+                           (~300 ítems con datos reales), así que no hace falta.
   .env                     COPERNICO_EMAIL / COPERNICO_PASSWORD / COPERNICO_BODEGA del usuario consultor +
                            SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY — gitignored, nunca se envían al
                            navegador. config.js los carga a mano al arrancar.
@@ -503,7 +532,31 @@ public/
                                /api/consultas/lookup contesta, showResult() reemplaza cada bloque con los
                                datos reales con un fundido (.cq-fade-in), nunca de golpe.
       store.js                 findProduct(code) — cliente de GET /api/consultas/lookup.
-    modules/vencimientos.js Herramienta Vencimientos.
+    modules/vencimientos/   Herramienta Vencimientos — todo lo que venza dentro de la ventana de
+                           server/store/vencimientos.store.js (15 días, o ya vencido), online y compartido
+                           (los avances de validación son visibles para cualquier usuario al instante, sin
+                           caché local — a diferencia de Mapear, esta lista cambia con cada "Actualizar DB"
+                           y con cada validación de cualquiera, así que no tiene sentido guardar una foto).
+      index.js               Entrada — solo orquesta list-view.js y validation-view.js.
+      store.js                Cliente de /api/vencimientos (list/validate/clearValidation/getSettings/
+                               updateSettings) — sin caché, siempre pide fresco.
+      list-view.js             Listado con un toggle de orden en el header (Urgencia: días asc, agrupado
+                               en sub-encabezados Vencido/Retirar/Próximo — o Ubicación: A-Z, sin agrupar,
+                               para el recorrido físico del depósito) + progreso ("X de Y validados") +
+                               ícono de ubicaciones excluidas (modal con los prefijos actuales, editable) +
+                               descarga XLSX. Un ítem ya validado se ve atenuado con un check (nunca
+                               desaparece de la lista — es un checklist compartido, no una cola que se
+                               vacía) y al tocarlo muestra motivo/quién/cuándo con un botón "Revertir".
+      validation-view.js       Un solo overlay de cámara para los 3 pasos de un ítem sin volver a pedir
+                               permiso ni parpadear entre ellos: 1) escanear la caja (contra `caja`), 2) si
+                               coincide, escanear el código de barras (contra `referencia`) — un match
+                               avanza SOLO, sin pedir confirmación ("sin fricción" es literal, el único
+                               freno es un desacuerdo real —, 3) motivo (OK/Vencido/Faltante/Otro, con texto
+                               libre en Otro). El valor esperado de cada paso nunca se muestra de entrada
+                               (mostrarlo de entrada volvería el paso un trámite de tipeo, no una
+                               verificación real) — solo aparece si hay un desacuerdo, para diagnosticarlo,
+                               junto con un atajo "No lo encuentro / saltar escaneo" directo a motivo (un
+                               ítem realmente faltante no tiene nada que escanear).
     modules/vacios.js      Herramienta Vacíos.
     modules/settings.js    Configuración — no es una "herramienta" de TOOLS/PUBLIC_TOOLS (no aparece en el
                            inicio, solo se llega desde el ícono de la cabecera con sesión). Hoy solo
