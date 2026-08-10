@@ -85,14 +85,17 @@ export function openValidation(item, { onDone }) {
   }
 
   function itemSummaryHTML() {
-    const days = item.days;
-    const daysLabel = days < 0 ? `Vencido hace ${Math.abs(days)} día${Math.abs(days) === 1 ? '' : 's'}` : days === 0 ? 'Vence hoy' : `Vence en ${days} día${days === 1 ? '' : 's'}`;
+    // Sin la frase "Vencido hace"/"Vence en" — el signo del número ya
+    // lo dice todo (pedido explícito).
+    const daysLabel = item.days === 0 ? 'Hoy' : `${item.days}d`;
+    const qty = item.saldo == null ? '-' : item.saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 });
     return `
       <div class="venc-val-summary">
         <p class="venc-val-desc">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
         <div class="venc-val-meta">
           <span>${icon('pin', 13)} ${escapeHtml(item.ubicacion || '-')}</span>
-          <span>${icon('package', 13)} ${item.saldo ?? '-'} ${item.unidadmedida ? escapeHtml(item.unidadmedida) : ''}</span>
+          <span>${icon('package', 13)} ${qty} ${item.unidadmedida ? escapeHtml(item.unidadmedida) : ''}</span>
+          <span>${icon('calendar', 13)} ${escapeHtml(item.fv || '-')}</span>
           <span class="venc-val-days is-${item.severity}">${daysLabel}</span>
         </div>
       </div>

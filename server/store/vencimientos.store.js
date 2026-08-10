@@ -162,7 +162,11 @@ async function list({ sortBy = 'urgencia' } = {}) {
       referencia: r.referencia || r.barcode || null,
       ubicacion: r.ubicacion || null,
       descripcion: r.descripcion || null,
-      saldo: r.saldo ?? null,
+      // Copernico manda el saldo como número o como string con ceros de
+      // relleno ("144.0000") — Number() lo deja limpio (144, o 144.25 si
+      // de verdad hay fracción) para que el front nunca tenga que
+      // recortar ceros a mano.
+      saldo: r.saldo != null && r.saldo !== '' ? Number(r.saldo) : null,
       unidadmedida: String(r.unidadmedida || '').trim() || null,
       fv: r.fv || null,
       days,

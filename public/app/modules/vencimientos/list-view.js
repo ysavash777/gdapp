@@ -20,10 +20,20 @@ const MOTIVO_LABEL = { ok: 'OK', vencido: 'Vencido', faltante: 'Faltante', otro:
 let outletRef = null;
 let refreshRef = null;
 
+// Pedido explícito: sin la frase "Vencido hace" — el signo ya lo dice
+// todo (negativo = vencido, 0 = hoy, positivo = días que faltan).
 function daysLabel(days) {
-  if (days < 0) return `Vencido hace ${Math.abs(days)}d`;
   if (days === 0) return 'Hoy';
   return `${days}d`;
+}
+
+// Copernico puede mandar el saldo con ceros de relleno ("144.0000") —
+// ya llega limpio como Number desde el servidor (ver
+// server/store/vencimientos.store.js), esto solo evita que una
+// fracción real se vea con más de 2 decimales.
+function formatQty(saldo) {
+  if (saldo == null) return '-';
+  return saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 });
 }
 
 function itemCardHTML(item) {
@@ -36,7 +46,8 @@ function itemCardHTML(item) {
         <span class="venc-card-desc">${escapeHtml(desc)}</span>
         <div class="venc-card-meta">
           <span>${icon('pin', 12)} ${escapeHtml(item.ubicacion || '-')}</span>
-          <span>${icon('package', 12)} ${item.caja || '-'} · ${item.saldo ?? '-'}${um}</span>
+          <span>${icon('package', 12)} ${item.caja || '-'} · ${formatQty(item.saldo)}${um}</span>
+          <span>${icon('calendar', 12)} ${escapeHtml(item.fv || '-')}</span>
         </div>
       </div>
       ${item.validated
