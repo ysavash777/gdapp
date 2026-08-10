@@ -33,24 +33,25 @@ function formatQty(saldo) {
   return saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 });
 }
 
-// 3 chips de ANCHO IGUAL siempre (grid 1fr 1fr 1fr, nunca por
-// contenido) — cada uno trunca con elipsis en vez de estirar la
-// tarjeta o saltar de renglón, así todas miden exactamente lo mismo
-// sin importar si la ubicación, la caja o la fecha son cortas o
-// largas (pedido explícito: mismo ancho siempre, responsivo).
+// Jerarquía de lectura pedida explícitamente: 1) ubicación (a dónde
+// dirigirse — la línea más grande y oscura de la tarjeta, primera),
+// 2) descripción del producto, 3) caja/cantidad como apoyo menor. La
+// fecha de vencimiento NO va acá (ya la resume el color/número de
+// días, que es lo único temporal que hace falta para decidir qué
+// atender primero) — aparece completa recién en la pantalla de
+// validación, donde sí hace falta para confirmar el ítem exacto.
 function itemCardHTML(item) {
   const desc = item.descripcion || 'Producto sin descripción';
   const um = item.unidadmedida ? ` ${item.unidadmedida}` : '';
   return `
     <button class="venc-card ${item.validated ? 'is-validated' : ''}" data-key="${escapeHtml(item.key)}">
-      <div class="venc-card-days is-${item.severity}">${daysLabel(item.days)}</div>
-      <div class="venc-card-info">
-        <span class="venc-card-desc">${escapeHtml(desc)}</span>
-        <div class="venc-card-chips">
-          <span class="venc-chip" title="${escapeHtml(item.ubicacion || '-')} - ${escapeHtml(item.caja || '-')}">${escapeHtml(item.ubicacion || '-')} - ${escapeHtml(item.caja || '-')}</span>
-          <span class="venc-chip" title="${escapeHtml(item.fv || '-')}">${escapeHtml(item.fv || '-')}</span>
-          <span class="venc-chip" title="${formatQty(item.saldo)}${um}">${formatQty(item.saldo)}${escapeHtml(um)}</span>
+      <div class="venc-card-main">
+        <div class="venc-card-top">
+          <span class="venc-card-ubicacion">${icon('pin', 15)} ${escapeHtml(item.ubicacion || '-')}</span>
+          <span class="venc-card-days is-${item.severity}">${daysLabel(item.days)}</span>
         </div>
+        <span class="venc-card-desc">${escapeHtml(desc)}</span>
+        <span class="venc-card-sub">Caja ${escapeHtml(item.caja || '-')} · ${formatQty(item.saldo)}${escapeHtml(um)}</span>
       </div>
       ${item.validated
         ? `<div class="venc-card-check" title="Validado">${icon('check', 16)}</div>`

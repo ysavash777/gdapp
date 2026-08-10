@@ -1529,64 +1529,76 @@ html, body {
 }
 .venc-card.is-validated { opacity: 0.55; }
 
+/* Insignia de urgencia — chica y de acento, nunca compite en tamaño
+   con la ubicación (ver .venc-card-ubicacion): informa "cuán urgente"
+   de un vistazo, pero no es lo primero que se lee. */
 .venc-card-days, .venc-val-days {
   flex-shrink: 0;
-  min-width: 44px;
-  padding: 6px 8px;
-  border-radius: var(--r-md);
+  padding: 4px 9px;
+  border-radius: var(--r-full);
   text-align: center;
   font-weight: 700;
-  font-size: var(--text-xs);
+  font-size: 11px;
   background: var(--n-100);
   color: var(--ink-2);
 }
 .venc-card-days.is-vencido, .venc-val-days.is-vencido { background: var(--danger-bg); color: var(--danger); }
 .venc-card-days.is-retirar, .venc-val-days.is-retirar { background: var(--warn-bg); color: var(--warn); }
 .venc-card-days.is-proximo, .venc-val-days.is-proximo { background: rgba(251, 146, 60, 0.15); color: var(--icon-vencimientos); }
-.venc-val-days { padding: 3px 10px; border-radius: var(--r-full); }
 
-.venc-card-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.venc-card-desc {
-  font-weight: 600;
-  font-size: var(--text-sm);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* 3 chips de ANCHO IGUAL siempre (grid de 3 columnas 1fr, nunca por
-   contenido) — Ubicación-Caja / Vencimiento / Cantidad. Cada chip
-   trunca con elipsis en vez de estirar la tarjeta o saltar de
-   renglón, así todas miden exactamente lo mismo sin importar el largo
-   de cada dato (pedido explícito: mismo ancho siempre, responsivo —
-   %/fr en vez de un ancho fijo en px, para que se adapte a cualquier
-   pantalla). Misma estructura en la ficha de validación
-   (.venc-val-summary reutiliza .venc-card-chips). */
-.venc-card-chips {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  margin-top: 4px;
-}
-.venc-chip {
+/* Jerarquía de lectura pedida explícitamente: ubicación primero (la
+   línea más grande/oscura — "a dónde dirigirme"), descripción del
+   producto después, caja/cantidad como apoyo menor al final. Sin la
+   fecha acá: la resuelve el color/número de días. */
+.venc-card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.venc-card-top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.venc-card-ubicacion {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   min-width: 0;
   overflow: hidden;
-  white-space: nowrap;
   text-overflow: ellipsis;
-  text-align: center;
-  background: var(--n-100);
-  color: var(--ink-2);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 5px 6px;
-  border-radius: var(--r-sm);
+  white-space: nowrap;
+  font-size: var(--text-base);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
 }
+.venc-card-ubicacion svg { flex-shrink: 0; color: var(--icon-vencimientos); }
+.venc-card-desc {
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.venc-card-sub { font-size: var(--text-xs); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .venc-card-check { flex-shrink: 0; color: var(--ok); }
 .venc-card-arrow { flex-shrink: 0; color: var(--ink-3); }
 
 .venc-detail-photo { width: 100%; border-radius: var(--r-md); margin-bottom: var(--sp-3); display: block; }
 
+/* Ficha de validación: acá SÍ hace falta confirmar la fecha exacta
+   (ver .reg-info-grid más abajo), a diferencia de la tarjeta de la
+   lista — este es el momento de chequear el ítem puntual, no de
+   decidir a dónde ir. */
 .venc-val-summary { padding: var(--sp-3) 0 var(--sp-2); }
-.venc-val-desc { font-weight: 650; margin-bottom: 8px; }
+.venc-val-top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-bottom: 6px; }
+.venc-val-ubicacion {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.venc-val-ubicacion svg { flex-shrink: 0; color: var(--icon-vencimientos); }
+.venc-val-desc { font-size: var(--text-sm); color: var(--ink-2); margin-bottom: var(--sp-3); }
 
 .venc-val-mismatch {
   display: flex;

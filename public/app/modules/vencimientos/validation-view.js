@@ -107,18 +107,35 @@ export function openValidation(item, { onDone }) {
     `;
   }
 
+  // Acá SÍ va la fecha completa (a diferencia de la tarjeta de la
+  // lista): este es el momento de confirmar el ítem exacto, no de
+  // decidir a dónde ir — mismo patrón de celdas (reg-info-grid) que
+  // ya usan Mapear/Consultar grupo para datos de producto, así queda
+  // consistente con el resto de la app.
   function itemSummaryHTML() {
     const daysLabel = item.days === 0 ? 'Hoy' : `${item.days}d`;
     const um = item.unidadmedida ? ` ${item.unidadmedida}` : '';
     return `
       <div class="venc-val-summary">
-        <p class="venc-val-desc">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
-        <div class="venc-card-chips">
-          <span class="venc-chip">${escapeHtml(item.ubicacion || '-')} - ${escapeHtml(item.caja || '-')}</span>
-          <span class="venc-chip">${escapeHtml(item.fv || '-')}</span>
-          <span class="venc-chip">${formatQty(item.saldo)}${escapeHtml(um)}</span>
+        <div class="venc-val-top">
+          <span class="venc-val-ubicacion">${icon('pin', 16)} ${escapeHtml(item.ubicacion || '-')}</span>
+          <span class="venc-val-days is-${item.severity}">${daysLabel}</span>
         </div>
-        <span class="venc-val-days is-${item.severity}">${daysLabel}</span>
+        <p class="venc-val-desc">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
+        <div class="reg-info-grid">
+          <div class="reg-info-cell">
+            <span class="reg-info-label">Caja</span>
+            <span class="reg-info-value">${escapeHtml(item.caja || '-')}</span>
+          </div>
+          <div class="reg-info-cell">
+            <span class="reg-info-label">Vence</span>
+            <span class="reg-info-value">${escapeHtml(item.fv || '-')}</span>
+          </div>
+          <div class="reg-info-cell">
+            <span class="reg-info-label">Cantidad</span>
+            <span class="reg-info-value">${formatQty(item.saldo)}${escapeHtml(um)}</span>
+          </div>
+        </div>
       </div>
     `;
   }
