@@ -56,24 +56,39 @@ const SOURCES = [
 ];
 const KEYS = SOURCES.map((s) => s.key);
 
-export function render(root, user) {
-  root.innerHTML = `<div class="settings-screen" id="settingsRoot"></div>`;
-  const container = root.querySelector('#settingsRoot');
+// La contraseña se pinta al instante (formulario estático), pero
+// Bases de datos necesita un pedido al servidor (loadStatus()) — sin
+// esperarlo, la pantalla se armaba en dos tiempos (contraseña ya
+// visible, bases de datos apareciendo un instante después de la
+// nada), que se ve roto. Un spinner mínimo cubre esa espera y recién
+// entonces se muestra todo junto, ya completo.
+export async function render(root, user) {
   const hasDbPerm = user?.permissions?.includes('basesdatos');
 
-  if (hasDbPerm) {
-    const dbBlock = document.createElement('div');
-    container.appendChild(dbBlock);
-    mountDatabases(dbBlock);
-    // Separador minimalista: solo tiene sentido si arriba hay algo de
-    // qué separar — sin el permiso de bases de datos, la contraseña
-    // queda como única sección y no necesita línea previa.
-    container.appendChild(document.createElement('hr')).className = 'settings-separator';
+  if (!hasDbPerm) {
+    root.innerHTML = `<div class="settings-screen" id="settingsRoot"></div>`;
+    const pwBlock = document.createElement('div');
+    root.querySelector('#settingsRoot').appendChild(pwBlock);
+    mountPassword(pwBlock);
+    return;
   }
 
+  root.innerHTML = `<div class="settings-loading"><div class="settings-spinner"></div></div>`;
+
+  const dbBlock = document.createElement('div');
+  await mountDatabases(dbBlock); // corre detached del documento — sus listeners igual quedan atados
+
+  if (!root.isConnected) return; // se salió de Configuración mientras cargaba
+
   const pwBlock = document.createElement('div');
-  container.appendChild(pwBlock);
   mountPassword(pwBlock);
+
+  root.innerHTML = `<div class="settings-screen" id="settingsRoot"></div>`;
+  const container = root.querySelector('#settingsRoot');
+  container.appendChild(dbBlock);
+  // Separador minimalista entre las dos secciones ya resueltas.
+  container.appendChild(document.createElement('hr')).className = 'settings-separator';
+  container.appendChild(pwBlock);
 }
 
 async function mountDatabases(root) {

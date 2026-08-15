@@ -120,7 +120,7 @@ export function openValidation(item, { onDone }) {
         <div class="venc-val-top">
           <div class="venc-val-days is-${item.severity}">${daysLabel}</div>
           <div class="venc-val-top-info">
-            <span class="venc-val-ubicacion">${iconSolid('ubicacion', 17)} ${escapeHtml(item.ubicacion || '-')}</span>
+            <span class="venc-val-ubicacion">${escapeHtml(item.ubicacion || '-')}</span>
             <p class="venc-val-desc">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
           </div>
         </div>
@@ -130,11 +130,11 @@ export function openValidation(item, { onDone }) {
             <span class="reg-info-value">${escapeHtml(item.caja || '-')}</span>
           </div>
           <div class="reg-info-cell">
-            <span class="reg-info-label">Vence</span>
+            <span class="reg-info-label">${iconSolid('calendario', 13)}</span>
             <span class="reg-info-value">${escapeHtml(item.fv || '-')}</span>
           </div>
           <div class="reg-info-cell">
-            <span class="reg-info-label">${iconSolid('unidades', 13)}</span>
+            <span class="reg-info-label">${iconSolid('archivo', 13)}</span>
             <span class="reg-info-value">${formatQty(item.saldo)}${escapeHtml(um)}</span>
           </div>
         </div>

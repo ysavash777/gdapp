@@ -1499,7 +1499,13 @@ html, body {
    pasó), retirar (ámbar, vence en <=4 días), próximo (naranja tenue,
    el color propio del módulo — el resto de la escalera de alarma
    queda reservada para lo que realmente urge). ============================================================ */
-.venc-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+/* Toggle + progreso agrupados en un solo bloque — antes cada uno
+   tenía su propio margin-bottom SUMADO al gap de .action-hero (que ya
+   separa a este bloque de la lista), así que el hueco real terminaba
+   siendo el doble del buscado. Agrupándolos, el gap chico de acá
+   adentro queda aparte del gap de afuera, sin sumarse. */
+.venc-header { display: flex; flex-direction: column; gap: 4px; }
+.venc-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .venc-sort-toggle { display: flex; background: var(--surface-2); border-radius: var(--r-full); padding: 3px; gap: 2px; }
 .venc-sort-toggle button {
   padding: 7px 14px;
@@ -1513,7 +1519,7 @@ html, body {
 }
 .venc-sort-toggle button.is-active { background: var(--surface); color: var(--ink); }
 .venc-toolbar-actions { display: flex; gap: 2px; flex-shrink: 0; }
-.venc-progress { font-size: var(--text-xs); color: var(--ink-3); margin-bottom: var(--sp-3); }
+.venc-progress { font-size: var(--text-xs); color: var(--ink-3); }
 
 .venc-card {
   display: flex;
@@ -1562,9 +1568,7 @@ html, body {
    el círculo de la izquierda. */
 .venc-card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .venc-card-ubicacion {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1574,7 +1578,6 @@ html, body {
   letter-spacing: -0.01em;
   color: var(--ink);
 }
-.venc-card-ubicacion svg { flex-shrink: 0; color: var(--icon-vencimientos); }
 .venc-card-desc {
   font-size: var(--text-sm);
   color: var(--ink-2);
@@ -1610,9 +1613,7 @@ html, body {
 .venc-val-top { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); }
 .venc-val-top-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .venc-val-ubicacion {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1621,7 +1622,6 @@ html, body {
   font-weight: 700;
   letter-spacing: -0.01em;
 }
-.venc-val-ubicacion svg { flex-shrink: 0; color: var(--icon-vencimientos); }
 .venc-val-desc { font-size: var(--text-sm); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reg-info-grid .reg-info-label svg { display: block; margin: 0 auto; }
 
@@ -1701,6 +1701,19 @@ html, body {
 .settings-screen { display: flex; flex-direction: column; gap: var(--sp-4); }
 .settings-empty { text-align: center; color: var(--ink-3); font-size: var(--text-sm); padding: var(--sp-6) 0; }
 
+/* Mientras Bases de datos pide su estado al servidor — ver render()
+   en settings.js: cubre esa espera para que la pantalla aparezca de
+   una sola vez, ya completa, en vez de la contraseña sola primero. */
+.settings-loading { display: flex; align-items: center; justify-content: center; padding: var(--sp-7) 0; }
+.settings-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--line);
+  border-top-color: var(--icon-vencimientos);
+  animation: gd-spin 700ms linear infinite;
+}
+
 .settings-block { display: flex; flex-direction: column; gap: var(--sp-3); }
 .settings-block-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); }
 .settings-block-head h2 { font-size: var(--text-lg); font-weight: 700; letter-spacing: -0.01em; }
@@ -1709,7 +1722,8 @@ html, body {
 .settings-separator { border: none; border-top: 1px solid var(--line); margin: 0; }
 
 .settings-password-form { display: flex; flex-direction: column; gap: var(--sp-3); }
-.settings-password-form .btn { align-self: flex-start; }
+.settings-password-form input { border: none; }
+.settings-password-form .btn { width: 100%; }
 
 /* Botón masivo: ícono giratorio mientras corre (mismo lenguaje que el
    botón puntual de cada fila, ver .settings-source-refresh) — el

@@ -34,15 +34,12 @@ function formatQty(saldo) {
 }
 
 // Jerarquía de lectura pedida explícitamente: 1) ubicación (a dónde
-// dirigirse — la línea más grande y oscura de la tarjeta, primera),
-// 2) descripción del producto, 3) caja/cantidad como apoyo menor,
-// cada uno con su ícono sólido en vez de texto ("Caja"). La fecha de
-// vencimiento NO va acá (ya la resume el color/número de días, que es
-// lo único temporal que hace falta para decidir qué atender primero)
-// — aparece completa recién en la pantalla de validación. La "vida
-// útil" (círculo de días) va a la IZQUIERDA de la tarjeta, centrada
-// en las dos direcciones y en toda la altura del contenedor — nunca
-// arriba compitiendo con la ubicación.
+// dirigirse — la línea más grande y oscura de la tarjeta, primera,
+// SIN ícono — pedido explícito), 2) descripción del producto, 3)
+// caja/cantidad/vencimiento como apoyo menor, cada uno con su ícono
+// sólido en vez de texto. La "vida útil" (círculo de días) va a la
+// IZQUIERDA de la tarjeta, centrada en las dos direcciones y en toda
+// la altura del contenedor — nunca arriba compitiendo con la ubicación.
 function itemCardHTML(item) {
   const desc = item.descripcion || 'Producto sin descripción';
   const um = item.unidadmedida ? ` ${item.unidadmedida}` : '';
@@ -50,11 +47,12 @@ function itemCardHTML(item) {
     <button class="venc-card ${item.validated ? 'is-validated' : ''}" data-key="${escapeHtml(item.key)}">
       <div class="venc-card-days is-${item.severity}">${daysLabel(item.days)}</div>
       <div class="venc-card-main">
-        <span class="venc-card-ubicacion">${iconSolid('ubicacion', 16)} ${escapeHtml(item.ubicacion || '-')}</span>
+        <span class="venc-card-ubicacion">${escapeHtml(item.ubicacion || '-')}</span>
         <span class="venc-card-desc">${escapeHtml(desc)}</span>
         <span class="venc-card-sub">
           <span class="venc-card-sub-item">${iconSolid('caja', 13)} ${escapeHtml(item.caja || '-')}</span>
-          <span class="venc-card-sub-item">${iconSolid('unidades', 13)} ${formatQty(item.saldo)}${escapeHtml(um)}</span>
+          <span class="venc-card-sub-item">${iconSolid('archivo', 13)} ${formatQty(item.saldo)}${escapeHtml(um)}</span>
+          <span class="venc-card-sub-item">${iconSolid('calendario', 13)} ${escapeHtml(item.fv || '-')}</span>
         </span>
       </div>
       ${item.validated
@@ -71,23 +69,25 @@ export async function renderList(outlet) {
 
   outlet.innerHTML = `
     <div class="action-hero">
-      <div class="venc-toolbar">
-        <div class="venc-sort-toggle" id="vencViewToggle">
-          <button type="button" class="is-active" data-view="pendiente">Pendiente</button>
-          <button type="button" data-view="validado">Validado</button>
+      <div class="venc-header">
+        <div class="venc-toolbar">
+          <div class="venc-sort-toggle" id="vencViewToggle">
+            <button type="button" class="is-active" data-view="pendiente">Pendiente</button>
+            <button type="button" data-view="validado">Validado</button>
+          </div>
+          <div class="venc-toolbar-actions">
+            <button type="button" class="btn-icon" id="vencSettingsBtn" title="Ubicaciones excluidas">${icon('settings', 18)}</button>
+            <a class="btn-icon" id="vencExportBtn" href="/api/vencimientos/export" title="Descargar XLSX">${icon('download', 18)}</a>
+          </div>
         </div>
-        <div class="venc-toolbar-actions">
-          <button type="button" class="btn-icon" id="vencSettingsBtn" title="Ubicaciones excluidas">${icon('settings', 18)}</button>
-          <a class="btn-icon" id="vencExportBtn" href="/api/vencimientos/export" title="Descargar XLSX">${icon('download', 18)}</a>
-        </div>
+        <p class="venc-progress" id="vencProgress"></p>
       </div>
-      <p class="venc-progress" id="vencProgress"></p>
       <div id="vencListWrap">
         <div class="mapeo-list cq-fade-in">
           ${[1, 2, 3].map(() => `
             <div class="venc-card">
               <div class="cq-skeleton" style="width:48px;height:32px;border-radius:var(--r-md);flex-shrink:0;"></div>
-              <div class="venc-card-info">
+              <div class="venc-card-main">
                 <span class="cq-skeleton" style="width:70%;height:14px;margin-bottom:6px;"></span>
                 <span class="cq-skeleton" style="width:45%;height:11px;"></span>
               </div>
