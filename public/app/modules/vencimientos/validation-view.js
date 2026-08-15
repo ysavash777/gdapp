@@ -25,7 +25,7 @@
    solo aparece si hay un desacuerdo, para poder diagnosticarlo.
    ============================================================ */
 
-import { icon } from '/shared/js/icons.js';
+import { icon, iconSolid } from '/shared/js/icons.js';
 import { escapeHtml } from '/shared/js/format.js';
 import { showToast } from '/shared/js/toast.js';
 import { createCameraScanner } from '../../scanner/camera.js';
@@ -118,13 +118,15 @@ export function openValidation(item, { onDone }) {
     return `
       <div class="venc-val-summary">
         <div class="venc-val-top">
-          <span class="venc-val-ubicacion">${icon('pin', 16)} ${escapeHtml(item.ubicacion || '-')}</span>
-          <span class="venc-val-days is-${item.severity}">${daysLabel}</span>
+          <div class="venc-val-days is-${item.severity}">${daysLabel}</div>
+          <div class="venc-val-top-info">
+            <span class="venc-val-ubicacion">${iconSolid('ubicacion', 17)} ${escapeHtml(item.ubicacion || '-')}</span>
+            <p class="venc-val-desc">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
+          </div>
         </div>
-        <p class="venc-val-desc">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
         <div class="reg-info-grid">
           <div class="reg-info-cell">
-            <span class="reg-info-label">Caja</span>
+            <span class="reg-info-label">${iconSolid('caja', 13)}</span>
             <span class="reg-info-value">${escapeHtml(item.caja || '-')}</span>
           </div>
           <div class="reg-info-cell">
@@ -132,7 +134,7 @@ export function openValidation(item, { onDone }) {
             <span class="reg-info-value">${escapeHtml(item.fv || '-')}</span>
           </div>
           <div class="reg-info-cell">
-            <span class="reg-info-label">Cantidad</span>
+            <span class="reg-info-label">${iconSolid('unidades', 13)}</span>
             <span class="reg-info-value">${formatQty(item.saldo)}${escapeHtml(um)}</span>
           </div>
         </div>

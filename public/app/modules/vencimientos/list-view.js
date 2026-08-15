@@ -9,7 +9,7 @@
    pero ya no reordena la lista — pedido explícito.
    ============================================================ */
 
-import { icon } from '/shared/js/icons.js';
+import { icon, iconSolid } from '/shared/js/icons.js';
 import { escapeHtml, formatDateTime } from '/shared/js/format.js';
 import * as store from './store.js';
 import { openValidation } from './validation-view.js';
@@ -35,23 +35,27 @@ function formatQty(saldo) {
 
 // Jerarquía de lectura pedida explícitamente: 1) ubicación (a dónde
 // dirigirse — la línea más grande y oscura de la tarjeta, primera),
-// 2) descripción del producto, 3) caja/cantidad como apoyo menor. La
-// fecha de vencimiento NO va acá (ya la resume el color/número de
-// días, que es lo único temporal que hace falta para decidir qué
-// atender primero) — aparece completa recién en la pantalla de
-// validación, donde sí hace falta para confirmar el ítem exacto.
+// 2) descripción del producto, 3) caja/cantidad como apoyo menor,
+// cada uno con su ícono sólido en vez de texto ("Caja"). La fecha de
+// vencimiento NO va acá (ya la resume el color/número de días, que es
+// lo único temporal que hace falta para decidir qué atender primero)
+// — aparece completa recién en la pantalla de validación. La "vida
+// útil" (círculo de días) va a la IZQUIERDA de la tarjeta, centrada
+// en las dos direcciones y en toda la altura del contenedor — nunca
+// arriba compitiendo con la ubicación.
 function itemCardHTML(item) {
   const desc = item.descripcion || 'Producto sin descripción';
   const um = item.unidadmedida ? ` ${item.unidadmedida}` : '';
   return `
     <button class="venc-card ${item.validated ? 'is-validated' : ''}" data-key="${escapeHtml(item.key)}">
+      <div class="venc-card-days is-${item.severity}">${daysLabel(item.days)}</div>
       <div class="venc-card-main">
-        <div class="venc-card-top">
-          <span class="venc-card-ubicacion">${icon('pin', 15)} ${escapeHtml(item.ubicacion || '-')}</span>
-          <span class="venc-card-days is-${item.severity}">${daysLabel(item.days)}</span>
-        </div>
+        <span class="venc-card-ubicacion">${iconSolid('ubicacion', 16)} ${escapeHtml(item.ubicacion || '-')}</span>
         <span class="venc-card-desc">${escapeHtml(desc)}</span>
-        <span class="venc-card-sub">Caja ${escapeHtml(item.caja || '-')} · ${formatQty(item.saldo)}${escapeHtml(um)}</span>
+        <span class="venc-card-sub">
+          <span class="venc-card-sub-item">${iconSolid('caja', 13)} ${escapeHtml(item.caja || '-')}</span>
+          <span class="venc-card-sub-item">${iconSolid('unidades', 13)} ${formatQty(item.saldo)}${escapeHtml(um)}</span>
+        </span>
       </div>
       ${item.validated
         ? `<div class="venc-card-check" title="Validado">${icon('check', 16)}</div>`
