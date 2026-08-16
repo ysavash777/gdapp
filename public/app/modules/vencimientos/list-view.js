@@ -19,7 +19,7 @@
    ============================================================ */
 
 import { icon, iconSolid } from '/shared/js/icons.js';
-import { escapeHtml, formatDateTime } from '/shared/js/format.js';
+import { escapeHtml, formatDateTime, capitalize } from '/shared/js/format.js';
 import * as store from './store.js';
 import { openValidation } from './validation-view.js';
 
@@ -285,7 +285,7 @@ export async function renderList(outlet) {
           <p style="margin-bottom:var(--sp-2);">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
           ${item.motivoDetalle ? `<p class="muted small" style="margin-bottom:var(--sp-2);">${escapeHtml(item.motivoDetalle)}</p>` : ''}
           ${item.fotoUrl ? `<img src="${escapeHtml(item.fotoUrl)}" alt="Foto de la posición" class="venc-detail-photo" />` : ''}
-          <p class="muted small">Validado por <strong>${escapeHtml(item.validatedBy || '-')}</strong> · ${escapeHtml(formatDateTime(item.validatedAt))}</p>
+          <p class="muted small">Validado por <strong>${escapeHtml(capitalize(item.validatedBy || '-'))}</strong> · ${escapeHtml(formatDateTime(item.validatedAt))}</p>
         </div>
         <div class="modal-foot">
           <button type="button" class="btn btn-ghost" data-close>Cerrar</button>

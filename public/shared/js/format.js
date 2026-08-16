@@ -30,6 +30,15 @@ export function formatTime(ts) {
   return new Date(ts).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
+// Primera letra en mayúscula para mostrar un nombre de usuario — solo
+// visual, nunca toca el valor real (nunca usar esto para lo que se
+// manda de vuelta al servidor, como el <input> de editar usuario, o
+// se terminaría "corrigiendo" el username real sin que nadie lo pida).
+export function capitalize(str) {
+  const s = String(str || '');
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
 export function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }

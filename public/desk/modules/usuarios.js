@@ -6,7 +6,8 @@
    ============================================================ */
 
 import { icon } from '/shared/js/icons.js';
-import { avatar, AVATAR_IDS } from '/shared/js/avatars.js';
+import { avatar } from '/shared/js/avatars.js';
+import { capitalize, escapeHtml } from '/shared/js/format.js';
 import { apiFetch } from '/shared/js/api.js';
 
 const ERROR_MESSAGES = {
@@ -154,8 +155,8 @@ async function mount(root) {
       <tr data-id="${u.id}">
         <td>
           <div class="row">
-            <div class="avatar" style="width:32px;height:32px;">${avatar(u.avatar, u.username)}</div>
-            <strong>${u.username}</strong>
+            <div class="avatar" style="width:32px;height:32px;">${avatar(u.username)}</div>
+            <strong>${escapeHtml(capitalize(u.username))}</strong>
           </div>
         </td>
         <td>
@@ -207,32 +208,6 @@ async function mount(root) {
     return { overlay, close };
   }
 
-  function avatarPickerHTML(selectedId) {
-    return `
-      <div class="field">
-        <label>Avatar</label>
-        <div class="avatar-picker" data-avatar-picker>
-          ${AVATAR_IDS.map((id) => `
-            <div class="avatar ${id === selectedId ? 'selected' : ''}" data-id="${id}">${avatar(id)}</div>
-          `).join('')}
-        </div>
-      </div>
-    `;
-  }
-
-  function wireAvatarPicker(overlay, initial) {
-    let selected = initial;
-    const picker = overlay.querySelector('[data-avatar-picker]');
-    picker.addEventListener('click', (e) => {
-      const el = e.target.closest('.avatar');
-      if (!el) return;
-      selected = Number(el.dataset.id);
-      picker.querySelectorAll('.avatar').forEach((a) => a.classList.remove('selected'));
-      el.classList.add('selected');
-    });
-    return () => selected;
-  }
-
   function permissionsHTML(selected) {
     if (!state.catalog.length) return '<p class="small muted">Sin módulos disponibles.</p>';
     const group = (scope, label) => {
@@ -260,9 +235,8 @@ async function mount(root) {
   }
 
   function openEditModal(user) {
-    let getAvatar;
     openModal({
-      headTitle: `Editar ${user.username}`,
+      headTitle: `Editar ${capitalize(user.username)}`,
       wide: true,
       bodyHTML: `
         <div id="modalError"></div>
@@ -279,7 +253,6 @@ async function mount(root) {
             </select>
           </div>
         </div>
-        ${avatarPickerHTML(user.avatar)}
         <div class="field">
           <label>Permisos</label>
           ${permissionsHTML(user.permissions)}
@@ -289,7 +262,6 @@ async function mount(root) {
         <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
         <button type="submit" class="btn btn-primary">Guardar cambios</button>
       `,
-      onMount: (overlay) => { getAvatar = wireAvatarPicker(overlay, user.avatar); },
       onSubmit: async (overlay, form, close) => {
         const fd = new FormData(form);
         try {
@@ -298,7 +270,6 @@ async function mount(root) {
             body: {
               username: fd.get('username').trim(),
               role: fd.get('role'),
-              avatar: getAvatar(),
               permissions: readPermissions(form),
             },
           });
@@ -314,7 +285,7 @@ async function mount(root) {
 
   function openPasswordModal(user) {
     openModal({
-      headTitle: `Contraseña de ${user.username}`,
+      headTitle: `Contraseña de ${capitalize(user.username)}`,
       bodyHTML: `
         <div id="modalError"></div>
         <div class="field">
@@ -342,7 +313,6 @@ async function mount(root) {
   }
 
   function openCreateModal() {
-    let getAvatar;
     openModal({
       headTitle: 'Nuevo usuario',
       wide: true,
@@ -365,7 +335,6 @@ async function mount(root) {
           <label for="f-password">Contraseña</label>
           <input id="f-password" name="password" type="password" required minlength="4" placeholder="••••••••" />
         </div>
-        ${avatarPickerHTML(1)}
         <div class="field">
           <label>Permisos</label>
           ${permissionsHTML([])}
@@ -375,7 +344,6 @@ async function mount(root) {
         <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
         <button type="submit" class="btn btn-primary">Crear usuario</button>
       `,
-      onMount: (overlay) => { getAvatar = wireAvatarPicker(overlay, 1); },
       onSubmit: async (overlay, form, close) => {
         const fd = new FormData(form);
         try {
@@ -385,7 +353,6 @@ async function mount(root) {
               username: fd.get('username').trim(),
               password: fd.get('password'),
               role: fd.get('role'),
-              avatar: getAvatar(),
               permissions: readPermissions(form),
             },
           });
@@ -401,7 +368,7 @@ async function mount(root) {
   }
 
   function confirmDelete(user) {
-    if (!confirm(`¿Eliminar al usuario "${user.username}"? Esta acción no se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar al usuario "${capitalize(user.username)}"? Esta acción no se puede deshacer.`)) return;
     apiFetch(`/api/users/${user.id}`, { method: 'DELETE' })
       .then(() => {
         state.users = state.users.filter((u) => u.id !== user.id);

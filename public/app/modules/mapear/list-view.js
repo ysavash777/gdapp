@@ -6,7 +6,7 @@
 
 import { icon } from '/shared/js/icons.js';
 import * as store from './store.js';
-import { formatDateTime, formatDateHeading, escapeHtml } from './format.js';
+import { formatDateTime, formatDateHeading, escapeHtml, capitalize } from './format.js';
 import { openEditor } from './editor-view.js';
 import { currentUser } from '/shared/js/session.js';
 
@@ -26,7 +26,7 @@ function mapeoCardHTML(m) {
         <div class="mapeo-info">
           <span class="mapeo-title">${escapeHtml(m.title)}</span>
           <span class="mapeo-meta">${count} código${count === 1 ? '' : 's'} · ${formatDateTime(m.updatedAt)}</span>
-          ${m.updatedBy ? `<span class="mapeo-editor">Editado por <strong>${escapeHtml(m.updatedBy)}</strong></span>` : ''}
+          ${m.updatedBy ? `<span class="mapeo-editor">Editado por <strong>${escapeHtml(capitalize(m.updatedBy))}</strong></span>` : ''}
         </div>
       </button>
       <div class="mapeo-actions">

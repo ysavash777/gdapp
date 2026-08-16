@@ -28,6 +28,7 @@
 
 import { icon } from '/shared/js/icons.js';
 import { avatar } from '/shared/js/avatars.js';
+import { capitalize } from '/shared/js/format.js';
 import { currentUser, refreshUser, logout } from '/shared/js/session.js';
 import { renderAuth } from '/shared/js/auth-view.js';
 
@@ -245,8 +246,8 @@ function renderHome() {
     setHeader(`
       <div class="hd-left">
         <button class="hd-user" id="avatarBtn">
-          <span class="avatar">${avatar(user.avatar, user.username)}</span>
-          <h1>Hola, ${user.username}</h1>
+          <span class="avatar">${avatar(user.username)}</span>
+          <h1>Hola, ${capitalize(user.username)}</h1>
         </button>
         <div class="user-menu" id="userMenu" hidden>
           <button class="user-menu-item" id="logoutItem">${icon('logout', 18)} Cerrar sesión</button>

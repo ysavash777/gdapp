@@ -51,8 +51,8 @@
      lo que los hacía sentir fuera de tono frente al lila pastel. --- */
   --icon-consultas: #a78bfa;       /* violeta: calma, confianza, ancla de la paleta */
   --icon-consultas-light: #c4b5fd;
-  --icon-mapear: #2dd4bf;          /* turquesa: foco, claridad */
-  --icon-mapear-light: #5eead4;
+  --icon-mapear: #0369a1;          /* azul petróleo: foco, claridad — pedido explícito, reemplaza el cian anterior */
+  --icon-mapear-light: #0ea5e9;
   --icon-vencimientos: #fb923c;    /* naranja suave: atención sin rojo, mismo escalón que el lila */
   --icon-vencimientos-light: #fdba74;
   --icon-vacios: #60a5fa;          /* azul suave: neutro, informativo, distinto del acento general */
@@ -685,7 +685,7 @@ html, body {
   place-items: center;
   border-radius: var(--r-full);
   background: var(--icon-mapear-light);
-  color: var(--bg);
+  color: #fff;
 }
 .mapeo-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .mapeo-title {
@@ -703,7 +703,7 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.mapeo-editor strong { color: var(--icon-mapear); font-weight: 650; }
+.mapeo-editor strong { color: #fff; font-weight: 650; }
 
 .mapeo-actions { position: relative; flex-shrink: 0; }
 .mapeo-menu {
@@ -1031,7 +1031,7 @@ html, body {
 }
 .record-qty.cond-unidades { background: var(--icon-vacios-light); color: var(--bg); }
 .record-qty.cond-vencido { background: var(--icon-consultas-light); color: var(--bg); }
-.record-qty.cond-otro { background: var(--icon-mapear-light); color: var(--bg); }
+.record-qty.cond-otro { background: var(--icon-mapear-light); color: #fff; }
 .record-qty.resp-idl { background: var(--resp-idl-light); color: var(--bg); }
 .record-qty.resp-rappi { background: var(--resp-rappi-light); color: var(--bg); }
 .record-qty-num { font-weight: 700; font-size: 19px; line-height: 1; }
@@ -1100,7 +1100,7 @@ html, body {
 .record-reason-inline.is-empty { color: var(--ink-3); background: var(--n-200); }
 .record-reason-inline.cond-unidades { color: var(--icon-vacios); background: rgba(96, 165, 250, 0.18); }
 .record-reason-inline.cond-vencido { color: var(--icon-consultas); background: rgba(167, 139, 250, 0.18); }
-.record-reason-inline.cond-otro { color: var(--icon-mapear); background: rgba(45, 212, 191, 0.18); }
+.record-reason-inline.cond-otro { color: var(--icon-mapear); background: rgba(3, 105, 161, 0.18); }
 .record-reason-inline.resp-idl { color: var(--resp-idl); background: rgba(251, 146, 60, 0.18); }
 .record-reason-inline.resp-rappi { color: var(--resp-rappi); background: rgba(244, 114, 182, 0.18); }
 
@@ -1513,7 +1513,7 @@ html, body {
 .cond-pill.cond-rotura.is-selected { background: var(--icon-vencimientos-light); border-color: var(--icon-vencimientos-light); color: var(--bg); }
 .cond-pill.cond-vencido.is-selected { background: var(--icon-consultas-light); border-color: var(--icon-consultas-light); color: var(--bg); }
 .cond-pill.cond-unidades.is-selected { background: var(--icon-vacios-light); border-color: var(--icon-vacios-light); color: var(--bg); }
-.cond-pill.cond-otro.is-selected { background: var(--icon-mapear-light); border-color: var(--icon-mapear-light); color: var(--bg); }
+.cond-pill.cond-otro.is-selected { background: var(--icon-mapear-light); border-color: var(--icon-mapear-light); color: #fff; }
 
 /* --- Datos propios de cada motivo, debajo de los botones --- */
 .reg-extra:empty { display: none; }
@@ -1830,7 +1830,7 @@ html, body {
   transition: background var(--t-fast), color var(--t-fast);
 }
 .venc-motivo-pill.is-ok.is-selected { background: var(--ok); color: #fff; }
-.venc-motivo-pill.is-otro.is-selected { background: var(--icon-mapear-light); color: var(--bg); }
+.venc-motivo-pill.is-otro.is-selected { background: var(--icon-mapear-light); color: #fff; }
 
 /* Stepper de 2 pasos (validation-view.js) — junto con el toast al
    avanzar, hace imposible no notar el cambio de "qué hay que

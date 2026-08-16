@@ -172,11 +172,10 @@
   overflow: hidden;
   flex-shrink: 0;
 }
-.avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .avatar-fallback {
   width: 100%;
   height: 100%;
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
   background: var(--n-200);
@@ -186,17 +185,6 @@
 }
 .avatar-lg { width: 72px; height: 72px; }
 .avatar-xl { width: 96px; height: 96px; }
-
-/* Selector de avatar (registro / perfil) */
-.avatar-picker { display: flex; gap: var(--sp-3); justify-content: center; flex-wrap: wrap; }
-.avatar-picker .avatar {
-  width: 52px; height: 52px;
-  cursor: pointer;
-  border: 3px solid transparent;
-  transition: transform var(--t-fast), border-color var(--t-fast);
-}
-.avatar-picker .avatar:hover { transform: translateY(-2px); }
-.avatar-picker .avatar.selected { border-color: var(--accent-500); }
 
 /* --- Cabecera de página --- */
 .page-head {

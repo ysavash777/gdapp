@@ -13,7 +13,7 @@
 
 import { icon } from '/shared/js/icons.js';
 import { apiFetch } from '/shared/js/api.js';
-import { formatDateTime, escapeHtml, conditionLabel } from '/app/modules/mapear/format.js';
+import { formatDateTime, escapeHtml, capitalize, conditionLabel } from '/app/modules/mapear/format.js';
 
 // Imprime un cartel simple (título del mapeo en mayúsculas, letras
 // grandes y centradas) — un iframe oculto en vez de una pestaña nueva:
@@ -212,7 +212,7 @@ async function mount(root) {
         <td><strong>${escapeHtml(m.title)}</strong></td>
         <td>${m.codes.length}</td>
         <td class="small muted">${formatDateTime(m.updatedAt)}</td>
-        <td class="small muted">${m.updatedBy ? escapeHtml(m.updatedBy) : '—'}</td>
+        <td class="small muted">${m.updatedBy ? escapeHtml(capitalize(m.updatedBy)) : '—'}</td>
         <td style="text-align:right;">
           <button class="btn-icon" data-action="view" title="Ver detalle">${icon('eye', 17)}</button>
           <button class="btn-icon" data-action="download" title="Descargar XLSX">${icon('download', 17)}</button>

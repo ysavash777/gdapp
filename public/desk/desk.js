@@ -7,6 +7,7 @@
 
 import { icon } from '/shared/js/icons.js';
 import { avatar } from '/shared/js/avatars.js';
+import { capitalize } from '/shared/js/format.js';
 import { currentUser, refreshUser, logout } from '/shared/js/session.js';
 import { renderAuth } from '/shared/js/auth-view.js';
 
@@ -43,7 +44,7 @@ function renderShell() {
       <aside class="sidebar">
         <div class="sb-brand">
           <div class="logo">${icon('layers', 20)}</div>
-          <div class="name">GDapp</div>
+          <div class="name">GStock</div>
         </div>
 
         <nav class="sb-nav">
@@ -58,9 +59,9 @@ function renderShell() {
         </nav>
 
         <div class="sb-user">
-          <div class="avatar">${avatar(user.avatar, user.username)}</div>
+          <div class="avatar">${avatar(user.username)}</div>
           <div class="u-meta">
-            <div class="u-name">${user.username}</div>
+            <div class="u-name">${capitalize(user.username)}</div>
             <div class="u-role">${user.role === 'admin' ? 'Administrador' : 'Usuario'}</div>
           </div>
         </div>
