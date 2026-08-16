@@ -226,6 +226,23 @@ export async function renderList(outlet, { onNew }) {
     searchInput.focus();
   });
 
+  // En desuso (se va del campo sin haber escrito nada) se vuelve a
+  // ocultar solo, para no dejar el buscador ocupando lugar de forma
+  // permanente una vez que se lo probó — mismo criterio que el ícono
+  // de lupa que lo abre. Si el foco se va justo al propio botón de
+  // lupa (el usuario lo tocó para cerrar), no hay que hacer nada acá:
+  // ese click ya tiene su propia lógica de cierre, y si esta también
+  // actuara pisaría el "opening" que lee ese handler y reabriría el
+  // buscador en vez de cerrarlo.
+  searchInput.addEventListener('blur', (e) => {
+    if (searchInput.value.trim()) return;
+    if (e.relatedTarget && e.relatedTarget.id === 'mapeoSearchToggle') return;
+    const searchBar = outlet.querySelector('#mapeoSearchBar');
+    const searchToggle = document.getElementById('mapeoSearchToggle');
+    if (searchBar) searchBar.hidden = true;
+    if (searchToggle) searchToggle.classList.remove('is-active');
+  });
+
   outlet.querySelectorAll('.mapeo-open').forEach((btn) => {
     btn.addEventListener('click', () => openEditor({ mapeoId: Number(btn.dataset.id), onClose: refreshRef }));
   });

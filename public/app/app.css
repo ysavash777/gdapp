@@ -58,6 +58,26 @@
   --icon-vacios: #60a5fa;          /* azul suave: neutro, informativo, distinto del acento general */
   --icon-vacios-light: #93c5fd;
 
+  /* --- Fondo sólido de cada tarjeta de herramienta (home) + botón/hero
+     de Consultas (única visible sin sesión) + login: tokens propios,
+     separados de los --icon-* de arriba a propósito. Esos --icon-*
+     los reusan chips/badges en otras pantallas con texto NEGRO encima
+     (ej. .cond-pill.is-selected, .record-qty) — para esos casos hace
+     falta un tono claro/pastel. Acá el texto y el ícono van en BLANCO
+     sobre el color sólido de la tarjeta, así que se necesita el
+     contraste opuesto: un tono de fondo bien saturado/oscuro (>=4.5:1
+     con blanco) y un "-icon" apenas más claro para el contenedor del
+     ícono que igual mantenga >=3:1 con el glyph blanco — mezclar
+     ambos usos en las mismas variables rompía uno de los dos. */
+  --tool-consultas: #6d28d9;       /* violeta 700 — antes #a78bfa daba solo 2.7:1 con blanco */
+  --tool-consultas-icon: #8b5cf6;
+  --tool-mapear: #0369a1;          /* ya tenía buen contraste (5.9:1): mismo tono, sin tocar */
+  --tool-mapear-icon: #0284c7;
+  --tool-vencimientos: #b45309;    /* ámbar 700 — antes #fb923c daba solo 2.3:1 con blanco */
+  --tool-vencimientos-icon: #d97706;
+  --tool-vacios: #0f766e;          /* verde azulado 700 — antes #60a5fa daba solo 2.5:1 con blanco */
+  --tool-vacios-icon: #0d9488;
+
   /* --- Responsable de rotura/vencido: mismo escalón "400/300" que
      los motivos, para que Rotura cambie de color según quién sea el
      responsable sin salirse de la paleta. --- */
@@ -341,7 +361,7 @@ html, body {
   color: #fff;
 }
 .hg-glyph-wrap[data-key="consultas"]::before,
-.hg-glyph-wrap[data-key="consultas"] .hg-glyph { background: var(--icon-consultas); }
+.hg-glyph-wrap[data-key="consultas"] .hg-glyph { background: var(--tool-consultas); }
 
 .hg-center h1 {
   font-size: 24px;
@@ -372,7 +392,7 @@ html, body {
   transition: transform var(--t-fast), filter var(--t-fast);
 }
 .hg-cta:active { transform: scale(0.98); filter: brightness(1.12); }
-.hg-cta[data-key="consultas"] { background: var(--icon-consultas); }
+.hg-cta[data-key="consultas"] { background: var(--tool-consultas); }
 
 .hg-screen .app-footer { flex: 0 0 auto; padding-top: var(--sp-3); }
 
@@ -454,15 +474,15 @@ html, body {
    blanco para contraste y su icono en la variante más clara de esa
    misma familia. Las bloqueadas no se tocan: siguen en gris. --- */
 .tool-card[data-key]:not(.is-locked) { color: #fff; }
-.tool-card[data-key="consultas"]:not(.is-locked) { background: var(--icon-consultas); }
-.tool-card[data-key="mapear"]:not(.is-locked)    { background: var(--icon-mapear); }
-.tool-card[data-key="vencimientos"]:not(.is-locked) { background: var(--icon-vencimientos); }
-.tool-card[data-key="vacios"]:not(.is-locked)    { background: var(--icon-vacios); }
+.tool-card[data-key="consultas"]:not(.is-locked) { background: var(--tool-consultas); }
+.tool-card[data-key="mapear"]:not(.is-locked)    { background: var(--tool-mapear); }
+.tool-card[data-key="vencimientos"]:not(.is-locked) { background: var(--tool-vencimientos); }
+.tool-card[data-key="vacios"]:not(.is-locked)    { background: var(--tool-vacios); }
 
-.tool-card[data-key="consultas"]:not(.is-locked) .tc-icon { background: var(--icon-consultas-light); }
-.tool-card[data-key="mapear"]:not(.is-locked) .tc-icon    { background: var(--icon-mapear-light); }
-.tool-card[data-key="vencimientos"]:not(.is-locked) .tc-icon { background: var(--icon-vencimientos-light); }
-.tool-card[data-key="vacios"]:not(.is-locked) .tc-icon    { background: var(--icon-vacios-light); }
+.tool-card[data-key="consultas"]:not(.is-locked) .tc-icon { background: var(--tool-consultas-icon); }
+.tool-card[data-key="mapear"]:not(.is-locked) .tc-icon    { background: var(--tool-mapear-icon); }
+.tool-card[data-key="vencimientos"]:not(.is-locked) .tc-icon { background: var(--tool-vencimientos-icon); }
+.tool-card[data-key="vacios"]:not(.is-locked) .tc-icon    { background: var(--tool-vacios-icon); }
 
 .tool-card[data-key]:not(.is-locked) .tc-body h3 { color: #fff; }
 .tool-card[data-key]:not(.is-locked) .tc-body p { color: rgba(255, 255, 255, 0.85); }
@@ -556,8 +576,8 @@ html, body {
 /* Botón de login en lila sólido (mismo tono que Consultar grupo —
    en el resto de la app ese color queda solo para los iconos, aquí
    es la excepción) y un poco más alto que el resto de los botones. */
-#authForm .btn-primary { background: var(--icon-consultas); color: #fff; padding: 15px 18px; }
-#authForm .btn-primary:hover { background: var(--icon-consultas-light); }
+#authForm .btn-primary { background: var(--tool-consultas); color: #fff; padding: 15px 18px; }
+#authForm .btn-primary:hover { background: var(--tool-consultas-icon); }
 
 /* Inputs sin borde: el color de fondo ya los distingue del negro
    del panel, no hace falta el contorno. */
@@ -603,6 +623,11 @@ html, body {
   color: var(--ink-3);
 }
 .searchbar-clear:hover { background: var(--n-200); color: var(--ink); }
+/* .searchbar { display: flex } de arriba pisa el estilo por defecto
+   del navegador para [hidden] (author CSS siempre gana sobre el UA
+   stylesheet, sin importar especificidad) — sin esto, el buscador
+   quedaba visible aunque tuviera el atributo hidden puesto. */
+.searchbar[hidden] { display: none; }
 
 /* --- Botón de acción principal dentro de una herramienta --- */
 .action-hero {

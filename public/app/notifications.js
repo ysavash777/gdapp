@@ -59,12 +59,27 @@ export function markAllSeen(vencidos) {
   saveSeen(new Set(vencidos.map((i) => i.key)));
 }
 
+// Agrupado por ubicación: antes había una fila por SKU vencido, así
+// que una misma ubicación con varios productos vencidos aparecía
+// repetida una vez por cada uno — más ruidoso que útil para saber
+// dónde ir primero. Una fila por ubicación con la cantidad es lo que
+// de verdad hace falta decidir hacia dónde moverse.
 export function notifListHTML(vencidos) {
   if (!vencidos.length) return `<p class="notif-empty">No tenés notificaciones</p>`;
-  return vencidos.map((item) => `
-    <button type="button" class="notif-item" data-key="${escapeHtml(item.key)}">
-      <span class="notif-item-title">${escapeHtml(item.ubicacion || '-')}</span>
-      <span class="notif-item-desc">${escapeHtml(item.descripcion || 'Producto sin descripción')}</span>
-    </button>
-  `).join('');
+
+  const porUbicacion = new Map();
+  for (const item of vencidos) {
+    const ubicacion = item.ubicacion || 'Sin ubicación';
+    if (!porUbicacion.has(ubicacion)) porUbicacion.set(ubicacion, 0);
+    porUbicacion.set(ubicacion, porUbicacion.get(ubicacion) + 1);
+  }
+
+  return [...porUbicacion.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([ubicacion, count]) => `
+      <button type="button" class="notif-item" data-ubicacion="${escapeHtml(ubicacion)}">
+        <span class="notif-item-title">${escapeHtml(ubicacion)}</span>
+        <span class="notif-item-desc">${count} vencido${count === 1 ? '' : 's'}</span>
+      </button>
+    `).join('');
 }
