@@ -733,7 +733,7 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.mapeo-editor strong { color: #fff; font-weight: 650; }
+.mapeo-editor strong { color: inherit; font-weight: 650; }
 
 .mapeo-actions { position: relative; flex-shrink: 0; }
 .mapeo-menu {
