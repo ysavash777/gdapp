@@ -75,33 +75,40 @@
      siempre en :root (para poder previsualizar las 3 en simultáneo en
      el selector) y --tool-* es un alias que apunta a la paleta activa
      según [data-tool-theme] en <html>, puesto por tool-theme.js antes
-     de que se pinte nada. */
-  --pal-a-consultas: #4f46e5;      /* A · Tech corporativo: índigo/cian/ámbar/esmeralda */
-  --pal-a-consultas-icon: #6366f1;
-  --pal-a-mapear: #0e7490;
-  --pal-a-mapear-icon: #0891b2;
-  --pal-a-vencimientos: #b45309;
-  --pal-a-vencimientos-icon: #d97706;
-  --pal-a-vacios: #047857;
-  --pal-a-vacios-icon: #059669;
+     de que se pinte nada.
 
-  --pal-b-consultas: #1e3a5f;      /* B · Cálido profesional: marino/teal/terracota/pizarra */
-  --pal-b-consultas-icon: #2c5282;
-  --pal-b-mapear: #0f766e;
-  --pal-b-mapear-icon: #14b8a6;
-  --pal-b-vencimientos: #9a3412;
-  --pal-b-vencimientos-icon: #c2410c;
-  --pal-b-vacios: #475569;
-  --pal-b-vacios-icon: #64748b;
+     A propósito NINGUNA herramienta repite familia de color entre las
+     3 paletas (antes Consultas quedaba violeta/índigo en las tres,
+     solo cambiaba el tono) — son 6 familias amigables (coral, cielo,
+     baya, bosque, mostaza, verde azulado) rotando de a 4 por paleta,
+     así que cada opción es un cambio real, no una recoloreada de la
+     misma. */
+  --pal-a-consultas: #c2410c;      /* A: coral / cielo / baya / bosque */
+  --pal-a-consultas-icon: #ea580c;
+  --pal-a-mapear: #0369a1;
+  --pal-a-mapear-icon: #0284c7;
+  --pal-a-vencimientos: #a21caf;
+  --pal-a-vencimientos-icon: #c026d3;
+  --pal-a-vacios: #15803d;
+  --pal-a-vacios-icon: #16a34a;
 
-  --pal-c-consultas: #6d28d9;      /* C · Tonos joya: amatista/zafiro/ámbar/esmeralda */
-  --pal-c-consultas-icon: #8b5cf6;
-  --pal-c-mapear: #1d4ed8;
-  --pal-c-mapear-icon: #3b82f6;
+  --pal-b-consultas: #0369a1;      /* B: cielo / baya / bosque / mostaza */
+  --pal-b-consultas-icon: #0284c7;
+  --pal-b-mapear: #a21caf;
+  --pal-b-mapear-icon: #c026d3;
+  --pal-b-vencimientos: #15803d;
+  --pal-b-vencimientos-icon: #16a34a;
+  --pal-b-vacios: #b45309;
+  --pal-b-vacios-icon: #d97706;
+
+  --pal-c-consultas: #a21caf;      /* C: baya / bosque / mostaza / verde azulado */
+  --pal-c-consultas-icon: #c026d3;
+  --pal-c-mapear: #15803d;
+  --pal-c-mapear-icon: #16a34a;
   --pal-c-vencimientos: #b45309;
   --pal-c-vencimientos-icon: #d97706;
-  --pal-c-vacios: #047857;
-  --pal-c-vacios-icon: #059669;
+  --pal-c-vacios: #0f766e;
+  --pal-c-vacios-icon: #14b8a6;
 
   --tool-consultas: var(--pal-a-consultas);
   --tool-consultas-icon: var(--pal-a-consultas-icon);

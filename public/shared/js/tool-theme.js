@@ -10,9 +10,9 @@
 const KEY = 'gd.toolTheme.v1';
 
 export const THEMES = [
-  { id: 'a', label: 'Tech corporativo' },
-  { id: 'b', label: 'Cálido profesional' },
-  { id: 'c', label: 'Tonos joya' },
+  { id: 'a', label: 'Paleta 1' },
+  { id: 'b', label: 'Paleta 2' },
+  { id: 'c', label: 'Paleta 3' },
 ];
 
 export function getToolTheme() {
