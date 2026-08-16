@@ -70,54 +70,18 @@
      ícono que igual mantenga >=3:1 con el glyph blanco — mezclar
      ambos usos en las mismas variables rompía uno de los dos.
 
-     Tres paletas completas a elección (Configuración > Colores de
-     herramientas, ver shared/js/tool-theme.js) — cada --pal-X-* vive
-     siempre en :root (para poder previsualizar las 3 en simultáneo en
-     el selector) y --tool-* es un alias que apunta a la paleta activa
-     según [data-tool-theme] en <html>, puesto por tool-theme.js antes
-     de que se pinte nada.
-
-     A propósito NINGUNA herramienta repite familia de color entre las
-     3 paletas (antes Consultas quedaba violeta/índigo en las tres,
-     solo cambiaba el tono) — son 6 familias amigables (coral, cielo,
-     baya, bosque, mostaza, verde azulado) rotando de a 4 por paleta,
-     así que cada opción es un cambio real, no una recoloreada de la
-     misma. */
-  --pal-a-consultas: #c2410c;      /* A: coral / cielo / baya / bosque */
-  --pal-a-consultas-icon: #ea580c;
-  --pal-a-mapear: #0369a1;
-  --pal-a-mapear-icon: #0284c7;
-  --pal-a-vencimientos: #a21caf;
-  --pal-a-vencimientos-icon: #c026d3;
-  --pal-a-vacios: #15803d;
-  --pal-a-vacios-icon: #16a34a;
-
-  --pal-b-consultas: #0369a1;      /* B: cielo / baya / bosque / mostaza */
-  --pal-b-consultas-icon: #0284c7;
-  --pal-b-mapear: #a21caf;
-  --pal-b-mapear-icon: #c026d3;
-  --pal-b-vencimientos: #15803d;
-  --pal-b-vencimientos-icon: #16a34a;
-  --pal-b-vacios: #b45309;
-  --pal-b-vacios-icon: #d97706;
-
-  --pal-c-consultas: #a21caf;      /* C: baya / bosque / mostaza / verde azulado */
-  --pal-c-consultas-icon: #c026d3;
-  --pal-c-mapear: #15803d;
-  --pal-c-mapear-icon: #16a34a;
-  --pal-c-vencimientos: #b45309;
-  --pal-c-vencimientos-icon: #d97706;
-  --pal-c-vacios: #0f766e;
-  --pal-c-vacios-icon: #14b8a6;
-
-  --tool-consultas: var(--pal-a-consultas);
-  --tool-consultas-icon: var(--pal-a-consultas-icon);
-  --tool-mapear: var(--pal-a-mapear);
-  --tool-mapear-icon: var(--pal-a-mapear-icon);
-  --tool-vencimientos: var(--pal-a-vencimientos);
-  --tool-vencimientos-icon: var(--pal-a-vencimientos-icon);
-  --tool-vacios: var(--pal-a-vacios);
-  --tool-vacios-icon: var(--pal-a-vacios-icon);
+     Versión pastel/muted (menos saturada que un color "vivo" de marca,
+     más suave a la vista) pero manteniendo el mismo piso de contraste
+     que el resto de este bloque: >=4.5:1 con blanco en la tarjeta,
+     >=3:1 en el contenedor del ícono un poco más claro. */
+  --tool-consultas: #ad6242;       /* terracota */
+  --tool-consultas-icon: #c17953;
+  --tool-mapear: #4c6b8a;          /* azul grisáceo */
+  --tool-mapear-icon: #5f83a6;
+  --tool-vencimientos: #8a6a26;    /* mostaza */
+  --tool-vencimientos-icon: #a5824a;
+  --tool-vacios: #5f7a61;          /* salvia */
+  --tool-vacios-icon: #75937a;
 
   /* --- Responsable de rotura/vencido: mismo escalón "400/300" que
      los motivos, para que Rotura cambie de color según quién sea el
@@ -143,30 +107,6 @@
   --shadow-2: none;
   --shadow-3: none;
   --clay-shadow: none;
-}
-
-/* B y C pisan el alias --tool-* que dejó el :root (paleta A, default).
-   tool-theme.js pone [data-tool-theme] en <html> antes de que boot()
-   pinte nada, así que no hay flash del color viejo. */
-[data-tool-theme="b"] {
-  --tool-consultas: var(--pal-b-consultas);
-  --tool-consultas-icon: var(--pal-b-consultas-icon);
-  --tool-mapear: var(--pal-b-mapear);
-  --tool-mapear-icon: var(--pal-b-mapear-icon);
-  --tool-vencimientos: var(--pal-b-vencimientos);
-  --tool-vencimientos-icon: var(--pal-b-vencimientos-icon);
-  --tool-vacios: var(--pal-b-vacios);
-  --tool-vacios-icon: var(--pal-b-vacios-icon);
-}
-[data-tool-theme="c"] {
-  --tool-consultas: var(--pal-c-consultas);
-  --tool-consultas-icon: var(--pal-c-consultas-icon);
-  --tool-mapear: var(--pal-c-mapear);
-  --tool-mapear-icon: var(--pal-c-mapear-icon);
-  --tool-vencimientos: var(--pal-c-vencimientos);
-  --tool-vencimientos-icon: var(--pal-c-vencimientos-icon);
-  --tool-vacios: var(--pal-c-vacios);
-  --tool-vacios-icon: var(--pal-c-vacios-icon);
 }
 
 html, body {
@@ -310,10 +250,10 @@ html, body {
   text-align: left;
 }
 .notif-item:hover { background: var(--n-100); }
-.notif-item-title { font-size: var(--text-sm); font-weight: 700; color: var(--danger); }
 .notif-item-desc {
-  font-size: var(--text-xs);
-  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--danger);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -434,13 +374,6 @@ html, body {
   letter-spacing: -0.02em;
   color: var(--ink);
 }
-.hg-center p {
-  max-width: 280px;
-  font-size: var(--text-sm);
-  color: var(--ink-2);
-  line-height: 1.45;
-}
-
 .hg-cta {
   flex: 0 0 auto;
   display: flex;
@@ -504,17 +437,6 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.tc-body p {
-  margin-top: 3px;
-  font-size: var(--text-xs);
-  color: var(--ink-2);
-  line-height: 1.3;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-}
-
 /* --- Herramientas sin permiso: mismo tamaño, atenuadas, sin interacción --- */
 .tool-card.is-locked {
   cursor: default;
@@ -532,7 +454,6 @@ html, body {
 .skeleton-shape { background: var(--n-300); border-radius: var(--r-full); }
 .skeleton-line { display: block; height: 9px; width: 85%; }
 .skeleton-line.skeleton-title { height: 12px; width: 60%; }
-.skeleton-line.is-short { width: 45%; }
 
 /* --- Cada herramienta desbloqueada destaca con su propio color de
    fondo (mismo que usa como acento en el resto de la app), texto
@@ -550,7 +471,6 @@ html, body {
 .tool-card[data-key="vacios"]:not(.is-locked) .tc-icon    { background: var(--tool-vacios-icon); }
 
 .tool-card[data-key]:not(.is-locked) .tc-body h3 { color: #fff; }
-.tool-card[data-key]:not(.is-locked) .tc-body p { color: rgba(255, 255, 255, 0.85); }
 .tool-card[data-key]:not(.is-locked) .tc-chevron { color: rgba(255, 255, 255, 0.75); }
 
 /* --- Botón de iniciar sesión (solo sin sesión), un poco más alto --- */
@@ -1964,25 +1884,6 @@ html, body {
 .settings-hint { margin-top: 2px; font-size: var(--text-xs); color: var(--ink-3); }
 
 .settings-separator { border: none; border-top: 1px solid var(--line); margin: 0; }
-
-/* --- Selector de paleta de las tarjetas de herramienta --- */
-.theme-picker { display: flex; flex-direction: column; gap: var(--sp-2); }
-.theme-option {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-3);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  border: 1px solid transparent;
-  text-align: left;
-}
-.theme-option.is-selected { border-color: var(--accent-500); }
-.theme-swatches { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; flex-shrink: 0; }
-.theme-dot { width: 12px; height: 12px; border-radius: 4px; }
-.theme-option-label { flex: 1; font-size: var(--text-sm); color: var(--ink); }
-.theme-option-check { display: none; color: var(--accent-500); flex-shrink: 0; }
-.theme-option.is-selected .theme-option-check { display: flex; }
 
 .settings-password-form { display: flex; flex-direction: column; gap: var(--sp-3); }
 .settings-password-form input { border: none; }

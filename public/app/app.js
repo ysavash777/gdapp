@@ -23,7 +23,7 @@
    avances reales de historial — así el botón de volver siempre puede
    distinguirse de un toque hacia adelante.
 
-   Cada módulo vive en /app/modules/*.js y exporta { title, description, render }.
+   Cada módulo vive en /app/modules/*.js y exporta { title, render }.
    ============================================================ */
 
 import { icon } from '/shared/js/icons.js';
@@ -31,19 +31,13 @@ import { avatar } from '/shared/js/avatars.js';
 import { capitalize } from '/shared/js/format.js';
 import { currentUser, refreshUser, logout } from '/shared/js/session.js';
 import { renderAuth } from '/shared/js/auth-view.js';
-import { getToolTheme, applyToolTheme } from '/shared/js/tool-theme.js';
 
 import * as mapear from '/app/modules/mapear/index.js';
 import * as vencimientos from '/app/modules/vencimientos/index.js';
 import * as vacios from '/app/modules/vacios.js';
 import * as consultas from '/app/modules/consultas/index.js';
 import * as settings from '/app/modules/settings.js';
-import { checkVencidos, markAllSeen, notifListHTML } from '/app/notifications.js';
-
-// Antes de pintar nada: si no, la primera pintura de las tarjetas de
-// herramienta usaría la paleta A (default de app.css) y saltaría a la
-// elegida recién en el siguiente render, un flash visible de color.
-applyToolTheme(getToolTheme());
+import { checkVencidos, markAlertSeen, notifMessageHTML } from '/app/notifications.js';
 
 const TOOLS = {
   consultas: { ...consultas, icon: 'search' },
@@ -56,7 +50,6 @@ const PUBLIC_TOOLS = ['consultas'];
 
 const root = document.getElementById('root');
 let user = null;
-let lastVencidos = []; // última tanda chequeada por notifications.js — la campana la reusa al abrirse, sin repetir el pedido
 
 // --- Historial: el botón/gesto de volver del dispositivo nunca debe
 // resurfacear el login, y desde el inicio debe pedir una segunda
@@ -191,7 +184,6 @@ function toolCardHTML(key, t) {
       </div>
       <div class="tc-body">
         <h3>${t.title}</h3>
-        <p>${t.description || ''}</p>
       </div>
     </button>
   `;
@@ -215,7 +207,6 @@ function welcomeScreenHTML(key, t) {
           <div class="hg-glyph">${icon(t.icon, 32)}</div>
         </div>
         <h1>${t.title}</h1>
-        <p>${t.description || ''}</p>
       </div>
       <button type="button" class="hg-cta" data-key="${key}">
         ${icon('scan', 19)}
@@ -237,8 +228,6 @@ function lockedCardHTML() {
       </div>
       <div class="tc-body">
         <span class="skeleton-shape skeleton-line skeleton-title"></span>
-        <span class="skeleton-shape skeleton-line"></span>
-        <span class="skeleton-shape skeleton-line is-short"></span>
       </div>
     </div>
   `;
@@ -290,8 +279,8 @@ function renderHome() {
       e.stopPropagation();
       const opening = notifMenu.hidden;
       notifMenu.hidden = !opening;
-      if (opening && lastVencidos.length) {
-        markAllSeen(lastVencidos);
+      if (opening) {
+        markAlertSeen();
         notifBadge.hidden = true;
       }
     });
@@ -305,13 +294,15 @@ function renderHome() {
     // Solo para quien puede hacer algo al respecto — nunca gasta un
     // pedido al servidor para quien no tiene el permiso. Sin toast ni
     // polling: un chequeo por apertura de la pantalla de inicio
-    // alcanza para "avisar sin molestar".
+    // alcanza para "avisar sin molestar". El badge (el "avisar") solo
+    // prende una vez por día — el mensaje en sí (notifMessageHTML)
+    // igual queda disponible si se abre la campana a mano, aunque ya
+    // se haya avisado hoy.
     if (user.permissions?.includes('vencimientos')) {
-      checkVencidos().then(({ vencidos, unseenCount }) => {
-        lastVencidos = vencidos;
-        notifMenu.innerHTML = notifListHTML(vencidos);
-        if (unseenCount > 0) {
-          notifBadge.textContent = unseenCount > 99 ? '99+' : String(unseenCount);
+      checkVencidos().then(({ count, shouldAlert }) => {
+        notifMenu.innerHTML = notifMessageHTML(count);
+        if (shouldAlert) {
+          notifBadge.textContent = count > 99 ? '99+' : String(count);
           notifBadge.hidden = false;
         }
       }).catch(() => { /* sin conexión: la campana se queda como estaba */ });

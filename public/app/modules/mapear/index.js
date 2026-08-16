@@ -16,7 +16,6 @@ import { renderList } from './list-view.js';
 import { openEditor } from './editor-view.js';
 
 export const title = 'Mapear';
-export const description = 'Escanea productos y registra cantidad, condición y descripción por código.';
 
 export function render(outlet) {
   const refresh = () => renderList(outlet, { onNew: (title) => openEditor({ title, onClose: refresh }) });

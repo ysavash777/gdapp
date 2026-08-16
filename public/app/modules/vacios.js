@@ -6,7 +6,6 @@
 import { icon } from '/shared/js/icons.js';
 
 export const title = 'Vacíos';
-export const description = 'Posiciones donde el sistema y lo físico no coinciden en el pallet.';
 
 export function render(outlet) {
   outlet.innerHTML = `
