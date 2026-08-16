@@ -88,7 +88,7 @@ export async function renderList(outlet, { onNew }) {
 
   outlet.innerHTML = `
     <div class="action-hero">
-      <div class="searchbar">
+      <div class="searchbar" id="mapeoSearchBar" hidden>
         ${icon('search', 18)}
         <input type="search" id="mapeoSearchInput" placeholder="Buscar mapeo..." autocomplete="off" disabled />
         <button type="button" class="searchbar-clear" id="mapeoSearchClear" title="Limpiar búsqueda" aria-label="Limpiar búsqueda" hidden>${icon('x', 14)}</button>
@@ -151,6 +151,7 @@ export async function renderList(outlet, { onNew }) {
   const titleActions = document.getElementById('subpageTitleActions');
   if (titleActions) {
     titleActions.innerHTML = `
+      <button type="button" class="btn-icon" id="mapeoSearchToggle" title="Buscar mapeo">${icon('search', 20)}</button>
       <div class="mapeo-add-wrap">
         <button type="button" class="btn-icon" id="mapeoAddBtn" title="Agregar mapeo">${icon('plus', 20)}</button>
         <div class="mapeo-menu" id="mapeoAddMenu" hidden>
@@ -159,6 +160,20 @@ export async function renderList(outlet, { onNew }) {
         </div>
       </div>
     `;
+    const searchToggle = titleActions.querySelector('#mapeoSearchToggle');
+    searchToggle.addEventListener('click', () => {
+      const searchBar = outlet.querySelector('#mapeoSearchBar');
+      const searchInputEl = outlet.querySelector('#mapeoSearchInput');
+      const opening = searchBar.hidden;
+      searchBar.hidden = !opening;
+      searchToggle.classList.toggle('is-active', opening);
+      if (opening) {
+        searchInputEl.focus();
+      } else {
+        searchInputEl.value = '';
+        applyFilter();
+      }
+    });
     const addBtn = titleActions.querySelector('#mapeoAddBtn');
     const addMenu = titleActions.querySelector('#mapeoAddMenu');
     addBtn.addEventListener('click', (e) => {

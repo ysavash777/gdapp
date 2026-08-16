@@ -73,7 +73,7 @@ export async function render(root, user) {
     return;
   }
 
-  root.innerHTML = `<div class="settings-loading"><div class="settings-spinner"></div></div>`;
+  root.innerHTML = `<div class="gd-spinner-wrap"><div class="gd-spinner"></div></div>`;
 
   const dbBlock = document.createElement('div');
   await mountDatabases(dbBlock); // corre detached del documento — sus listeners igual quedan atados
@@ -302,8 +302,7 @@ function mountPassword(root) {
       </div>
       <form id="pwForm" class="settings-password-form" autocomplete="off">
         <div class="field">
-          <label for="pwNew">Contraseña nueva</label>
-          <input id="pwNew" type="password" required minlength="4" autocomplete="new-password" placeholder="Ingresa tu nueva contraseña" />
+          <input id="pwNew" type="password" required minlength="4" autocomplete="new-password" placeholder="Ingresa tu nueva contraseña" aria-label="Contraseña nueva" />
         </div>
         <p class="form-error" id="pwError" style="display:none;"></p>
         <p class="form-success" id="pwSuccess" style="display:none;">Contraseña actualizada.</p>

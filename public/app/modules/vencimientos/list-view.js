@@ -122,17 +122,7 @@ export async function renderList(outlet) {
         </div>
       </div>
       <div id="vencListWrap">
-        <div class="mapeo-list cq-fade-in">
-          ${[1, 2, 3].map(() => `
-            <div class="venc-card">
-              <div class="cq-skeleton" style="width:48px;height:32px;border-radius:var(--r-md);flex-shrink:0;"></div>
-              <div class="venc-card-main">
-                <span class="cq-skeleton" style="width:70%;height:14px;margin-bottom:6px;"></span>
-                <span class="cq-skeleton" style="width:45%;height:11px;"></span>
-              </div>
-            </div>
-          `).join('')}
-        </div>
+        <div class="gd-spinner-wrap"><div class="gd-spinner"></div></div>
       </div>
     </div>
   `;

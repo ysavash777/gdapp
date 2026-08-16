@@ -170,20 +170,69 @@ html, body {
   top: calc(100% + 10px);
   right: 0;
   min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
-  padding: var(--sp-4);
+  padding: 6px;
   z-index: 20;
   animation: menu-in 120ms ease;
 }
 .notif-menu[hidden] { display: none; }
 .notif-empty {
   margin: 0;
+  padding: var(--sp-3);
   text-align: center;
   font-size: var(--text-sm);
   font-weight: 550;
   color: var(--ink-3);
+}
+
+/* Badge de "no vistos" sobre la campana — pedido explícito: nada de
+   toast flotante, solo esto. Cuenta vencidos reales (server/store/
+   vencimientos.store.js, severity 'vencido'), no "próximos a vencer". */
+#notifBtn { position: relative; }
+.notif-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--r-full);
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+.notif-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--r-md);
+  background: transparent;
+  text-align: left;
+}
+.notif-item:hover { background: var(--n-100); }
+.notif-item-title { font-size: var(--text-sm); font-weight: 700; color: var(--danger); }
+.notif-item-desc {
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 /* --- Contenido --- */
@@ -1597,12 +1646,20 @@ html, body {
    completos, nunca cortados con elipsis — en pantallas angostas
    pasan a una segunda línea (flex-wrap) en vez de truncarse, así el
    dato es siempre legible sin importar el dispositivo. */
-.venc-card-sub { display: flex; flex-wrap: wrap; gap: 4px var(--sp-3); min-width: 0; }
+/* SIEMPRE una sola línea, nunca salta — pedido explícito: los 3
+   datos (caja/cantidad/vencimiento) se reparten el ancho disponible a
+   partes iguales (flex:1) y cada uno achica su propio texto con
+   elipsis si no entra, en vez de pasar a un segundo renglón. */
+.venc-card-sub { display: flex; flex-wrap: nowrap; gap: var(--sp-2); min-width: 0; }
 .venc-card-sub-item {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: var(--text-xs);
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
   color: var(--ink-3);
   white-space: nowrap;
 }
@@ -1807,18 +1864,9 @@ html, body {
 .settings-screen { display: flex; flex-direction: column; gap: var(--sp-4); }
 .settings-empty { text-align: center; color: var(--ink-3); font-size: var(--text-sm); padding: var(--sp-6) 0; }
 
-/* Mientras Bases de datos pide su estado al servidor — ver render()
-   en settings.js: cubre esa espera para que la pantalla aparezca de
-   una sola vez, ya completa, en vez de la contraseña sola primero. */
-.settings-loading { display: flex; align-items: center; justify-content: center; padding: var(--sp-7) 0; }
-.settings-spinner {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 3px solid var(--line);
-  border-top-color: var(--icon-vencimientos);
-  animation: gd-spin 700ms linear infinite;
-}
+/* Spinner de carga: .gd-spinner-wrap/.gd-spinner en shared/styles/
+   components.css (compartido con Vencimientos) — mientras Bases de
+   datos pide su estado al servidor, ver render() en settings.js. */
 
 .settings-block { display: flex; flex-direction: column; gap: var(--sp-3); }
 .settings-block-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); }

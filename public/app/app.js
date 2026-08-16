@@ -36,6 +36,7 @@ import * as vencimientos from '/app/modules/vencimientos/index.js';
 import * as vacios from '/app/modules/vacios.js';
 import * as consultas from '/app/modules/consultas/index.js';
 import * as settings from '/app/modules/settings.js';
+import { checkVencidos, markAllSeen, notifListHTML } from '/app/notifications.js';
 
 const TOOLS = {
   consultas: { ...consultas, icon: 'search' },
@@ -48,6 +49,7 @@ const PUBLIC_TOOLS = ['consultas'];
 
 const root = document.getElementById('root');
 let user = null;
+let lastVencidos = []; // última tanda chequeada por notifications.js — la campana la reusa al abrirse, sin repetir el pedido
 
 // --- Historial: el botón/gesto de volver del dispositivo nunca debe
 // resurfacear el login, y desde el inicio debe pedir una segunda
@@ -253,7 +255,10 @@ function renderHome() {
       <div class="hd-right">
         <button class="btn-icon" id="settingsBtn" title="Configuración">${icon('settings', 20)}</button>
         <div class="hd-notif">
-          <button class="btn-icon" id="notifBtn" title="Notificaciones">${icon('bell', 20)}</button>
+          <button class="btn-icon" id="notifBtn" title="Notificaciones">
+            ${icon('bell', 20)}
+            <span class="notif-badge" id="notifBadge" hidden>0</span>
+          </button>
           <div class="notif-menu" id="notifMenu" hidden>
             <p class="notif-empty">No tenés notificaciones</p>
           </div>
@@ -273,10 +278,37 @@ function renderHome() {
     });
 
     const notifMenu = document.getElementById('notifMenu');
+    const notifBadge = document.getElementById('notifBadge');
     document.getElementById('notifBtn').addEventListener('click', (e) => {
       e.stopPropagation();
-      notifMenu.hidden = !notifMenu.hidden;
+      const opening = notifMenu.hidden;
+      notifMenu.hidden = !opening;
+      if (opening && lastVencidos.length) {
+        markAllSeen(lastVencidos);
+        notifBadge.hidden = true;
+      }
     });
+    notifMenu.addEventListener('click', (e) => {
+      const item = e.target.closest('.notif-item');
+      if (!item) return;
+      notifMenu.hidden = true;
+      pushRoute('vencimientos');
+    });
+
+    // Solo para quien puede hacer algo al respecto — nunca gasta un
+    // pedido al servidor para quien no tiene el permiso. Sin toast ni
+    // polling: un chequeo por apertura de la pantalla de inicio
+    // alcanza para "avisar sin molestar".
+    if (user.permissions?.includes('vencimientos')) {
+      checkVencidos().then(({ vencidos, unseenCount }) => {
+        lastVencidos = vencidos;
+        notifMenu.innerHTML = notifListHTML(vencidos);
+        if (unseenCount > 0) {
+          notifBadge.textContent = unseenCount > 99 ? '99+' : String(unseenCount);
+          notifBadge.hidden = false;
+        }
+      }).catch(() => { /* sin conexión: la campana se queda como estaba */ });
+    }
 
     document.getElementById('settingsBtn').addEventListener('click', () => pushRoute('settings'));
   } else {

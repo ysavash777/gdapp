@@ -367,3 +367,17 @@
   background: var(--danger-bg);
   color: var(--danger);
 }
+
+/* Spinner de carga genérico — círculo gris flat, sin marca de ningún
+   módulo en particular (--accent-500, neutral) para poder reusarlo en
+   cualquier pantalla que necesite cubrir una espera al servidor. */
+@keyframes gd-spin { to { transform: rotate(360deg); } }
+.gd-spinner-wrap { display: flex; align-items: center; justify-content: center; padding: var(--sp-7) 0; }
+.gd-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--line);
+  border-top-color: var(--accent-500);
+  animation: gd-spin 700ms linear infinite;
+}
