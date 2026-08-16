@@ -42,6 +42,18 @@ function formatQty(saldo) {
   return saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 });
 }
 
+// El contenedor de la ubicación (modo Sugerido) tiene que medir
+// siempre lo mismo, sin importar el largo del código — nunca al
+// revés (achicar el texto, nunca estirar la caja): mismo criterio que
+// qtySizeClass()/chipSizeClass() en otras herramientas de la app.
+function ubicacionSizeClass(text) {
+  const len = String(text || '').length;
+  if (len <= 8) return '';
+  if (len <= 11) return 'is-md';
+  if (len <= 14) return 'is-sm';
+  return 'is-xs';
+}
+
 function subChipsHTML(item) {
   const um = item.unidadmedida ? ` ${item.unidadmedida}` : '';
   return `
@@ -243,10 +255,9 @@ export async function renderList(outlet) {
           <span class="venc-suggest-label">Ubicación</span>
           <div class="venc-suggest-locrow">
             <button type="button" class="venc-suggest-arrow" id="vencSuggestPrev" title="Anterior" ${isFirst ? 'disabled' : ''}>${icon('chevronLeft', 22)}</button>
-            <div class="venc-suggest-ubicacion">${escapeHtml(item.ubicacion || '-')}</div>
+            <div class="venc-suggest-ubicacion ${ubicacionSizeClass(item.ubicacion)}">${escapeHtml(item.ubicacion || '-')}</div>
             <button type="button" class="venc-suggest-arrow" id="vencSuggestNext" title="Siguiente" ${isLast ? 'disabled' : ''}>${icon('chevronRight', 22)}</button>
           </div>
-          <span class="venc-suggest-count">${state.suggestedIndex + 1} de ${queue.length} pendientes</span>
           <hr class="venc-suggest-divider" />
           <p class="venc-suggest-desc">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
           <div class="venc-card-sub venc-suggest-sub">${subChipsHTML(item)}</div>

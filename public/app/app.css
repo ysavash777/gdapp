@@ -481,7 +481,11 @@ html, body {
 .subpage-back { flex-shrink: 0; }
 .subpage-title-actions { flex-shrink: 0; display: flex; align-items: center; gap: var(--sp-2); }
 .subpage-title-actions:empty { display: none; }
-.subpage-body { flex: 1; min-height: 0; overflow-y: auto; }
+/* overflow-x:hidden como red de seguridad general — ninguna
+   herramienta de /app debería necesitar scroll horizontal nunca; si
+   algún contenido puntual se desborda, es un bug de ESE contenido,
+   nunca algo que el usuario deba poder arrastrar de costado. */
+.subpage-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 
 /* --- Login embebido a pantalla completa, sin la tarjeta de escritorio.
    El wrap/card llegan a los bordes reales de la pantalla — el propio
@@ -1503,16 +1507,20 @@ html, body {
    chico aparte del gap más grande de .action-hero (que separa este
    bloque de la lista) — evita que los espaciados se sumen. */
 .venc-header { display: flex; flex-direction: column; gap: var(--sp-2); }
-.venc-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
-.venc-sort-toggle { display: flex; background: var(--surface-2); border-radius: var(--r-full); padding: 3px; gap: 2px; }
+.venc-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-width: 0; }
+/* 3 opciones (antes 2) — padding y letra más chicos a propósito, para
+   que las tres entren siempre en el ancho de un celular sin forzar
+   scroll horizontal (pedido explícito: "eso nunca debe pasar"). */
+.venc-sort-toggle { display: flex; background: var(--surface-2); border-radius: var(--r-full); padding: 3px; gap: 2px; min-width: 0; }
 .venc-sort-toggle button {
-  padding: 7px 14px;
+  padding: 6px 10px;
   border: none;
   border-radius: var(--r-full);
   background: transparent;
   color: var(--ink-3);
-  font-size: var(--text-sm);
+  font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
   transition: background var(--t-fast), color var(--t-fast);
 }
 .venc-sort-toggle button.is-active { background: var(--surface); color: var(--ink); }
@@ -1553,8 +1561,11 @@ html, body {
   background: var(--n-100);
   color: var(--ink-2);
 }
-.venc-card-days.is-vencido, .venc-val-days.is-vencido { background: var(--danger-bg); color: var(--danger); }
-.venc-card-days.is-retirar, .venc-val-days.is-retirar { background: var(--warn-bg); color: var(--warn); }
+/* Vencido y "retirar" (vence en <=4 días) comparten el mismo rojo —
+   pedido explícito: ambos exigen retirar el producto YA, no tiene
+   sentido diferenciarlos por color. */
+.venc-card-days.is-vencido, .venc-val-days.is-vencido,
+.venc-card-days.is-retirar, .venc-val-days.is-retirar { background: var(--danger-bg); color: var(--danger); }
 .venc-card-days.is-proximo, .venc-val-days.is-proximo { background: rgba(251, 146, 60, 0.15); color: var(--icon-vencimientos); }
 .venc-val-days { width: 52px; height: 52px; font-size: 13px; }
 
@@ -1650,17 +1661,29 @@ html, body {
   transition: opacity var(--t-fast);
 }
 .venc-suggest-arrow:disabled { opacity: 0.35; }
+/* SIEMPRE el mismo tamaño (alto fijo, una sola línea, nunca ajusta el
+   contenedor ni desplaza las flechas) — pedido explícito: si el
+   código no entra, se achica LA FUENTE (ver ubicacionSizeClass() en
+   list-view.js), nunca la caja. overflow+ellipsis es la red de
+   seguridad final para un código tan largo que ni achicando entre. */
 .venc-suggest-ubicacion {
   flex: 1;
   min-width: 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: var(--text-2xl);
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--icon-vencimientos);
-  line-height: 1.1;
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.venc-suggest-count { font-size: var(--text-xs); font-weight: 600; color: var(--ink-3); margin-top: var(--sp-2); }
+.venc-suggest-ubicacion.is-md { font-size: var(--text-xl); }
+.venc-suggest-ubicacion.is-sm { font-size: var(--text-lg); }
+.venc-suggest-ubicacion.is-xs { font-size: var(--text-base); }
 .venc-suggest-divider { width: 100%; border: none; border-top: 1px solid var(--line); margin: var(--sp-4) 0 var(--sp-3); }
 .venc-suggest-desc { font-size: var(--text-sm); font-weight: 600; color: var(--ink); }
 .venc-suggest-sub { justify-content: center; margin-top: var(--sp-2); }
@@ -1677,8 +1700,11 @@ html, body {
   background: var(--n-100);
   color: var(--ink-2);
 }
-.venc-suggest-urgency.is-vencido { background: var(--danger-bg); color: var(--danger); }
-.venc-suggest-urgency.is-retirar { background: var(--warn-bg); color: var(--warn); }
+/* Vencido y "retirar" (vence en <=4 días) comparten el mismo rojo —
+   pedido explícito: los dos exigen la misma acción inmediata, así que
+   no tiene sentido diferenciarlos por color (antes "retirar" era
+   ámbar). El naranja tenue del módulo queda solo para "próximo". */
+.venc-suggest-urgency.is-vencido, .venc-suggest-urgency.is-retirar { background: var(--danger-bg); color: var(--danger); }
 .venc-suggest-urgency.is-proximo { background: rgba(251, 146, 60, 0.15); color: var(--icon-vencimientos); }
 
 .venc-suggest-cta { flex-shrink: 0; padding: 15px 18px; }
