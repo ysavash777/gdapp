@@ -195,6 +195,12 @@ async function list() {
       saldo: r.saldo != null && r.saldo !== '' ? Number(r.saldo) : null,
       unidadmedida: String(r.unidadmedida || '').trim() || null,
       fv: r.fv || null,
+      // Campos extra SOLO para poder buscar/filtrar por ellos (ver
+      // app/modules/vencimientos/list-view.js) — Copernico los manda
+      // con espacios de relleno en varios de estos campos de texto.
+      sector: String(r.subgrupo || '').trim() || null,
+      pedprov: String(r.pedprov || '').trim() || null,
+      factura: String(r.factura || '').trim() || null,
       days,
       severity: severityOf(days),
       isRetirar: days <= RETIRAR_DAYS,

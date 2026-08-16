@@ -271,7 +271,10 @@ server/
                            ítem, marcarlo de nuevo a mano no agregaba información); 'faltante' EXIGE
                            fotoBase64 (rechaza con PHOTO_REQUIRED si falta) y sube esa foto al bucket público
                            `vencimiento-fotos` de Supabase Storage antes de guardar la fila, guardando la URL
-                           pública resultante en foto_url.
+                           pública resultante en foto_url. Cada ítem también lleva sector (columna
+                           "subgrupo" de Copernico), pedprov y factura (ambos trimeados — Copernico los
+                           manda con espacios de relleno) — SOLO para que list-view.js pueda buscar/filtrar
+                           por ellos, no se muestran en ninguna tarjeta.
   .env                     COPERNICO_EMAIL / COPERNICO_PASSWORD / COPERNICO_BODEGA del usuario consultor +
                            SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY — gitignored, nunca se envían al
                            navegador. config.js los carga a mano al arrancar.
@@ -287,7 +290,11 @@ public/
                            de una fila cada uno: el <input> real sigue existiendo (oculto, mismo
                            name="perm") para no tocar cómo se lee el formulario, solo cambia qué se ve — el
                            <span> hermano es lo que se pinta según :checked.
-    js/icons.js            Set de iconos SVG (estilo Lucide). Añadir iconos SOLO aquí.
+    js/icons.js            Set de iconos SVG (estilo Lucide) vía icon(name, size). Añadir iconos SOLO aquí.
+                           SOLID_PATHS/iconSolid(name, size) es un segundo set aparte, sólido (relleno, sin
+                           trazo, estilo Heroicons) — usado en Vencimientos para caja/cantidad/vencimiento,
+                           donde ese peso visual entra mejor que el trazo fino del set de arriba. No
+                           mezclar los dos lenguajes visuales.
     js/avatars.js          Resuelve id de avatar → ruta de imagen en avatars/ (con fallback a inicial).
     avatars/               Imágenes JPG de avatar (avatar.jpg predeterminado, avatar-1..5.jpg elegibles).
                            Ver README dentro de la carpeta para los nombres exactos.
@@ -556,19 +563,32 @@ public/
       store.js                Cliente de /api/vencimientos (list/validate/clearValidation/getSettings/
                                updateSettings) — sin caché, siempre pide fresco. validate() manda
                                fotoBase64 (data URL) además de motivo/motivoDetalle.
-      list-view.js             Listado con un FILTRO en el header — no un orden — entre "Pendiente" (todo
-                               lo que falta validar) y "Validado" (lo ya resuelto, para revisar/revertir):
-                               el servidor siempre trae la lista completa ordenada por ubicación (A-Z, para
-                               el recorrido físico del depósito), list-view.js solo filtra por
-                               item.validated en el cliente. La urgencia (severidad/color/días) sigue
-                               visible en cada tarjeta, pero ya no reordena nada — pedido explícito. Cada
-                               tarjeta tiene una estructura de 2 líneas de metadatos FIJA (ubicación en una,
-                               caja+saldo y fecha repartidos en la otra vía .venc-meta-split) que trunca con
-                               elipsis en vez de saltar de renglón, así todas miden lo mismo sin importar el
-                               largo del dato (pedido explícito: nunca más tarjetas con altura irregular).
-                               Progreso ("X de Y validados") + ícono de ubicaciones excluidas (modal
-                               editable) + descarga XLSX. Tocar un ítem validado muestra motivo/detalle/foto
-                               (si el motivo fue "Faltante")/quién/cuándo, con un botón "Revertir".
+      list-view.js             Listado con un FILTRO en el header — no un orden — entre tres modos, todos
+                               sobre la MISMA lista ya cargada (el servidor siempre trae todo ordenado por
+                               ubicación A-Z, para el recorrido físico del depósito; acá solo se filtra en
+                               el cliente):
+                                 "Pendiente" — todo lo que falta validar, en lista.
+                                 "Validado"  — lo ya resuelto, para revisar/revertir.
+                                 "Sugerido"  — UNA sola posición pendiente a la vez (drawSuggested()), con
+                                   navegación anterior/siguiente sobre la misma cola alfabética — pensado
+                                   para que el operario sepa YA a dónde ir sin elegir de una lista. La
+                                   ubicación es la línea más grande de la tarjeta (.venc-suggest-ubicacion,
+                                   --text-2xl) — jerarquía pedida explícitamente: primero A DÓNDE ir, después
+                                   qué es y cuánto queda. Validar (mismo openValidation() de siempre, vía el
+                                   botón "Validar esta posición") saca el ítem de la cola — el siguiente
+                                   ocupa el mismo índice solo, sin que el operario tenga que rebuscar por
+                                   dónde seguía.
+                               Un solo buscador versátil (matchesQuery(), sin botón por campo — pedido
+                               explícito: mantener la interfaz limpia) filtra los tres modos por igual
+                               contra referencia/EAN, ubicación, caja, sector, PedProv y factura — mismo
+                               patrón visual (.searchbar + .searchbar-clear) que ya usa Mapear. La urgencia
+                               (severidad/color/días) sigue visible en cada tarjeta, pero no reordena nada.
+                               Los 3 datos de apoyo (caja/cantidad/vencimiento, cada uno con su ícono
+                               sólido) tienen que verse SIEMPRE completos — en pantallas angostas pasan a
+                               una segunda línea (flex-wrap) en vez de truncarse con elipsis, pedido
+                               explícito. Ícono de ubicaciones excluidas (modal editable) + descarga XLSX.
+                               Tocar un ítem validado muestra motivo/detalle/foto (si el motivo fue
+                               "Faltante")/quién/cuándo, con un botón "Revertir".
       validation-view.js       Un solo overlay de cámara para todo el flujo de un ítem, sin volver a pedir
                                permiso ni parpadear entre pasos:
                                  1) Escanear la caja (contra `caja`) — NUNCA se puede saltar (pedido

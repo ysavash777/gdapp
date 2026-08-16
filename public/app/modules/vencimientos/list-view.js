@@ -2,11 +2,22 @@
    Módulo App · Vencimientos — listado.
 
    Un solo orden posible (ubicación A-Z, para el recorrido físico del
-   depósito — lo trae así el servidor) y un FILTRO por estado:
-   "Pendiente" (todo lo que falta validar) o "Validado" (lo ya
-   resuelto, para revisar/revertir). No hay más un modo "Urgencia": la
-   urgencia sigue visible en cada tarjeta (el color/número de días),
-   pero ya no reordena la lista — pedido explícito.
+   depósito — lo trae así el servidor) y TRES modos, todos sobre la
+   misma lista ya cargada (nunca pedidos separados al servidor):
+     "Pendiente"  — todo lo que falta validar, en lista.
+     "Validado"   — lo ya resuelto, para revisar/revertir.
+     "Sugerido"   — UNA sola posición pendiente a la vez (la primera
+                    alfabéticamente que coincida con la búsqueda), con
+                    navegación anterior/siguiente — para cuando lo que
+                    hace falta no es revisar todo, sino que alguien
+                    sepa YA a dónde ir sin tener que elegir de una
+                    lista.
+   La urgencia (color/número de días) sigue visible en cada tarjeta,
+   pero no reordena nada — pedido explícito.
+
+   Un solo buscador, versátil (referencia/EAN, ubicación, caja,
+   sector, PedProv, factura) filtra los tres modos por igual — nunca
+   un botón por campo: mantiene la interfaz limpia, pedido explícito.
    ============================================================ */
 
 import { icon, iconSolid } from '/shared/js/icons.js';
@@ -33,27 +44,47 @@ function formatQty(saldo) {
   return saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 });
 }
 
+// Búsqueda versátil: un solo campo de texto contra TODO lo que un
+// operario podría tener a mano para encontrar algo puntual (SKU/EAN,
+// ubicación, caja, sector, PedProv, factura) — nunca un botón/filtro
+// por campo, que ensuciaría la pantalla con opciones que casi nunca
+// se usan todas juntas.
+function matchesQuery(item, q) {
+  if (!q) return true;
+  const haystack = [item.referencia, item.ean, item.ubicacion, item.caja, item.descripcion, item.sector, item.pedprov, item.factura]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return haystack.includes(q);
+}
+
+function subChipsHTML(item) {
+  const um = item.unidadmedida ? ` ${item.unidadmedida}` : '';
+  return `
+    <span class="venc-card-sub-item">${iconSolid('caja', 13)} ${escapeHtml(item.caja || '-')}</span>
+    <span class="venc-card-sub-item">${iconSolid('archivo', 13)} ${formatQty(item.saldo)}${escapeHtml(um)}</span>
+    <span class="venc-card-sub-item">${iconSolid('calendario', 13)} ${escapeHtml(item.fv || '-')}</span>
+  `;
+}
+
 // Jerarquía de lectura pedida explícitamente: 1) ubicación (a dónde
 // dirigirse — la línea más grande y oscura de la tarjeta, primera,
-// SIN ícono — pedido explícito), 2) descripción del producto, 3)
-// caja/cantidad/vencimiento como apoyo menor, cada uno con su ícono
-// sólido en vez de texto. La "vida útil" (círculo de días) va a la
-// IZQUIERDA de la tarjeta, centrada en las dos direcciones y en toda
-// la altura del contenedor — nunca arriba compitiendo con la ubicación.
+// SIN ícono), 2) descripción del producto, 3) caja/cantidad/
+// vencimiento como apoyo menor, cada uno con su ícono sólido. Estos 3
+// datos SIEMPRE completos (nunca cortados con "…") — en pantallas
+// angostas pasan a una segunda línea en vez de truncarse (ver
+// .venc-card-sub, flex-wrap). La "vida útil" (círculo de días) va a
+// la IZQUIERDA, centrada en las dos direcciones y en toda la altura
+// del contenedor.
 function itemCardHTML(item) {
   const desc = item.descripcion || 'Producto sin descripción';
-  const um = item.unidadmedida ? ` ${item.unidadmedida}` : '';
   return `
     <button class="venc-card ${item.validated ? 'is-validated' : ''}" data-key="${escapeHtml(item.key)}">
       <div class="venc-card-days is-${item.severity}">${daysLabel(item.days)}</div>
       <div class="venc-card-main">
         <span class="venc-card-ubicacion">${escapeHtml(item.ubicacion || '-')}</span>
         <span class="venc-card-desc">${escapeHtml(desc)}</span>
-        <span class="venc-card-sub">
-          <span class="venc-card-sub-item">${iconSolid('caja', 13)} ${escapeHtml(item.caja || '-')}</span>
-          <span class="venc-card-sub-item">${iconSolid('archivo', 13)} ${formatQty(item.saldo)}${escapeHtml(um)}</span>
-          <span class="venc-card-sub-item">${iconSolid('calendario', 13)} ${escapeHtml(item.fv || '-')}</span>
-        </span>
+        <span class="venc-card-sub">${subChipsHTML(item)}</span>
       </div>
       ${item.validated
         ? `<div class="venc-card-check" title="Validado">${icon('check', 16)}</div>`
@@ -65,7 +96,7 @@ function itemCardHTML(item) {
 export async function renderList(outlet) {
   outletRef = outlet;
 
-  const state = { view: 'pendiente', items: [], loading: true, error: null };
+  const state = { view: 'pendiente', query: '', suggestedIndex: 0, items: [], loading: true, error: null };
 
   outlet.innerHTML = `
     <div class="action-hero">
@@ -74,13 +105,18 @@ export async function renderList(outlet) {
           <div class="venc-sort-toggle" id="vencViewToggle">
             <button type="button" class="is-active" data-view="pendiente">Pendiente</button>
             <button type="button" data-view="validado">Validado</button>
+            <button type="button" data-view="sugerido">Sugerido</button>
           </div>
           <div class="venc-toolbar-actions">
             <button type="button" class="btn-icon" id="vencSettingsBtn" title="Ubicaciones excluidas">${icon('settings', 18)}</button>
             <a class="btn-icon" id="vencExportBtn" href="/api/vencimientos/export" title="Descargar XLSX">${icon('download', 18)}</a>
           </div>
         </div>
-        <p class="venc-progress" id="vencProgress"></p>
+        <div class="searchbar">
+          ${icon('search', 16)}
+          <input type="search" id="vencSearchInput" placeholder="Buscar por SKU, EAN, ubicación, sector, pedido, factura…" autocomplete="off" />
+          <button type="button" class="searchbar-clear" id="vencSearchClear" title="Limpiar búsqueda" aria-label="Limpiar búsqueda" hidden>${icon('x', 14)}</button>
+        </div>
       </div>
       <div id="vencListWrap">
         <div class="mapeo-list cq-fade-in">
@@ -98,15 +134,32 @@ export async function renderList(outlet) {
     </div>
   `;
 
+  const searchInput = outlet.querySelector('#vencSearchInput');
+  const searchClear = outlet.querySelector('#vencSearchClear');
+
   outlet.querySelectorAll('#vencViewToggle button').forEach((btn) => {
     btn.addEventListener('click', () => {
       if (btn.dataset.view === state.view) return;
       state.view = btn.dataset.view;
+      state.suggestedIndex = 0;
       outlet.querySelectorAll('#vencViewToggle button').forEach((b) => b.classList.toggle('is-active', b === btn));
       draw();
     });
   });
   outlet.querySelector('#vencSettingsBtn').addEventListener('click', openSettingsModal);
+  searchInput.addEventListener('input', () => {
+    state.query = searchInput.value.trim().toLowerCase();
+    state.suggestedIndex = 0;
+    searchClear.hidden = !state.query;
+    draw();
+  });
+  searchClear.addEventListener('click', () => {
+    searchInput.value = '';
+    state.query = '';
+    searchClear.hidden = true;
+    draw();
+    searchInput.focus();
+  });
 
   async function load() {
     if (!outlet.isConnected) return;
@@ -123,17 +176,20 @@ export async function renderList(outlet) {
     if (outlet.isConnected) draw();
   }
 
+  function pendingQueue() {
+    return state.items.filter((i) => !i.validated && matchesQuery(i, state.query));
+  }
+
   function visibleItems() {
-    return state.items.filter((i) => (state.view === 'validado' ? i.validated : !i.validated));
+    const byView = state.items.filter((i) => (state.view === 'validado' ? i.validated : !i.validated));
+    return byView.filter((i) => matchesQuery(i, state.query));
   }
 
   function draw() {
     const wrap = outlet.querySelector('#vencListWrap');
-    const progressEl = outlet.querySelector('#vencProgress');
     if (!wrap) return;
 
     if (state.error) {
-      progressEl.textContent = '';
       wrap.innerHTML = `
         <div class="card cq-fade-in">
           <div class="empty-state">
@@ -148,17 +204,20 @@ export async function renderList(outlet) {
       return;
     }
 
-    const validatedCount = state.items.filter((i) => i.validated).length;
-    progressEl.textContent = state.items.length ? `${validatedCount} de ${state.items.length} validados` : '';
+    if (state.view === 'sugerido') {
+      drawSuggested(wrap);
+      return;
+    }
 
     const items = visibleItems();
     if (!items.length) {
+      const noMatch = state.query && state.items.length > 0;
       wrap.innerHTML = `
         <div class="card cq-fade-in">
           <div class="empty-state">
             <div class="es-icon">${icon('calendarAlert', 26)}</div>
-            <h3>${state.view === 'validado' ? 'Nada validado todavía' : '¡Todo al día!'}</h3>
-            <p>${state.view === 'validado' ? 'Los ítems que valides van a aparecer acá.' : 'No hay productos pendientes de validar en la ventana configurada.'}</p>
+            <h3>${noMatch ? 'Sin resultados' : state.view === 'validado' ? 'Nada validado todavía' : '¡Todo al día!'}</h3>
+            <p>${noMatch ? 'Ningún ítem coincide con la búsqueda.' : state.view === 'validado' ? 'Los ítems que valides van a aparecer acá.' : 'No hay productos pendientes de validar en la ventana configurada.'}</p>
           </div>
         </div>
       `;
@@ -174,6 +233,66 @@ export async function renderList(outlet) {
         if (item.validated) openValidatedDetail(item);
         else openValidation(item, { onDone: load });
       });
+    });
+  }
+
+  // "Sugerido": una sola posición pendiente a la vez, en el mismo
+  // orden alfabético que el resto — pensado para que el operario sepa
+  // YA a dónde ir, sin tener que leer y elegir de una lista. Validar
+  // esa posición la saca de la cola y la siguiente ocupa su lugar
+  // solo (mismo índice, cola más corta) — sin eso, tendría que buscar
+  // manualmente por dónde seguía.
+  function drawSuggested(wrap) {
+    const queue = pendingQueue();
+    if (!queue.length) {
+      const noMatch = state.query && state.items.some((i) => !i.validated);
+      wrap.innerHTML = `
+        <div class="card cq-fade-in">
+          <div class="empty-state">
+            <div class="es-icon">${icon('check', 26)}</div>
+            <h3>${noMatch ? 'Sin resultados' : '¡Todo validado!'}</h3>
+            <p>${noMatch ? 'Ningún pendiente coincide con la búsqueda.' : 'No queda ninguna posición pendiente en la ventana configurada.'}</p>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    state.suggestedIndex = Math.min(Math.max(state.suggestedIndex, 0), queue.length - 1);
+    const item = queue[state.suggestedIndex];
+    const isFirst = state.suggestedIndex === 0;
+    const isLast = state.suggestedIndex === queue.length - 1;
+
+    wrap.innerHTML = `
+      <div class="venc-suggest cq-fade-in">
+        <div class="venc-suggest-nav">
+          <button type="button" class="btn-icon" id="vencSuggestPrev" title="Anterior" ${isFirst ? 'disabled' : ''}>${icon('chevronLeft', 20)}</button>
+          <span class="venc-suggest-count">${state.suggestedIndex + 1} de ${queue.length}</span>
+          <button type="button" class="btn-icon" id="vencSuggestNext" title="Siguiente" ${isLast ? 'disabled' : ''}>${icon('chevronRight', 20)}</button>
+        </div>
+        <div class="venc-suggest-card">
+          <span class="venc-suggest-label">Dirigite a</span>
+          <div class="venc-suggest-ubicacion">${escapeHtml(item.ubicacion || '-')}</div>
+          <div class="venc-suggest-days is-${item.severity}">${daysLabel(item.days)}</div>
+          <p class="venc-suggest-desc">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
+          <div class="venc-card-sub venc-suggest-sub">${subChipsHTML(item)}</div>
+        </div>
+        <button type="button" class="btn btn-primary btn-block venc-suggest-cta" id="vencSuggestValidate">Validar esta posición</button>
+      </div>
+    `;
+
+    wrap.querySelector('#vencSuggestPrev').addEventListener('click', () => {
+      if (isFirst) return;
+      state.suggestedIndex -= 1;
+      draw();
+    });
+    wrap.querySelector('#vencSuggestNext').addEventListener('click', () => {
+      if (isLast) return;
+      state.suggestedIndex += 1;
+      draw();
+    });
+    wrap.querySelector('#vencSuggestValidate').addEventListener('click', () => {
+      openValidation(item, { onDone: load });
     });
   }
 
