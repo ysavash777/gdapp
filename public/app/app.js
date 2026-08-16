@@ -31,6 +31,7 @@ import { avatar } from '/shared/js/avatars.js';
 import { capitalize } from '/shared/js/format.js';
 import { currentUser, refreshUser, logout } from '/shared/js/session.js';
 import { renderAuth } from '/shared/js/auth-view.js';
+import { getToolTheme, applyToolTheme } from '/shared/js/tool-theme.js';
 
 import * as mapear from '/app/modules/mapear/index.js';
 import * as vencimientos from '/app/modules/vencimientos/index.js';
@@ -38,6 +39,11 @@ import * as vacios from '/app/modules/vacios.js';
 import * as consultas from '/app/modules/consultas/index.js';
 import * as settings from '/app/modules/settings.js';
 import { checkVencidos, markAllSeen, notifListHTML } from '/app/notifications.js';
+
+// Antes de pintar nada: si no, la primera pintura de las tarjetas de
+// herramienta usaría la paleta A (default de app.css) y saltaría a la
+// elegida recién en el siguiente render, un flash visible de color.
+applyToolTheme(getToolTheme());
 
 const TOOLS = {
   consultas: { ...consultas, icon: 'search' },

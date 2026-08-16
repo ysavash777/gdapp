@@ -16,6 +16,7 @@ import { icon } from '/shared/js/icons.js';
 import { formatDateTime, escapeHtml } from '/shared/js/format.js';
 import { fetchStatus, triggerRefresh, estimateSourceMs, estimateTotalMs } from '/shared/js/db-refresh.js';
 import { changePassword } from '/shared/js/session.js';
+import { THEMES, getToolTheme, setToolTheme } from '/shared/js/tool-theme.js';
 
 const ERROR_MESSAGES = {
   LICENSE_LIMIT: 'No hay licencias disponibles en Copernico en este momento. Probá de nuevo más tarde.',
@@ -67,9 +68,14 @@ export async function render(root, user) {
 
   if (!hasDbPerm) {
     root.innerHTML = `<div class="settings-screen" id="settingsRoot"></div>`;
+    const container = root.querySelector('#settingsRoot');
+    const themeBlock = document.createElement('div');
+    mountThemePicker(themeBlock);
+    container.appendChild(themeBlock);
+    container.appendChild(document.createElement('hr')).className = 'settings-separator';
     const pwBlock = document.createElement('div');
-    root.querySelector('#settingsRoot').appendChild(pwBlock);
     mountPassword(pwBlock);
+    container.appendChild(pwBlock);
     return;
   }
 
@@ -80,15 +86,61 @@ export async function render(root, user) {
 
   if (!root.isConnected) return; // se salió de Configuración mientras cargaba
 
+  const themeBlock = document.createElement('div');
+  mountThemePicker(themeBlock);
+
   const pwBlock = document.createElement('div');
   mountPassword(pwBlock);
 
   root.innerHTML = `<div class="settings-screen" id="settingsRoot"></div>`;
   const container = root.querySelector('#settingsRoot');
   container.appendChild(dbBlock);
-  // Separador minimalista entre las dos secciones ya resueltas.
+  // Separador minimalista entre secciones ya resueltas.
+  container.appendChild(document.createElement('hr')).className = 'settings-separator';
+  container.appendChild(themeBlock);
   container.appendChild(document.createElement('hr')).className = 'settings-separator';
   container.appendChild(pwBlock);
+}
+
+// Elegir entre las 3 paletas se aplica al instante (CSS var vía
+// [data-tool-theme] en <html>, ver tool-theme.js) — sin recargar ni
+// re-renderizar nada, así que ni siquiera hace falta cerrar
+// Configuración para ver el cambio reflejado en el inicio.
+function mountThemePicker(root) {
+  const current = getToolTheme();
+  root.innerHTML = `
+    <section class="settings-block">
+      <div class="settings-block-head">
+        <div>
+          <h2>Colores de herramientas</h2>
+          <p class="settings-hint">Elegí la paleta de las tarjetas de inicio.</p>
+        </div>
+      </div>
+      <div class="theme-picker">${THEMES.map((t) => themeOptionHTML(t, t.id === current)).join('')}</div>
+    </section>
+  `;
+
+  root.querySelectorAll('.theme-option').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setToolTheme(btn.dataset.theme);
+      root.querySelectorAll('.theme-option').forEach((b) => b.classList.toggle('is-selected', b === btn));
+    });
+  });
+}
+
+function themeOptionHTML(theme, selected) {
+  return `
+    <button type="button" class="theme-option${selected ? ' is-selected' : ''}" data-theme="${theme.id}">
+      <span class="theme-swatches">
+        <span class="theme-dot" style="background:var(--pal-${theme.id}-consultas)"></span>
+        <span class="theme-dot" style="background:var(--pal-${theme.id}-mapear)"></span>
+        <span class="theme-dot" style="background:var(--pal-${theme.id}-vencimientos)"></span>
+        <span class="theme-dot" style="background:var(--pal-${theme.id}-vacios)"></span>
+      </span>
+      <span class="theme-option-label">${escapeHtml(theme.label)}</span>
+      <span class="theme-option-check">${icon('check', 16)}</span>
+    </button>
+  `;
 }
 
 async function mountDatabases(root) {
