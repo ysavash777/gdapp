@@ -16,9 +16,6 @@
   <!-- Se pide apenas se entra a la app, no recién al llegar al login,
        para que la imagen ya esté en caché cuando el panel se muestre. -->
   <link rel="preload" as="image" href="/shared/images/login-bg.png" fetchpriority="high" />
-  <!-- El ícono lo usa el intro (app-intro) casi de inmediato, antes de
-       que el resto de la app lo necesite para nada más. -->
-  <link rel="preload" as="image" href="/app/icons/icon.png" fetchpriority="high" />
   <link rel="stylesheet" href="/shared/styles/tokens.css" />
   <link rel="stylesheet" href="/shared/styles/base.css" />
   <link rel="stylesheet" href="/shared/styles/components.css" />
@@ -26,9 +23,7 @@
   <link rel="stylesheet" href="/app/app.css" />
 </head>
 <body>
-  <div id="appIntro" class="app-intro" aria-hidden="true">
-    <img class="app-intro-icon" src="/app/icons/icon.png" alt="" />
-  </div>
+  <div id="appIntro" class="app-intro" aria-hidden="true"></div>
   <div id="root"></div>
   <script type="module" src="/app/app.js"></script>
   <script>

@@ -1939,41 +1939,22 @@ html, body {
   overflow: hidden;
 }
 
-/* --- Intro (splash) --- reemplaza el ícono de PWA por defecto que
-   el navegador muestra al abrir la app instalada: markup fijo en
-   index.html (pinta antes de que /app/app.js corra) + esta animación
-   por CSS, que arranca sola sin esperar a ningún script. app.js solo
-   se encarga de agregar .is-hidden pasado un tiempo mínimo fijo, para
-   que el ícono siempre alcance a mostrarse aunque el arranque real
-   (boot()) sea casi instantáneo. Solo el ícono nativo con fade-in —
-   sin texto ni elementos extra. */
+/* --- Intro (splash) --- puente entre el splash nativo de la PWA (el
+   ícono lo pone el sistema operativo, con su propio tamaño/máscara
+   según el launcher — no hay que dibujarlo de nuevo acá, eso daría
+   dos logos con formas distintas) y la app ya renderizada: una
+   pantalla lisa del mismo color de fondo que se desvanece apenas la
+   app está lista, para que no haya un corte brusco. Sin ícono, sin
+   texto. */
 .app-intro {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   background: var(--bg);
   transition: opacity 420ms ease;
 }
 .app-intro.is-hidden {
   opacity: 0;
   pointer-events: none;
-}
-.app-intro-icon {
-  width: 96px;
-  height: 96px;
-  border-radius: 22%;
-  object-fit: cover;
-  opacity: 0;
-  transform: scale(0.9);
-  animation: app-intro-icon 700ms cubic-bezier(.16, .8, .24, 1) forwards;
-}
-@keyframes app-intro-icon {
-  to { opacity: 1; transform: scale(1); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .app-intro-icon { animation: none; opacity: 1; transform: scale(1); }
 }
 .settings-source-progress-fill { height: 100%; width: 0%; background: var(--accent-500); }

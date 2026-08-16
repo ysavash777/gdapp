@@ -401,11 +401,10 @@ function renderLogin() {
   }, { showBack: true });
 }
 
-// Tiempo mínimo que se ve el intro (app-intro en index.html/app.css),
-// para que su animación siempre se vea completa aunque boot() termine
-// casi al instante (el caso normal: renderShellStructure/renderRoute
-// son sincrónicos, solo refreshUser() es async).
-const INTRO_MIN_MS = 900;
+// app-intro (index.html/app.css) es solo una pantalla lisa del color
+// de fondo, sin ícono ni texto (ese lo pone el splash nativo de la
+// PWA) — se desvanece apenas la app ya pintó su primera vista, sin
+// necesitar ningún tiempo mínimo de espera.
 function hideIntro() {
   const el = document.getElementById('appIntro');
   if (!el) return;
@@ -414,11 +413,10 @@ function hideIntro() {
 }
 
 async function boot() {
-  setTimeout(hideIntro, INTRO_MIN_MS);
-
   user = currentUser();
   renderShellStructure();
   renderRoute();
+  hideIntro();
 
   if (!user) return;
 
