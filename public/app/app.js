@@ -23,7 +23,7 @@
    avances reales de historial — así el botón de volver siempre puede
    distinguirse de un toque hacia adelante.
 
-   Cada módulo vive en /app/modules/*.js y exporta { title, render }.
+   Cada módulo vive en /app/modules/*.js y exporta { title, description, render }.
    ============================================================ */
 
 import { icon } from '/shared/js/icons.js';
@@ -184,6 +184,7 @@ function toolCardHTML(key, t) {
       </div>
       <div class="tc-body">
         <h3>${t.title}</h3>
+        <p>${t.description || ''}</p>
       </div>
     </button>
   `;
@@ -207,6 +208,7 @@ function welcomeScreenHTML(key, t) {
           <div class="hg-glyph">${icon(t.icon, 32)}</div>
         </div>
         <h1>${t.title}</h1>
+        <p>${t.description || ''}</p>
       </div>
       <button type="button" class="hg-cta" data-key="${key}">
         ${icon('scan', 19)}
@@ -228,6 +230,8 @@ function lockedCardHTML() {
       </div>
       <div class="tc-body">
         <span class="skeleton-shape skeleton-line skeleton-title"></span>
+        <span class="skeleton-shape skeleton-line"></span>
+        <span class="skeleton-shape skeleton-line is-short"></span>
       </div>
     </div>
   `;

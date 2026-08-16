@@ -70,17 +70,17 @@
      ícono que igual mantenga >=3:1 con el glyph blanco — mezclar
      ambos usos en las mismas variables rompía uno de los dos.
 
-     Versión pastel/muted (menos saturada que un color "vivo" de marca,
-     más suave a la vista) pero manteniendo el mismo piso de contraste
-     que el resto de este bloque: >=4.5:1 con blanco en la tarjeta,
-     >=3:1 en el contenedor del ícono un poco más claro. */
-  --tool-consultas: #ad6242;       /* terracota */
+     Mismo color de fondo (#1c1c1c) en las 4 tarjetas — pedido explícito
+     para que no se distingan entre sí por color de tarjeta — pero el
+     contenedor del ícono de cada una mantiene su tono propio de antes,
+     así siguen siendo identificables por el ícono. */
+  --tool-consultas: #1c1c1c;
   --tool-consultas-icon: #c17953;
-  --tool-mapear: #4c6b8a;          /* azul grisáceo */
+  --tool-mapear: #1c1c1c;
   --tool-mapear-icon: #5f83a6;
-  --tool-vencimientos: #8a6a26;    /* mostaza */
+  --tool-vencimientos: #1c1c1c;
   --tool-vencimientos-icon: #a5824a;
-  --tool-vacios: #5f7a61;          /* salvia */
+  --tool-vacios: #1c1c1c;
   --tool-vacios-icon: #75937a;
 
   /* --- Responsable de rotura/vencido: mismo escalón "400/300" que
@@ -374,6 +374,13 @@ html, body {
   letter-spacing: -0.02em;
   color: var(--ink);
 }
+.hg-center p {
+  max-width: 280px;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+
 .hg-cta {
   flex: 0 0 auto;
   display: flex;
@@ -437,6 +444,17 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.tc-body p {
+  margin-top: 3px;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
 /* --- Herramientas sin permiso: mismo tamaño, atenuadas, sin interacción --- */
 .tool-card.is-locked {
   cursor: default;
@@ -454,6 +472,7 @@ html, body {
 .skeleton-shape { background: var(--n-300); border-radius: var(--r-full); }
 .skeleton-line { display: block; height: 9px; width: 85%; }
 .skeleton-line.skeleton-title { height: 12px; width: 60%; }
+.skeleton-line.is-short { width: 45%; }
 
 /* --- Cada herramienta desbloqueada destaca con su propio color de
    fondo (mismo que usa como acento en el resto de la app), texto
@@ -471,6 +490,7 @@ html, body {
 .tool-card[data-key="vacios"]:not(.is-locked) .tc-icon    { background: var(--tool-vacios-icon); }
 
 .tool-card[data-key]:not(.is-locked) .tc-body h3 { color: #fff; }
+.tool-card[data-key]:not(.is-locked) .tc-body p { color: rgba(255, 255, 255, 0.85); }
 .tool-card[data-key]:not(.is-locked) .tc-chevron { color: rgba(255, 255, 255, 0.75); }
 
 /* --- Botón de iniciar sesión (solo sin sesión), un poco más alto --- */
