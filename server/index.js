@@ -7,6 +7,7 @@ const cookieParser = require('cookie-parser');
 const { PORT } = require('./config');
 const { deviceRedirect } = require('./middleware/device');
 const inventoryEngine = require('./services/inventory-engine');
+const refreshScheduler = require('./services/refresh-scheduler');
 
 const app = express();
 // Gzip para toda respuesta (JSON, HTML, JS, CSS) por encima del umbral
@@ -55,5 +56,6 @@ inventoryEngine.hydrate()
   .finally(() => {
     app.listen(PORT, () => {
       console.log(`GDapp escuchando en http://localhost:${PORT}`);
+      refreshScheduler.start();
     });
   });

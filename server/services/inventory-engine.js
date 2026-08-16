@@ -20,13 +20,12 @@
    Copernico contestó bien, no si además se pudo espejar.
 
    Reglas duras de este archivo:
-   1. NUNCA se auto-invoca. No hay setInterval, setTimeout recurrente
-      ni cron acá — el único disparador es refresh(), llamado por la
-      ruta POST /api/database/refresh, que a su vez solo se llama
-      cuando alguien toca el botón "Actualizar DB" en el desk. Si en
-      algún momento se quiere un refresh periódico, eso es una
-      decisión de producto explícita — no algo que este motor decida
-      por su cuenta.
+   1. Este archivo nunca se auto-invoca (no hay setInterval/setTimeout
+      recurrente ni cron acá): los únicos disparadores son la ruta
+      POST /api/database/refresh (botón "Actualizar DB" del desk) y
+      services/refresh-scheduler.js (corrida automática lun-sáb
+      6-22hs, decisión de producto explícita, ver ese archivo) — ambos
+      llaman a este refresh() de afuera, nunca al revés.
    2. Nunca corren dos refresh en simultáneo (lock en memoria +
       persistido en disco): si refresh() se llama mientras ya hay uno
       en curso, se devuelve ALREADY_RUNNING de inmediato, sin encolar
