@@ -1938,4 +1938,63 @@ html, body {
   background: var(--surface-2);
   overflow: hidden;
 }
+
+/* --- Intro (splash) --- reemplaza el ícono de PWA por defecto que
+   el navegador muestra al abrir la app instalada: markup fijo en
+   index.html (pinta antes de que /app/app.js corra) + esta animación
+   por CSS, que arranca sola sin esperar a ningún script. app.js solo
+   se encarga de agregar .is-hidden pasado un tiempo mínimo fijo, para
+   que la animación siempre se vea completa aunque el arranque real
+   (boot()) sea casi instantáneo. */
+.app-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  transition: opacity 420ms ease;
+}
+.app-intro.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.app-intro-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.app-intro-text {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 650;
+  color: #fff;
+  opacity: 0;
+  letter-spacing: 0.5em;
+  transform: scale(0.97);
+  animation: app-intro-text 1200ms cubic-bezier(.16, .8, .24, 1) forwards;
+}
+.app-intro-bar {
+  width: 0;
+  height: 2px;
+  border-radius: var(--r-full);
+  background: #fff;
+  opacity: 0.5;
+  animation: app-intro-bar 700ms 550ms cubic-bezier(.16, .8, .24, 1) forwards;
+}
+@keyframes app-intro-text {
+  0% { opacity: 0; letter-spacing: 0.5em; transform: scale(0.97); }
+  60% { opacity: 1; }
+  100% { opacity: 1; letter-spacing: 0.06em; transform: scale(1); }
+}
+@keyframes app-intro-bar {
+  to { width: 46px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-intro-text, .app-intro-bar { animation: none; opacity: 1; }
+  .app-intro-text { letter-spacing: 0.06em; }
+  .app-intro-bar { width: 46px; }
+}
 .settings-source-progress-fill { height: 100%; width: 0%; background: var(--accent-500); }

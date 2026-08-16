@@ -401,7 +401,21 @@ function renderLogin() {
   }, { showBack: true });
 }
 
+// Tiempo mínimo que se ve el intro (app-intro en index.html/app.css),
+// para que su animación siempre se vea completa aunque boot() termine
+// casi al instante (el caso normal: renderShellStructure/renderRoute
+// son sincrónicos, solo refreshUser() es async).
+const INTRO_MIN_MS = 1100;
+function hideIntro() {
+  const el = document.getElementById('appIntro');
+  if (!el) return;
+  el.classList.add('is-hidden');
+  setTimeout(() => el.remove(), 420);
+}
+
 async function boot() {
+  setTimeout(hideIntro, INTRO_MIN_MS);
+
   user = currentUser();
   renderShellStructure();
   renderRoute();
