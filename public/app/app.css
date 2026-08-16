@@ -1944,16 +1944,9 @@ html, body {
    index.html (pinta antes de que /app/app.js corra) + esta animación
    por CSS, que arranca sola sin esperar a ningún script. app.js solo
    se encarga de agregar .is-hidden pasado un tiempo mínimo fijo, para
-   que la animación siempre se vea completa aunque el arranque real
-   (boot()) sea casi instantáneo.
-
-   Secuencia: el texto "GStock" aparece primero (letter-spacing que se
-   cierra + fade-in) y hace de "ícono" minimalista; después se apaga
-   mientras el ícono real (icon.png) se enciende en el mismo punto
-   (.app-intro-stage superpone ambos con position:absolute) — un
-   crossfade que conecta la marca de texto con el ícono actual, no un
-   corte. app-intro-stage tiene tamaño fijo para que ninguno de los
-   dos "salte" al aparecer/desaparecer. */
+   que el ícono siempre alcance a mostrarse aunque el arranque real
+   (boot()) sea casi instantáneo. Solo el ícono nativo con fade-in —
+   sin texto ni elementos extra. */
 .app-intro {
   position: fixed;
   inset: 0;
@@ -1968,70 +1961,19 @@ html, body {
   opacity: 0;
   pointer-events: none;
 }
-.app-intro-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-}
-.app-intro-stage {
-  position: relative;
-  width: 76px;
-  height: 76px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.app-intro-text {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 650;
-  color: #fff;
-  opacity: 0;
-  letter-spacing: 0.4em;
-  white-space: nowrap;
-  animation: app-intro-text 1700ms cubic-bezier(.16, .8, .24, 1) forwards;
-}
 .app-intro-icon {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  width: 96px;
+  height: 96px;
   border-radius: 22%;
   object-fit: cover;
   opacity: 0;
-  transform: scale(0.85);
-  animation: app-intro-icon 600ms 1150ms cubic-bezier(.16, .8, .24, 1) forwards;
-}
-.app-intro-bar {
-  width: 0;
-  height: 2px;
-  border-radius: var(--r-full);
-  background: #fff;
-  opacity: 0.5;
-  animation: app-intro-bar 550ms 1750ms cubic-bezier(.16, .8, .24, 1) forwards;
-}
-@keyframes app-intro-text {
-  0% { opacity: 0; letter-spacing: 0.4em; transform: scale(0.97); }
-  30% { opacity: 1; letter-spacing: 0.05em; transform: scale(1); }
-  65% { opacity: 1; }
-  100% { opacity: 0; }
+  transform: scale(0.9);
+  animation: app-intro-icon 700ms cubic-bezier(.16, .8, .24, 1) forwards;
 }
 @keyframes app-intro-icon {
   to { opacity: 1; transform: scale(1); }
 }
-@keyframes app-intro-bar {
-  to { width: 46px; }
-}
 @media (prefers-reduced-motion: reduce) {
-  .app-intro-text, .app-intro-icon, .app-intro-bar { animation: none; }
-  .app-intro-text { opacity: 0; }
-  .app-intro-icon { opacity: 1; transform: scale(1); }
-  .app-intro-bar { width: 46px; }
+  .app-intro-icon { animation: none; opacity: 1; transform: scale(1); }
 }
 .settings-source-progress-fill { height: 100%; width: 0%; background: var(--accent-500); }
