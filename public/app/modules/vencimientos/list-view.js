@@ -4,20 +4,18 @@
    Un solo orden posible (ubicación A-Z, para el recorrido físico del
    depósito — lo trae así el servidor) y TRES modos, todos sobre la
    misma lista ya cargada (nunca pedidos separados al servidor):
+     "Sugerido"   — modo por DEFECTO y primero en el toggle: UNA sola
+                    posición pendiente a la vez, con navegación
+                    anterior/siguiente — para cuando lo que hace falta
+                    no es revisar todo, sino que alguien sepa YA a
+                    dónde ir sin tener que elegir de una lista.
      "Pendiente"  — todo lo que falta validar, en lista.
      "Validado"   — lo ya resuelto, para revisar/revertir.
-     "Sugerido"   — UNA sola posición pendiente a la vez (la primera
-                    alfabéticamente que coincida con la búsqueda), con
-                    navegación anterior/siguiente — para cuando lo que
-                    hace falta no es revisar todo, sino que alguien
-                    sepa YA a dónde ir sin tener que elegir de una
-                    lista.
    La urgencia (color/número de días) sigue visible en cada tarjeta,
    pero no reordena nada — pedido explícito.
 
-   Un solo buscador, versátil (referencia/EAN, ubicación, caja,
-   sector, PedProv, factura) filtra los tres modos por igual — nunca
-   un botón por campo: mantiene la interfaz limpia, pedido explícito.
+   Sin buscador por ahora (se sacó uno anterior por no responder a la
+   lógica de filtro real que hace falta — pendiente de definir).
    ============================================================ */
 
 import { icon, iconSolid } from '/shared/js/icons.js';
@@ -42,20 +40,6 @@ function daysLabel(days) {
 function formatQty(saldo) {
   if (saldo == null) return '-';
   return saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 });
-}
-
-// Búsqueda versátil: un solo campo de texto contra TODO lo que un
-// operario podría tener a mano para encontrar algo puntual (SKU/EAN,
-// ubicación, caja, sector, PedProv, factura) — nunca un botón/filtro
-// por campo, que ensuciaría la pantalla con opciones que casi nunca
-// se usan todas juntas.
-function matchesQuery(item, q) {
-  if (!q) return true;
-  const haystack = [item.referencia, item.ean, item.ubicacion, item.caja, item.descripcion, item.sector, item.pedprov, item.factura]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-  return haystack.includes(q);
 }
 
 function subChipsHTML(item) {
@@ -93,29 +77,36 @@ function itemCardHTML(item) {
   `;
 }
 
+// "Vida útil": para lo que ya hay que sacar de la góndola (vencido, o
+// vence en <=4 días — mismo corte que RETIRAR_DAYS del servidor) es
+// una instrucción directa, no un dato — "Retirar de ubicación", nunca
+// solo el número de días. Para lo que todavía tiene margen, un aviso
+// más informativo y menos alarmante.
+function urgencyBannerHTML(item) {
+  if (item.isRetirar) {
+    return `<div class="venc-suggest-urgency is-${item.severity}">${icon('alertTriangle', 16)} Retirar de ubicación</div>`;
+  }
+  return `<div class="venc-suggest-urgency is-${item.severity}">${icon('calendarAlert', 16)} Vence en ${item.days} día${item.days === 1 ? '' : 's'}</div>`;
+}
+
 export async function renderList(outlet) {
   outletRef = outlet;
 
-  const state = { view: 'pendiente', query: '', suggestedIndex: 0, items: [], loading: true, error: null };
+  const state = { view: 'sugerido', suggestedIndex: 0, items: [], loading: true, error: null };
 
   outlet.innerHTML = `
     <div class="action-hero">
       <div class="venc-header">
         <div class="venc-toolbar">
           <div class="venc-sort-toggle" id="vencViewToggle">
-            <button type="button" class="is-active" data-view="pendiente">Pendiente</button>
+            <button type="button" class="is-active" data-view="sugerido">Sugerido</button>
+            <button type="button" data-view="pendiente">Pendiente</button>
             <button type="button" data-view="validado">Validado</button>
-            <button type="button" data-view="sugerido">Sugerido</button>
           </div>
           <div class="venc-toolbar-actions">
             <button type="button" class="btn-icon" id="vencSettingsBtn" title="Ubicaciones excluidas">${icon('settings', 18)}</button>
             <a class="btn-icon" id="vencExportBtn" href="/api/vencimientos/export" title="Descargar XLSX">${icon('download', 18)}</a>
           </div>
-        </div>
-        <div class="searchbar">
-          ${icon('search', 16)}
-          <input type="search" id="vencSearchInput" placeholder="Buscar por SKU, EAN, ubicación, sector, pedido, factura…" autocomplete="off" />
-          <button type="button" class="searchbar-clear" id="vencSearchClear" title="Limpiar búsqueda" aria-label="Limpiar búsqueda" hidden>${icon('x', 14)}</button>
         </div>
       </div>
       <div id="vencListWrap">
@@ -134,9 +125,6 @@ export async function renderList(outlet) {
     </div>
   `;
 
-  const searchInput = outlet.querySelector('#vencSearchInput');
-  const searchClear = outlet.querySelector('#vencSearchClear');
-
   outlet.querySelectorAll('#vencViewToggle button').forEach((btn) => {
     btn.addEventListener('click', () => {
       if (btn.dataset.view === state.view) return;
@@ -147,19 +135,6 @@ export async function renderList(outlet) {
     });
   });
   outlet.querySelector('#vencSettingsBtn').addEventListener('click', openSettingsModal);
-  searchInput.addEventListener('input', () => {
-    state.query = searchInput.value.trim().toLowerCase();
-    state.suggestedIndex = 0;
-    searchClear.hidden = !state.query;
-    draw();
-  });
-  searchClear.addEventListener('click', () => {
-    searchInput.value = '';
-    state.query = '';
-    searchClear.hidden = true;
-    draw();
-    searchInput.focus();
-  });
 
   async function load() {
     if (!outlet.isConnected) return;
@@ -177,12 +152,11 @@ export async function renderList(outlet) {
   }
 
   function pendingQueue() {
-    return state.items.filter((i) => !i.validated && matchesQuery(i, state.query));
+    return state.items.filter((i) => !i.validated);
   }
 
   function visibleItems() {
-    const byView = state.items.filter((i) => (state.view === 'validado' ? i.validated : !i.validated));
-    return byView.filter((i) => matchesQuery(i, state.query));
+    return state.items.filter((i) => (state.view === 'validado' ? i.validated : !i.validated));
   }
 
   function draw() {
@@ -211,13 +185,12 @@ export async function renderList(outlet) {
 
     const items = visibleItems();
     if (!items.length) {
-      const noMatch = state.query && state.items.length > 0;
       wrap.innerHTML = `
         <div class="card cq-fade-in">
           <div class="empty-state">
             <div class="es-icon">${icon('calendarAlert', 26)}</div>
-            <h3>${noMatch ? 'Sin resultados' : state.view === 'validado' ? 'Nada validado todavía' : '¡Todo al día!'}</h3>
-            <p>${noMatch ? 'Ningún ítem coincide con la búsqueda.' : state.view === 'validado' ? 'Los ítems que valides van a aparecer acá.' : 'No hay productos pendientes de validar en la ventana configurada.'}</p>
+            <h3>${state.view === 'validado' ? 'Nada validado todavía' : '¡Todo al día!'}</h3>
+            <p>${state.view === 'validado' ? 'Los ítems que valides van a aparecer acá.' : 'No hay productos pendientes de validar en la ventana configurada.'}</p>
           </div>
         </div>
       `;
@@ -238,20 +211,21 @@ export async function renderList(outlet) {
 
   // "Sugerido": una sola posición pendiente a la vez, en el mismo
   // orden alfabético que el resto — pensado para que el operario sepa
-  // YA a dónde ir, sin tener que leer y elegir de una lista. Validar
-  // esa posición la saca de la cola y la siguiente ocupa su lugar
-  // solo (mismo índice, cola más corta) — sin eso, tendría que buscar
-  // manualmente por dónde seguía.
+  // YA a dónde ir, sin tener que leer y elegir de una lista. Las
+  // flechas van a los costados de la ubicación (es la acción de
+  // moverse ENTRE ubicaciones, tiene que estar pegada a ese dato, no
+  // en una barra aparte). Validar esa posición la saca de la cola y
+  // la siguiente ocupa su lugar solo (mismo índice, cola más corta) —
+  // sin eso, tendría que buscar manualmente por dónde seguía.
   function drawSuggested(wrap) {
     const queue = pendingQueue();
     if (!queue.length) {
-      const noMatch = state.query && state.items.some((i) => !i.validated);
       wrap.innerHTML = `
         <div class="card cq-fade-in">
           <div class="empty-state">
             <div class="es-icon">${icon('check', 26)}</div>
-            <h3>${noMatch ? 'Sin resultados' : '¡Todo validado!'}</h3>
-            <p>${noMatch ? 'Ningún pendiente coincide con la búsqueda.' : 'No queda ninguna posición pendiente en la ventana configurada.'}</p>
+            <h3>¡Todo validado!</h3>
+            <p>No queda ninguna posición pendiente en la ventana configurada.</p>
           </div>
         </div>
       `;
@@ -265,18 +239,19 @@ export async function renderList(outlet) {
 
     wrap.innerHTML = `
       <div class="venc-suggest cq-fade-in">
-        <div class="venc-suggest-nav">
-          <button type="button" class="btn-icon" id="vencSuggestPrev" title="Anterior" ${isFirst ? 'disabled' : ''}>${icon('chevronLeft', 20)}</button>
-          <span class="venc-suggest-count">${state.suggestedIndex + 1} de ${queue.length}</span>
-          <button type="button" class="btn-icon" id="vencSuggestNext" title="Siguiente" ${isLast ? 'disabled' : ''}>${icon('chevronRight', 20)}</button>
-        </div>
         <div class="venc-suggest-card">
-          <span class="venc-suggest-label">Dirigite a</span>
-          <div class="venc-suggest-ubicacion">${escapeHtml(item.ubicacion || '-')}</div>
-          <div class="venc-suggest-days is-${item.severity}">${daysLabel(item.days)}</div>
+          <span class="venc-suggest-label">Ubicación</span>
+          <div class="venc-suggest-locrow">
+            <button type="button" class="venc-suggest-arrow" id="vencSuggestPrev" title="Anterior" ${isFirst ? 'disabled' : ''}>${icon('chevronLeft', 22)}</button>
+            <div class="venc-suggest-ubicacion">${escapeHtml(item.ubicacion || '-')}</div>
+            <button type="button" class="venc-suggest-arrow" id="vencSuggestNext" title="Siguiente" ${isLast ? 'disabled' : ''}>${icon('chevronRight', 22)}</button>
+          </div>
+          <span class="venc-suggest-count">${state.suggestedIndex + 1} de ${queue.length} pendientes</span>
+          <hr class="venc-suggest-divider" />
           <p class="venc-suggest-desc">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
           <div class="venc-card-sub venc-suggest-sub">${subChipsHTML(item)}</div>
         </div>
+        ${urgencyBannerHTML(item)}
         <button type="button" class="btn btn-primary btn-block venc-suggest-cta" id="vencSuggestValidate">Validar esta posición</button>
       </div>
     `;

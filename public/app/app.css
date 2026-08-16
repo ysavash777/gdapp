@@ -1603,56 +1603,85 @@ html, body {
 
 /* Modo "Sugerido" — una sola posición a la vez, pensada para que lo
    primero (y más grande) que se lea sea A DÓNDE IR, no qué producto
-   es ni cuánto queda. Navegación anterior/siguiente arriba, la acción
-   de validar siempre al pie, a un solo toque. */
-.venc-suggest { display: flex; flex-direction: column; gap: var(--sp-4); }
-.venc-suggest-nav {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-4);
-}
-.venc-suggest-count { font-size: var(--text-sm); font-weight: 600; color: var(--ink-3); min-width: 64px; text-align: center; }
+   es ni cuánto queda. Las flechas van pegadas a la ubicación (son la
+   acción de moverse ENTRE ubicaciones, no un control aparte) — el
+   aviso de "vida útil" es un banner propio, siempre al pie de la
+   tarjeta, con una instrucción directa cuando urge ("Retirar de
+   ubicación") en vez de solo un número de días. La acción de validar
+   cierra la pantalla, a un solo toque. */
+.venc-suggest { display: flex; flex-direction: column; gap: var(--sp-3); }
 .venc-suggest-card {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: var(--sp-2);
   background: var(--surface);
   border: 1px solid var(--line-soft);
   border-radius: var(--r-lg);
-  padding: var(--sp-6) var(--sp-4);
+  padding: var(--sp-5) var(--sp-4) var(--sp-4);
+  box-shadow: var(--shadow-1);
 }
 .venc-suggest-label {
-  font-size: var(--text-xs);
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-3);
+  margin-bottom: var(--sp-2);
 }
+.venc-suggest-locrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  width: 100%;
+}
+.venc-suggest-arrow {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  transition: opacity var(--t-fast);
+}
+.venc-suggest-arrow:disabled { opacity: 0.35; }
 .venc-suggest-ubicacion {
+  flex: 1;
+  min-width: 0;
   font-size: var(--text-2xl);
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: var(--ink);
+  color: var(--icon-vencimientos);
   line-height: 1.1;
   word-break: break-word;
 }
-.venc-suggest-days {
-  padding: 4px 12px;
-  border-radius: var(--r-full);
-  font-size: var(--text-xs);
+.venc-suggest-count { font-size: var(--text-xs); font-weight: 600; color: var(--ink-3); margin-top: var(--sp-2); }
+.venc-suggest-divider { width: 100%; border: none; border-top: 1px solid var(--line); margin: var(--sp-4) 0 var(--sp-3); }
+.venc-suggest-desc { font-size: var(--text-sm); font-weight: 600; color: var(--ink); }
+.venc-suggest-sub { justify-content: center; margin-top: var(--sp-2); }
+
+.venc-suggest-urgency {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--r-md);
+  font-size: var(--text-sm);
   font-weight: 700;
   background: var(--n-100);
   color: var(--ink-2);
 }
-.venc-suggest-days.is-vencido { background: var(--danger-bg); color: var(--danger); }
-.venc-suggest-days.is-retirar { background: var(--warn-bg); color: var(--warn); }
-.venc-suggest-days.is-proximo { background: rgba(251, 146, 60, 0.15); color: var(--icon-vencimientos); }
-.venc-suggest-desc { font-size: var(--text-sm); color: var(--ink-2); margin-top: var(--sp-2); }
-.venc-suggest-sub { justify-content: center; margin-top: var(--sp-1); }
-.venc-suggest-cta { flex-shrink: 0; }
+.venc-suggest-urgency.is-vencido { background: var(--danger-bg); color: var(--danger); }
+.venc-suggest-urgency.is-retirar { background: var(--warn-bg); color: var(--warn); }
+.venc-suggest-urgency.is-proximo { background: rgba(251, 146, 60, 0.15); color: var(--icon-vencimientos); }
+
+.venc-suggest-cta { flex-shrink: 0; padding: 15px 18px; }
 
 /* Ficha de validación: mismo círculo de urgencia a la izquierda,
    ubicación + descripción a la derecha — y acá SÍ hace falta

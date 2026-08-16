@@ -566,29 +566,37 @@ public/
       list-view.js             Listado con un FILTRO en el header — no un orden — entre tres modos, todos
                                sobre la MISMA lista ya cargada (el servidor siempre trae todo ordenado por
                                ubicación A-Z, para el recorrido físico del depósito; acá solo se filtra en
-                               el cliente):
+                               el cliente). "Sugerido" es el PRIMERO en el toggle y el modo por DEFECTO al
+                               entrar (pedido explícito):
+                                 "Sugerido"  — UNA sola posición pendiente a la vez (drawSuggested()), con
+                                   flechas anterior/siguiente pegadas a la propia ubicación
+                                   (.venc-suggest-locrow — son la acción de moverse ENTRE ubicaciones, van
+                                   junto a ese dato, no en una barra aparte) sobre la misma cola alfabética
+                                   — pensado para que el operario sepa YA a dónde ir sin elegir de una
+                                   lista. La ubicación es la línea más grande de la tarjeta
+                                   (.venc-suggest-ubicacion, --text-2xl) — jerarquía pedida explícitamente:
+                                   primero A DÓNDE ir, después qué es y cuánto queda. El aviso de urgencia
+                                   (urgencyBannerHTML()) va SIEMPRE al pie, fuera de la tarjeta: si
+                                   item.isRetirar (vencido o vence en <=4 días) es una instrucción directa,
+                                   "Retirar de ubicación", nunca solo un número de días; si no, un aviso más
+                                   informativo, "Vence en N días". Validar (mismo openValidation() de
+                                   siempre, vía el botón "Validar esta posición") saca el ítem de la cola —
+                                   el siguiente ocupa el mismo índice solo, sin que el operario tenga que
+                                   rebuscar por dónde seguía.
                                  "Pendiente" — todo lo que falta validar, en lista.
                                  "Validado"  — lo ya resuelto, para revisar/revertir.
-                                 "Sugerido"  — UNA sola posición pendiente a la vez (drawSuggested()), con
-                                   navegación anterior/siguiente sobre la misma cola alfabética — pensado
-                                   para que el operario sepa YA a dónde ir sin elegir de una lista. La
-                                   ubicación es la línea más grande de la tarjeta (.venc-suggest-ubicacion,
-                                   --text-2xl) — jerarquía pedida explícitamente: primero A DÓNDE ir, después
-                                   qué es y cuánto queda. Validar (mismo openValidation() de siempre, vía el
-                                   botón "Validar esta posición") saca el ítem de la cola — el siguiente
-                                   ocupa el mismo índice solo, sin que el operario tenga que rebuscar por
-                                   dónde seguía.
-                               Un solo buscador versátil (matchesQuery(), sin botón por campo — pedido
-                               explícito: mantener la interfaz limpia) filtra los tres modos por igual
-                               contra referencia/EAN, ubicación, caja, sector, PedProv y factura — mismo
-                               patrón visual (.searchbar + .searchbar-clear) que ya usa Mapear. La urgencia
-                               (severidad/color/días) sigue visible en cada tarjeta, pero no reordena nada.
-                               Los 3 datos de apoyo (caja/cantidad/vencimiento, cada uno con su ícono
-                               sólido) tienen que verse SIEMPRE completos — en pantallas angostas pasan a
-                               una segunda línea (flex-wrap) en vez de truncarse con elipsis, pedido
-                               explícito. Ícono de ubicaciones excluidas (modal editable) + descarga XLSX.
-                               Tocar un ítem validado muestra motivo/detalle/foto (si el motivo fue
-                               "Faltante")/quién/cuándo, con un botón "Revertir".
+                               Sin buscador por ahora (se sacó uno anterior — versátil mismo, pero no
+                               respondía a la lógica de filtro real que hace falta, a definir). La urgencia
+                               (severidad/color/días) sigue visible en cada tarjeta de Pendiente/Validado,
+                               pero no reordena nada. Los 3 datos de apoyo (caja/cantidad/vencimiento, cada
+                               uno con su ícono sólido) tienen que verse SIEMPRE completos — en pantallas
+                               angostas pasan a una segunda línea (flex-wrap) en vez de truncarse con
+                               elipsis, pedido explícito. Ícono de ubicaciones excluidas (modal editable) +
+                               descarga XLSX. Tocar un ítem validado muestra motivo/detalle/foto (si el
+                               motivo fue "Faltante")/quién/cuándo, con un botón "Revertir". Los campos
+                               sector/pedprov/factura del ítem (ver store/vencimientos.store.js) quedaron
+                               sin usar en el front tras sacar el buscador — quedan disponibles para lo que
+                               se defina después.
       validation-view.js       Un solo overlay de cámara para todo el flujo de un ítem, sin volver a pedir
                                permiso ni parpadear entre pasos:
                                  1) Escanear la caja (contra `caja`) — NUNCA se puede saltar (pedido
