@@ -405,7 +405,7 @@ function renderLogin() {
 // para que su animación siempre se vea completa aunque boot() termine
 // casi al instante (el caso normal: renderShellStructure/renderRoute
 // son sincrónicos, solo refreshUser() es async).
-const INTRO_MIN_MS = 1100;
+const INTRO_MIN_MS = 2500;
 function hideIntro() {
   const el = document.getElementById('appIntro');
   if (!el) return;
