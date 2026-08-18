@@ -9,6 +9,7 @@
 const express = require('express');
 const router = express.Router();
 const store = require('../store/vencimientos.store');
+const engine = require('../services/inventory-engine');
 const { requirePermission } = require('../middleware/auth');
 const { buildWorkbook } = require('../services/vencimiento-export');
 
@@ -79,6 +80,20 @@ router.delete('/validate', async (req, res) => {
     const { bodega, caja, ean } = req.body || {};
     if (!bodega || !caja || !ean) return res.status(400).json({ ok: false, error: 'MISSING_KEY' });
     await store.clearValidation(bodega, caja, ean);
+    // El ítem revertido vuelve a "pendiente" con la última foto de
+    // Referencia que haya (hasta 1h vieja, ver refresh-scheduler.js) —
+    // sin esto, podría resucitar en la lista con datos que ya no
+    // corresponden (motivo real por el que se pidió "siempre debemos
+    // validar"). Dispara una corrida puntual de Referencia en segundo
+    // plano para que la próxima consulta refleje el estado real de
+    // Copernico lo antes posible, sin bloquear la respuesta de este
+    // revert (una corrida real tarda decenas de segundos). Si ya hay
+    // una corrida en curso, engine.refresh() se limita a devolver
+    // ALREADY_RUNNING sin romper nada — el próximo ciclo programado
+    // (o el botón manual) igual la pone al día.
+    engine.refresh(['referencia']).catch((e) => {
+      console.error('[routes/vencimientos] refresh de Referencia tras revertir falló:', e);
+    });
     res.json({ ok: true });
   } catch (e) {
     console.error('[routes/vencimientos] clearValidation falló:', e.message);

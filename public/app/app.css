@@ -1584,8 +1584,25 @@ html, body {
    queda reservada para lo que realmente urge). ============================================================ */
 /* Toggle + buscador agrupados en un solo bloque, con su propio gap
    chico aparte del gap más grande de .action-hero (que separa este
-   bloque de la lista) — evita que los espaciados se sumen. */
-.venc-header { display: flex; flex-direction: column; gap: var(--sp-2); }
+   bloque de la lista) — evita que los espaciados se sumen.
+
+   Sticky: .subpage-body (el ancestro que scrollea, no .venc-header)
+   es el único contenedor con overflow-y acá — sin pegar este bloque
+   arriba, el toggle Sugerido/Pendiente/Validado se iba con el resto
+   de la lista al scrollear, dejando la pantalla sin forma de cambiar
+   de modo salvo volver a subir. Fondo sólido (mismo que --bg, el de
+   toda la app) para que las tarjetas de abajo no se transparenten
+   detrás mientras está pegado. */
+.venc-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg);
+  padding-bottom: var(--sp-2);
+}
 .venc-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-width: 0; }
 /* 3 opciones (antes 2) — padding y letra más chicos a propósito, para
    que las tres entren siempre en el ancho de un celular sin forzar

@@ -131,7 +131,10 @@ export async function renderList(outlet) {
     btn.addEventListener('click', () => {
       if (btn.dataset.view === state.view) return;
       state.view = btn.dataset.view;
-      state.suggestedIndex = 0;
+      // suggestedIndex NO se resetea acá: cambiar de modo y volver a
+      // "Sugerido" debe mantener la misma posición donde se había
+      // quedado — drawSuggested() ya lo clampea solo si la cola
+      // pendiente cambió de tamaño (por ejemplo, se validó algo).
       outlet.querySelectorAll('#vencViewToggle button').forEach((b) => b.classList.toggle('is-active', b === btn));
       draw();
     });
