@@ -1908,25 +1908,28 @@ html, body {
 .venc-loc-anchor.is-open { flex: 1 1 auto; }
 .venc-loc-anchor .venc-acc-head { padding-right: 40px; }
 
-/* Ancla propia (chica, del tamaño del botón) para el desplegable —
-   antes colgaba de .venc-loc-anchor entero, que mide todo lo alto que
-   esté Caja (con la cámara adentro): el menú terminaba lejos, pegado
-   abajo de todo. Acá cuelga justo debajo del botón, flotando SOBRE la
-   cámara (z-index por encima de sus overlays). */
-.venc-loc-trigger { position: absolute; top: var(--sp-3); right: var(--sp-3); z-index: 5; }
 .venc-loc-chevron-btn {
+  position: absolute;
+  top: var(--sp-3);
+  right: var(--sp-3);
+  z-index: 5;
   padding: 6px;
   color: var(--ink-3);
   background: none;
   border: none;
 }
+/* Mismo ancho que la cámara (mismo inset lateral que .venc-acc-panel:
+   0 var(--sp-3)) y empieza justo donde arranca la cámara (debajo del
+   header de Caja, ~66px) — ni pegado al botón chico (se veía angosto
+   y descolgado) ni estirado hasta el final de la cámara abierta (se
+   veía larguísimo): un panel corto, flotando arriba de la cámara. */
 .venc-loc-menu {
-  left: auto;
-  right: 0;
-  top: calc(100% + 6px);
-  width: min(280px, calc(100vw - 2 * var(--sp-4)));
-  max-height: 260px;
+  left: var(--sp-3);
+  right: var(--sp-3);
+  top: 66px;
+  max-height: 200px;
   overflow-y: auto;
+  z-index: 5;
 }
 .venc-loc-menu-item { gap: var(--sp-3); }
 /* Mismo círculo de "vida útil" que las tarjetas de la lista

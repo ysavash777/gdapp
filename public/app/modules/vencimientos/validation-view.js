@@ -97,10 +97,8 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
             <div class="venc-acc-controls" id="controlsCaja"></div>
           </div>
         </div>
-        <div class="venc-loc-trigger">
-          <button type="button" class="venc-loc-chevron-btn" id="vencLocToggle" title="Otras posiciones pendientes">${icon('chevronDown', 16)}</button>
-          <div class="mapeo-menu venc-loc-menu" id="vencLocMenu" hidden></div>
-        </div>
+        <button type="button" class="venc-loc-chevron-btn" id="vencLocToggle" title="Otras posiciones pendientes">${icon('chevronDown', 16)}</button>
+        <div class="mapeo-menu venc-loc-menu" id="vencLocMenu" hidden></div>
       </div>
 
       <div class="venc-acc-item" data-state="locked" id="itemProd">
