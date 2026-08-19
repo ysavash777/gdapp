@@ -1872,23 +1872,98 @@ html, body {
 
 .venc-suggest-cta { flex-shrink: 0; padding: 15px 18px; }
 
-/* Ficha de validación (acordeón): 2 contenedores (caja / producto)
-   que se despliegan uno a la vez — abrir uno cierra el otro, y una vez
-   validado correctamente el contenedor se bloquea (ya no se puede
-   reabrir ni tiene lógica). El único bloque que no existiría en la
-   futura versión handheld es la cámara (.scan-camera insertada en
-   .venc-acc-panel) — todo lo demás (avatar, textos) es igual sin ella.
+/* Ficha de validación: sin header propio — ese espacio se lo queda el
+   slider de arriba (.venc-slider, ver más abajo). Debajo, un único
+   panel activo (.venc-acc-panel en #panelActive) muestra la cámara +
+   controles del paso que esté asentado en el slider; Observación
+   (mismo look que antes, .venc-acc-item) queda fija debajo, con su
+   alto natural, sin competir por espacio con la cámara. */
+.venc-active-panel { display: flex; flex-direction: column; gap: var(--sp-3); flex: 1; min-height: 0; }
+.venc-active-panel[hidden] { display: none; }
 
-   La pantalla ocupa siempre el 100% de la ventana (.scan-overlay) y
-   .venc-acc-body llena exactamente lo que queda debajo del header
-   (flex:1) — dentro, el ÚNICO contenedor abierto es el que crece
-   (is-open → flex:1) para absorber todo el espacio libre; los demás
-   quedan en su alto natural (solo el header). Así, al pasar de caja a
-   producto, nada se desplaza: lo que estaba abajo (el contenedor de
-   comentario) sigue exactamente donde estaba, y el contenido del
-   contenedor abierto (la cámara) es lo que se adapta al espacio
-   disponible, nunca al revés. */
-.venc-acc-body { display: flex; flex-direction: column; gap: var(--sp-3); flex: 1; min-height: 0; }
+/* Slider de arriba (reemplaza al header eliminado): 2 tarjetas
+   (Caja/Producto), una pantalla completa cada una, con scroll-snap
+   nativo — el navegador maneja el gesto de deslizar y el "click" de
+   asentarse en una tarjeta, sin matemática de touch a mano. Cada
+   tarjeta es su propio círculo tipo avatar + dato principal + dato
+   clave, mismo lenguaje visual que Observación pero como protagonista
+   de la pantalla (círculo más grande) ya que ahora tiene todo el
+   espacio que antes ocupaba el header. */
+.venc-slider {
+  flex-shrink: 0;
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-top: calc(env(safe-area-inset-top) + var(--sp-4));
+}
+.venc-slider::-webkit-scrollbar { display: none; }
+.venc-slider[hidden] { display: none; }
+.venc-slide {
+  flex: 0 0 100%;
+  min-width: 0;
+  scroll-snap-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-5) var(--sp-2);
+  transition: opacity var(--t-fast);
+}
+.venc-slide[data-state="locked"] { opacity: 0.45; }
+.venc-slide-avatar {
+  flex-shrink: 0;
+  width: 60px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--n-200);
+  color: var(--ink-2);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.venc-slide[data-state="done"] .venc-slide-avatar { background: var(--ok); color: #fff; }
+.venc-slide-title {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.venc-slide-sub {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+.venc-slide-sub svg { flex-shrink: 0; }
+
+.venc-slider-dots { flex-shrink: 0; display: flex; justify-content: center; gap: 6px; padding: var(--sp-2) 0 var(--sp-3); }
+.venc-slider-dots[hidden] { display: none; }
+.venc-slider-dot { width: 6px; height: 6px; border-radius: var(--r-full); background: var(--n-200); transition: background var(--t-fast), width var(--t-fast); }
+.venc-slider-dot.is-active { width: 16px; background: var(--ink); }
+
+/* Linterna flotando sobre la propia cámara (sin header donde vivir) —
+   mismo tratamiento que el destello/insignia: position:absolute,
+   nunca ocupa lugar en el flujo. */
+.venc-camera-torch {
+  position: absolute;
+  top: var(--sp-3);
+  right: var(--sp-3);
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+}
+.venc-camera-torch.is-active { color: var(--icon-mapear); background: rgba(0, 0, 0, 0.6); }
 
 .venc-acc-item {
   flex: 0 0 auto;
@@ -1900,7 +1975,6 @@ html, body {
   border-radius: var(--r-lg);
   overflow: hidden;
 }
-.venc-acc-item.is-open { flex: 1 1 auto; }
 .venc-acc-item[data-state="locked"] .venc-acc-head { opacity: 0.45; pointer-events: none; }
 .venc-acc-item[data-state="done"] .venc-acc-head { pointer-events: none; }
 .venc-acc-item[data-state="done"] .venc-acc-avatar { background: var(--ok); color: #fff; }
