@@ -1872,85 +1872,46 @@ html, body {
 
 .venc-suggest-cta { flex-shrink: 0; padding: 15px 18px; }
 
-/* Ficha de validación: sin header propio — ese espacio se lo queda el
-   slider de arriba (.venc-slider, ver más abajo). Debajo, un único
-   panel activo (.venc-acc-panel en #panelActive) muestra la cámara +
-   controles del paso que esté asentado en el slider; Observación
-   (mismo look que antes, .venc-acc-item) queda fija debajo, con su
-   alto natural, sin competir por espacio con la cámara. */
-.venc-active-panel { display: flex; flex-direction: column; gap: var(--sp-3); flex: 1; min-height: 0; }
-.venc-active-panel[hidden] { display: none; }
+/* Ficha de validación: sin header propio — .venc-acc-body llena todo
+   el alto disponible debajo del selector de ubicación de arriba (ver
+   .venc-loc-selector). Acordeón de 3 contenedores (Caja/Producto/
+   Observación), uno a la vez: abrir uno cierra el otro, y una vez
+   validado correctamente el contenedor se bloquea (ya no se puede
+   reabrir ni tiene lógica). El único contenedor abierto es el que
+   crece (is-open → flex:1) para absorber el espacio libre; los demás
+   quedan en su alto natural (solo el header) — así, al pasar de caja
+   a producto, nada se desplaza: la cámara es lo único que se adapta
+   al espacio disponible, nunca al revés. */
+.venc-acc-body { display: flex; flex-direction: column; gap: var(--sp-3); flex: 1; min-height: 0; }
 
-/* Slider de arriba (reemplaza al header eliminado): 2 tarjetas
-   (Caja/Producto), una pantalla completa cada una, con scroll-snap
-   nativo — el navegador maneja el gesto de deslizar y el "click" de
-   asentarse en una tarjeta, sin matemática de touch a mano. Cada
-   tarjeta es su propio círculo tipo avatar + dato principal + dato
-   clave, mismo lenguaje visual que Observación pero como protagonista
-   de la pantalla (círculo más grande) ya que ahora tiene todo el
-   espacio que antes ocupaba el header. */
-.venc-slider {
+/* Selector de ubicación (reemplaza al header eliminado): mismo
+   contenedor/avatar que Caja/Producto/Observación, pero es un
+   selector, no un paso — al tocarlo despliega las demás posiciones
+   pendientes (.venc-loc-menu, mismo look que .mapeo-menu) para saltar
+   a cualquiera sin cerrar esta pantalla. */
+.venc-loc-selector {
+  position: relative;
   flex-shrink: 0;
-  display: flex;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  padding-top: calc(env(safe-area-inset-top) + var(--sp-4));
+  margin: calc(env(safe-area-inset-top) + var(--sp-3)) var(--sp-4) 0;
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
 }
-.venc-slider::-webkit-scrollbar { display: none; }
-.venc-slider[hidden] { display: none; }
-.venc-slide {
-  flex: 0 0 100%;
-  min-width: 0;
-  scroll-snap-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: var(--sp-2);
-  padding: 0 var(--sp-5) var(--sp-2);
-  transition: opacity var(--t-fast);
-}
-.venc-slide[data-state="locked"] { opacity: 0.45; }
-.venc-slide-avatar {
-  flex-shrink: 0;
-  width: 60px;
-  height: 60px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-full);
-  background: var(--n-200);
-  color: var(--ink-2);
-  transition: background var(--t-fast), color var(--t-fast);
-}
-.venc-slide[data-state="done"] .venc-slide-avatar { background: var(--ok); color: #fff; }
-.venc-slide-title {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--text-lg);
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-.venc-slide-sub {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--text-sm);
+.venc-loc-head { width: 100%; }
+.venc-loc-chevron { flex-shrink: 0; color: var(--ink-3); }
+.venc-loc-menu { left: 0; right: 0; top: calc(100% + 6px); max-height: 260px; overflow-y: auto; }
+.venc-loc-menu-item { flex-direction: column; align-items: flex-start; gap: 2px; }
+.venc-loc-menu-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; width: 100%; }
+.venc-loc-menu-text strong { font-size: var(--text-sm); }
+.venc-loc-menu-text span {
+  font-size: var(--text-xs);
   color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
 }
-.venc-slide-sub svg { flex-shrink: 0; }
-
-.venc-slider-dots { flex-shrink: 0; display: flex; justify-content: center; gap: 6px; padding: var(--sp-2) 0 var(--sp-3); }
-.venc-slider-dots[hidden] { display: none; }
-.venc-slider-dot { width: 6px; height: 6px; border-radius: var(--r-full); background: var(--n-200); transition: background var(--t-fast), width var(--t-fast); }
-.venc-slider-dot.is-active { width: 16px; background: var(--ink); }
+.venc-loc-menu-empty { padding: var(--sp-3); text-align: center; font-size: var(--text-sm); color: var(--ink-3); }
 
 /* Linterna flotando sobre la propia cámara (sin header donde vivir) —
    mismo tratamiento que el destello/insignia: position:absolute,
@@ -1975,6 +1936,7 @@ html, body {
   border-radius: var(--r-lg);
   overflow: hidden;
 }
+.venc-acc-item.is-open { flex: 1 1 auto; }
 .venc-acc-item[data-state="locked"] .venc-acc-head { opacity: 0.45; pointer-events: none; }
 .venc-acc-item[data-state="done"] .venc-acc-head { pointer-events: none; }
 .venc-acc-item[data-state="done"] .venc-acc-avatar { background: var(--ok); color: #fff; }

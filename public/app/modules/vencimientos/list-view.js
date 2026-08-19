@@ -332,7 +332,7 @@ export async function renderList(outlet) {
       if (!item) return;
       card.addEventListener('click', () => {
         if (item.validated) openValidatedDetail(item);
-        else openValidation(item, { onDone: load });
+        else openValidation(item, { onDone: load, pendingItems: pendingQueue() });
       });
     });
   }
@@ -395,7 +395,7 @@ export async function renderList(outlet) {
       draw();
     });
     wrap.querySelector('#vencSuggestValidate').addEventListener('click', () => {
-      openValidation(item, { onDone: load });
+      openValidation(item, { onDone: load, pendingItems: pendingQueue() });
     });
   }
 
