@@ -558,8 +558,14 @@ html, body {
 /* overflow-x:hidden como red de seguridad general — ninguna
    herramienta de /app debería necesitar scroll horizontal nunca; si
    algún contenido puntual se desborda, es un bug de ESE contenido,
-   nunca algo que el usuario deba poder arrastrar de costado. */
-.subpage-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+   nunca algo que el usuario deba poder arrastrar de costado.
+
+   scrollbar-gutter:stable reserva el espacio de la barra de scroll
+   SIEMPRE, haya o no contenido suficiente para scrollear — sin esto,
+   pasar de una vista corta (sin scroll) a una larga (con scroll, ej.
+   Vencimientos en modo Pendiente) angostaba el contenido de golpe y
+   corría los botones de la cabecera para hacerle lugar a la barra. */
+.subpage-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
 
 /* --- Login embebido a pantalla completa, sin la tarjeta de escritorio.
    El wrap/card llegan a los bordes reales de la pantalla — el propio
@@ -1710,6 +1716,12 @@ html, body {
   color: var(--ink-3);
   white-space: nowrap;
 }
+/* Se agrega en JS (list-view.js, fitSubRows) cuando alguno de los 3
+   datos no entra a su tamaño normal en el ancho real de pantalla —
+   un solo escalón más chico, la elipsis de arriba sigue siendo la
+   red de seguridad si ni así entrara. */
+.venc-card-sub.is-tight .venc-card-sub-item { font-size: 9.5px; gap: 3px; }
+.venc-card-sub.is-tight .venc-card-sub-item svg { width: 11px; height: 11px; }
 .venc-card-sub-item svg { flex-shrink: 0; }
 .venc-card-check { flex-shrink: 0; color: var(--ok); }
 .venc-card-arrow { flex-shrink: 0; color: var(--ink-3); }

@@ -63,6 +63,25 @@ function subChipsHTML(item) {
   `;
 }
 
+// caja/cantidad/vencimiento tienen que entrar SIEMPRE en una sola
+// línea (pedido explícito) — antes, cuando no entraban, cada uno se
+// cortaba con elipsis y en pantallas angostas el dato quedaba
+// ilegible. Acá, después de pintar, se mide cada fila real (no hay
+// forma de saber de antemano si un texto entra: depende del ancho de
+// pantalla Y del largo de esos 3 valores puntuales) y si algún dato
+// no entra a su tamaño normal, toda la fila pasa a fuente más chica
+// — un solo escalón ("levemente"), la elipsis de CSS queda como red
+// de seguridad para el caso extremo en que ni así entre.
+function fitSubRows(container) {
+  const tight = [];
+  container.querySelectorAll('.venc-card-sub').forEach((row) => {
+    const overflowing = Array.from(row.querySelectorAll('.venc-card-sub-item'))
+      .some((item) => item.scrollWidth > item.clientWidth + 1);
+    if (overflowing) tight.push(row);
+  });
+  tight.forEach((row) => row.classList.add('is-tight'));
+}
+
 // Jerarquía de lectura pedida explícitamente: 1) ubicación (a dónde
 // dirigirse — la línea más grande y oscura de la tarjeta, primera,
 // SIN ícono), 2) descripción del producto, 3) caja/cantidad/
@@ -104,7 +123,7 @@ function urgencyBannerHTML(item) {
 export async function renderList(outlet) {
   outletRef = outlet;
 
-  const state = { view: 'sugerido', suggestedIndex: 0, items: [], loading: true, error: null };
+  const state = { view: 'sugerido', suggestedIndex: 0, items: [], loading: true, error: null, query: '' };
 
   outlet.innerHTML = `
     <div class="action-hero">
@@ -116,9 +135,15 @@ export async function renderList(outlet) {
             <button type="button" data-view="validado">Validado</button>
           </div>
           <div class="venc-toolbar-actions">
+            <button type="button" class="btn-icon" id="vencSearchToggle" title="Buscar" hidden>${icon('search', 18)}</button>
             <button type="button" class="btn-icon" id="vencSettingsBtn" title="Ubicaciones excluidas">${icon('settings', 18)}</button>
             <a class="btn-icon" id="vencExportBtn" href="/api/vencimientos/export" title="Descargar XLSX">${icon('download', 18)}</a>
           </div>
+        </div>
+        <div class="searchbar" id="vencSearchBar" hidden>
+          ${icon('search', 18)}
+          <input type="search" id="vencSearchInput" placeholder="Buscar..." autocomplete="off" />
+          <button type="button" class="searchbar-clear" id="vencSearchClear" title="Limpiar búsqueda" aria-label="Limpiar búsqueda" hidden>${icon('x', 14)}</button>
         </div>
       </div>
       <div id="vencListWrap">
@@ -126,6 +151,58 @@ export async function renderList(outlet) {
       </div>
     </div>
   `;
+
+  const searchToggle = outlet.querySelector('#vencSearchToggle');
+  const searchBar = outlet.querySelector('#vencSearchBar');
+  const searchInput = outlet.querySelector('#vencSearchInput');
+  const searchClear = outlet.querySelector('#vencSearchClear');
+
+  // El buscador solo tiene sentido en Pendiente/Validado (listas reales
+  // para filtrar) — en Sugerido se ve una sola posición a la vez, así
+  // que ni el botón se muestra ahí. Cambiar de modo cierra el
+  // buscador si estaba abierto, para no dejarlo escondido pero activo
+  // filtrando una lista que ya no se ve.
+  function updateSearchVisibility() {
+    const canSearch = state.view !== 'sugerido';
+    searchToggle.hidden = !canSearch;
+    if (!canSearch) {
+      searchBar.hidden = true;
+      searchToggle.classList.remove('is-active');
+    }
+  }
+
+  function applyQuery() {
+    const q = searchInput.value.trim().toLowerCase();
+    state.query = q;
+    searchClear.hidden = !q;
+    draw();
+  }
+
+  searchToggle.addEventListener('click', () => {
+    const opening = searchBar.hidden;
+    searchBar.hidden = !opening;
+    searchToggle.classList.toggle('is-active', opening);
+    if (opening) {
+      searchInput.focus();
+    } else {
+      searchInput.value = '';
+      applyQuery();
+    }
+  });
+  searchInput.addEventListener('input', applyQuery);
+  searchClear.addEventListener('click', () => {
+    searchInput.value = '';
+    applyQuery();
+    searchInput.focus();
+  });
+  // En desuso (se cierra sin haber escrito nada) se oculta solo — mismo
+  // criterio que el buscador de Mapear.
+  searchInput.addEventListener('blur', (e) => {
+    if (searchInput.value.trim()) return;
+    if (e.relatedTarget === searchToggle) return;
+    searchBar.hidden = true;
+    searchToggle.classList.remove('is-active');
+  });
 
   outlet.querySelectorAll('#vencViewToggle button').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -136,9 +213,11 @@ export async function renderList(outlet) {
       // quedado — drawSuggested() ya lo clampea solo si la cola
       // pendiente cambió de tamaño (por ejemplo, se validó algo).
       outlet.querySelectorAll('#vencViewToggle button').forEach((b) => b.classList.toggle('is-active', b === btn));
+      updateSearchVisibility();
       draw();
     });
   });
+  updateSearchVisibility();
   outlet.querySelector('#vencSettingsBtn').addEventListener('click', openSettingsModal);
 
   async function load() {
@@ -160,8 +239,17 @@ export async function renderList(outlet) {
     return state.items.filter((i) => !i.validated);
   }
 
+  function matchesQuery(item) {
+    if (!state.query) return true;
+    const haystack = [item.ubicacion, item.descripcion, item.caja, item.referencia, item.sector, item.pedprov, item.factura]
+      .filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(state.query);
+  }
+
   function visibleItems() {
-    return state.items.filter((i) => (state.view === 'validado' ? i.validated : !i.validated));
+    return state.items
+      .filter((i) => (state.view === 'validado' ? i.validated : !i.validated))
+      .filter(matchesQuery);
   }
 
   function draw() {
@@ -190,12 +278,13 @@ export async function renderList(outlet) {
 
     const items = visibleItems();
     if (!items.length) {
+      const hasQuery = !!state.query;
       wrap.innerHTML = `
         <div class="card cq-fade-in">
           <div class="empty-state">
-            <div class="es-icon">${icon('calendarAlert', 26)}</div>
-            <h3>${state.view === 'validado' ? 'Nada validado todavía' : '¡Todo al día!'}</h3>
-            <p>${state.view === 'validado' ? 'Los ítems que valides van a aparecer acá.' : 'No hay productos pendientes de validar en la ventana configurada.'}</p>
+            <div class="es-icon">${icon(hasQuery ? 'search' : 'calendarAlert', 26)}</div>
+            <h3>${hasQuery ? 'Sin resultados' : (state.view === 'validado' ? 'Nada validado todavía' : '¡Todo al día!')}</h3>
+            <p>${hasQuery ? 'Ningún ítem coincide con la búsqueda.' : (state.view === 'validado' ? 'Los ítems que valides van a aparecer acá.' : 'No hay productos pendientes de validar en la ventana configurada.')}</p>
           </div>
         </div>
       `;
@@ -203,6 +292,7 @@ export async function renderList(outlet) {
     }
 
     wrap.innerHTML = `<div class="mapeo-list venc-list cq-fade-in">${items.map(itemCardHTML).join('')}</div>`;
+    fitSubRows(wrap);
 
     wrap.querySelectorAll('.venc-card').forEach((card) => {
       const item = state.items.find((i) => i.key === card.dataset.key);
@@ -259,6 +349,7 @@ export async function renderList(outlet) {
         <button type="button" class="btn btn-primary btn-block venc-suggest-cta" id="vencSuggestValidate">Validar esta posición</button>
       </div>
     `;
+    fitSubRows(wrap);
 
     wrap.querySelector('#vencSuggestPrev').addEventListener('click', () => {
       if (isFirst) return;
