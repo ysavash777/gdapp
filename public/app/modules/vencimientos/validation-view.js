@@ -84,19 +84,21 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   overlay.className = 'scan-overlay';
   overlay.innerHTML = `
     <div class="scan-sheet cq-sheet venc-acc-body" id="vencAccBody">
-      <div class="venc-acc-item venc-loc-anchor" data-state="pending" id="itemCaja">
-        <button type="button" class="venc-acc-head" id="headCaja">
-          <span class="venc-acc-avatar" id="avatarCaja">${icon('clock', 18)}</span>
-          <span class="venc-acc-head-text">
-            <strong class="venc-acc-head-title" id="cajaUbicacion"></strong>
-            <span class="venc-acc-head-sub">${iconSolid('caja', 13)}<span id="cajaNumero"></span></span>
-          </span>
-        </button>
+      <div class="venc-loc-anchor" id="locAnchor">
+        <div class="venc-acc-item" data-state="pending" id="itemCaja">
+          <button type="button" class="venc-acc-head" id="headCaja">
+            <span class="venc-acc-avatar" id="avatarCaja">${icon('clock', 18)}</span>
+            <span class="venc-acc-head-text">
+              <strong class="venc-acc-head-title" id="cajaUbicacion"></strong>
+              <span class="venc-acc-head-sub">${iconSolid('caja', 13)}<span id="cajaNumero"></span></span>
+            </span>
+          </button>
+          <div class="venc-acc-panel" id="panelCaja" hidden>
+            <div class="venc-acc-controls" id="controlsCaja"></div>
+          </div>
+        </div>
         <button type="button" class="venc-loc-chevron-btn" id="vencLocToggle" title="Otras posiciones pendientes">${icon('chevronDown', 16)}</button>
         <div class="mapeo-menu venc-loc-menu" id="vencLocMenu" hidden></div>
-        <div class="venc-acc-panel" id="panelCaja" hidden>
-          <div class="venc-acc-controls" id="controlsCaja"></div>
-        </div>
       </div>
 
       <div class="venc-acc-item" data-state="locked" id="itemProd">
@@ -153,6 +155,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     close();
   }
 
+  const locAnchor = overlay.querySelector('#locAnchor');
   const locToggle = overlay.querySelector('#vencLocToggle');
   const locMenu = overlay.querySelector('#vencLocMenu');
 
@@ -249,6 +252,10 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     const panelEl = key === 'caja' ? panelCaja : panelProd;
     itemEl.classList.toggle('is-open', isOpen);
     panelEl.hidden = !isOpen;
+    // El desplegable de otras posiciones necesita salir del overflow:hidden
+    // de Caja (ver .venc-loc-anchor en CSS) — su wrapper repite el mismo
+    // flex 0/1 para que crecer/achicarse siga igual que antes.
+    if (key === 'caja') locAnchor.classList.toggle('is-open', isOpen);
   }
 
   function renderCajaControls() {
@@ -351,14 +358,14 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     setOpen(key, false);
   }
 
+  // Tocar el contenedor ya abierto no lo contrae — solo abrir OTRO lo
+  // cierra (ver openAccordion). Evita cerrar la cámara sin querer.
   headCaja.addEventListener('click', () => {
-    if (stateOf.caja !== 'pending') return;
-    if (openKey === 'caja') { closeAccordion('caja'); return; }
+    if (stateOf.caja !== 'pending' || openKey === 'caja') return;
     openAccordion('caja');
   });
   headProd.addEventListener('click', () => {
-    if (stateOf.prod !== 'pending') return;
-    if (openKey === 'prod') { closeAccordion('prod'); return; }
+    if (stateOf.prod !== 'pending' || openKey === 'prod') return;
     openAccordion('prod');
   });
 

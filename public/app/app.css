@@ -1891,7 +1891,21 @@ html, body {
    aparte del header, nunca anidado en su <button> (HTML no permite
    botón dentro de botón), position:absolute en la esquina para no
    competir por espacio con el texto de Caja. */
-.venc-loc-anchor { position: relative; }
+/* Envuelve a Caja (no Caja misma) porque .venc-acc-item tiene
+   overflow:hidden (para los bordes redondeados de la cámara) — eso
+   recortaba el desplegable, que necesita salirse del contenedor para
+   flotar por encima. Sin overflow acá, y repitiendo el mismo
+   flex:0/1 que .venc-acc-item según esté abierto o no (ver JS,
+   setOpen), para que crecer/achicarse siga funcionando igual que
+   antes de mover el desplegable adentro. */
+.venc-loc-anchor {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.venc-loc-anchor.is-open { flex: 1 1 auto; }
 .venc-loc-anchor .venc-acc-head { padding-right: 40px; }
 .venc-loc-chevron-btn {
   position: absolute;
