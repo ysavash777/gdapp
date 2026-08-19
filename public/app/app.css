@@ -1936,8 +1936,15 @@ html, body {
 .venc-camera-torch { right: var(--sp-3); }
 .venc-camera-keyboard { left: var(--sp-3); }
 .venc-camera-torch.is-active, .venc-camera-keyboard.is-active { color: var(--icon-mapear); background: rgba(0, 0, 0, 0.6); }
-/* Sacar una foto no es "escanear" — ninguno aplica ahí (mismo
-   criterio que .scan-line, ya oculta en is-photo-mode). */
+/* Ninguno de los dos tiene sentido con la cámara oculta — la linterna
+   no sirve sin ella, y el de teclado solo existe para ABRIR el modo
+   manual (cerrarlo es el botón de "volver" que vive integrado en el
+   propio input, ver .venc-camera-manual-back más abajo). Sin esto,
+   quedaban flotando encima del input achicado — se veía superpuesto y
+   amateur. Mismo criterio para la foto de faltante (sacarla no es
+   "escanear"). */
+.scan-camera-stage.is-manual .venc-camera-torch,
+.scan-camera-stage.is-manual .venc-camera-keyboard,
 .scan-camera-stage.is-photo-mode .scan-line,
 .scan-camera-stage.is-photo-mode .venc-camera-torch,
 .scan-camera-stage.is-photo-mode .venc-camera-keyboard,
@@ -1945,17 +1952,31 @@ html, body {
 
 /* Ya no flota encima de la cámara (esa cámara ahora está oculta) —
    ocupa el ancho entero del stage, con solo el alto que necesita un
-   input, nunca más. */
+   input, nunca más. El botón para volver a la cámara vive DENTRO de
+   esta misma píldora (a la izquierda, sutil) en vez de flotar aparte
+   encima — un solo elemento prolijo: volver / escribir / confirmar. */
 .venc-camera-manual {
   display: none;
   align-items: center;
-  gap: 6px;
-  padding: 8px 8px 8px 16px;
+  gap: 4px;
+  padding: 6px;
   border-radius: var(--r-full);
   background: var(--bg);
   border: 1px solid var(--line);
 }
 .scan-camera-stage.is-manual .venc-camera-manual { display: flex; }
+.venc-camera-manual-back {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-full);
+  background: none;
+  color: var(--ink-3);
+  display: grid;
+  place-items: center;
+  border: none;
+}
+.venc-camera-manual-back:active { background: var(--n-100); color: var(--ink); }
 .venc-camera-manual input {
   flex: 1;
   min-width: 0;
@@ -1965,7 +1986,7 @@ html, body {
   font-size: var(--text-sm);
   outline: none;
 }
-.venc-camera-manual button {
+.venc-camera-manual-submit {
   flex-shrink: 0;
   width: 34px;
   height: 34px;

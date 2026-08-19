@@ -93,7 +93,6 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
       <div class="venc-acc-item venc-loc-nav" id="locNav">
         <button type="button" class="venc-loc-arrow" id="locPrev" title="Posición anterior">${icon('chevronLeft', 20)}</button>
         <div class="venc-loc-current">
-          <span class="venc-acc-avatar" id="avatarCaja">${icon('clock', 18)}</span>
           <span class="venc-acc-head-text">
             <strong class="venc-acc-head-title" id="cajaUbicacion"></strong>
             <span class="venc-acc-head-sub">${iconSolid('caja', 13)}<span id="cajaNumero"></span></span>
@@ -163,7 +162,6 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
 
   const locPrev = overlay.querySelector('#locPrev');
   const locNext = overlay.querySelector('#locNext');
-  const avatarCaja = overlay.querySelector('#avatarCaja');
   const cajaUbicacionEl = overlay.querySelector('#cajaUbicacion');
   const cajaNumeroEl = overlay.querySelector('#cajaNumero');
   const scanBoxCaja = overlay.querySelector('#scanBoxCaja');
@@ -227,8 +225,9 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     <button class="btn-icon scan-torch venc-camera-torch" id="scanTorch" title="Linterna" hidden>${icon('zap', 18)}</button>
     <button type="button" class="btn-icon venc-camera-keyboard" id="scanKeyboardBtn" title="Ingresar código a mano">${icon('keyboard', 18)}</button>
     <form class="venc-camera-manual" id="scanManualRow">
+      <button type="button" class="venc-camera-manual-back" id="scanManualBack" title="Volver a la cámara">${icon('camera', 16)}</button>
       <input type="text" inputmode="numeric" id="scanManualInput" placeholder="Ingresar código" autocomplete="off" />
-      <button type="submit" title="Confirmar">${icon('check', 16)}</button>
+      <button type="submit" class="venc-camera-manual-submit" title="Confirmar">${icon('check', 16)}</button>
     </form>
   `;
   const cameraMount = cameraStage.querySelector('#cameraMount');
@@ -237,6 +236,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   const torchBtn = cameraStage.querySelector('#scanTorch');
   const keyboardBtn = cameraStage.querySelector('#scanKeyboardBtn');
   const manualRow = cameraStage.querySelector('#scanManualRow');
+  const manualBackBtn = cameraStage.querySelector('#scanManualBack');
   const manualInput = cameraStage.querySelector('#scanManualInput');
   const flashEl = cameraStage.querySelector('#scanFlash');
   const mismatchEl = cameraStage.querySelector('#scanMismatch');
@@ -278,7 +278,12 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   function closeManualInput() {
     setManualMode(false);
   }
-  keyboardBtn.addEventListener('click', () => setManualMode(!cameraStage.classList.contains('is-manual')));
+  keyboardBtn.addEventListener('click', () => setManualMode(true));
+  // Volver a la cámara vive integrado en el propio input (no flotando
+  // encima, superpuesto y descolgado como el botón de teclado — que
+  // además solo tiene sentido para ABRIR el modo manual, no para
+  // cerrarlo).
+  manualBackBtn.addEventListener('click', () => setManualMode(false));
   manualRow.addEventListener('submit', (e) => {
     e.preventDefault();
     const value = manualInput.value.trim();
@@ -309,7 +314,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   }
 
   function setAvatarDone(key) {
-    (key === 'caja' ? avatarCaja : avatarProd).innerHTML = icon('check', 18);
+    if (key === 'prod') avatarProd.innerHTML = icon('check', 18);
   }
 
   // Caja no es un contenedor que se abra/cierre con tap (la ubicación
@@ -539,7 +544,6 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
 
     cajaUbicacionEl.textContent = item.ubicacion || '-';
     cajaNumeroEl.textContent = item.caja || '-';
-    avatarCaja.innerHTML = icon('clock', 18);
     // Punto tipo viñeta, no guion — separador entre referencia y EAN.
     prodDescripcionEl.textContent = item.descripcion || 'Producto sin descripción';
     prodReferenciaEl.textContent = `${item.referencia || '-'} • ${item.ean || '-'}`;
