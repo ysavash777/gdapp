@@ -96,14 +96,14 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   overlay.innerHTML = `
     <div class="venc-loc-nav" id="locNav">
       <button type="button" class="venc-loc-arrow" id="locPrev" title="Posición anterior">${icon('chevronLeft', 20)}</button>
-      <span class="venc-loc-label">Ubicación</span>
+      <span class="venc-loc-label">Seleccionar ubicación</span>
       <button type="button" class="venc-loc-arrow" id="locNext" title="Posición siguiente">${icon('chevronRight', 20)}</button>
     </div>
     <div class="scan-sheet cq-sheet venc-acc-body" id="vencAccBody">
       <div class="venc-acc-item" data-state="pending" id="itemCaja">
         <button type="button" class="venc-acc-head" id="headCaja">
           <span class="venc-acc-avatar" id="avatarCaja">${icon('clock', 18)}</span>
-          <span class="venc-acc-head-text">
+          <span class="venc-acc-head-text" id="cajaHeadText">
             <strong class="venc-acc-head-title" id="cajaUbicacion"></strong>
             <span class="venc-acc-head-sub">${iconSolid('caja', 13)}<span id="cajaNumero"></span></span>
           </span>
@@ -116,7 +116,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
       <div class="venc-acc-item" data-state="locked" id="itemProd">
         <button type="button" class="venc-acc-head" id="headProd">
           <span class="venc-acc-avatar" id="avatarProd">${icon('clock', 18)}</span>
-          <span class="venc-acc-head-text">
+          <span class="venc-acc-head-text" id="prodHeadText">
             <strong class="venc-acc-head-title" id="prodDescripcion"></strong>
             <span class="venc-acc-head-sub" id="prodReferencia"></span>
           </span>
@@ -174,6 +174,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   const itemCaja = overlay.querySelector('#itemCaja');
   const headCaja = overlay.querySelector('#headCaja');
   const avatarCaja = overlay.querySelector('#avatarCaja');
+  const cajaHeadTextEl = overlay.querySelector('#cajaHeadText');
   const cajaUbicacionEl = overlay.querySelector('#cajaUbicacion');
   const cajaNumeroEl = overlay.querySelector('#cajaNumero');
   const panelCaja = overlay.querySelector('#panelCaja');
@@ -182,6 +183,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   const itemProd = overlay.querySelector('#itemProd');
   const headProd = overlay.querySelector('#headProd');
   const avatarProd = overlay.querySelector('#avatarProd');
+  const prodHeadTextEl = overlay.querySelector('#prodHeadText');
   const prodDescripcionEl = overlay.querySelector('#prodDescripcion');
   const prodReferenciaEl = overlay.querySelector('#prodReferencia');
   const panelProd = overlay.querySelector('#panelProd');
@@ -580,6 +582,15 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     }
   });
 
+  // Destello mínimo (fade + corrimiento leve) al cambiar el dato de
+  // ubicación/SKU — sin esto, entre posiciones parecidas no se
+  // percibía que el intercambio había ocurrido de verdad.
+  function flashDataSwap(el) {
+    el.classList.remove('venc-data-swap');
+    void el.offsetWidth; // fuerza reflow para poder re-disparar la animación seguida
+    el.classList.add('venc-data-swap');
+  }
+
   // Reinicia todo el estado por-ítem (sin recrear la cámara ni pedir
   // permiso de nuevo) — usado tanto al abrir por primera vez como al
   // navegar con las flechas de arriba.
@@ -596,6 +607,8 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     // Punto tipo viñeta, no guion — separador entre referencia y EAN.
     prodDescripcionEl.textContent = item.descripcion || 'Producto sin descripción';
     prodReferenciaEl.textContent = `${item.referencia || '-'} • ${item.ean || '-'}`;
+    flashDataSwap(cajaHeadTextEl);
+    flashDataSwap(prodHeadTextEl);
 
     openKey = null;
     setItemState('caja', 'pending');
