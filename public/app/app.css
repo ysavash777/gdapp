@@ -1626,7 +1626,11 @@ html, body {
   transition: background var(--t-fast), color var(--t-fast);
 }
 .venc-sort-toggle button.is-active { background: var(--surface); color: var(--ink); }
-.venc-toolbar-actions { display: flex; gap: 2px; flex-shrink: 0; }
+/* Buscar/Configurar/Descargar agrupados en un único botón (antes 3
+   sueltos, que en pantallas angostas -sobre todo al sumar el de
+   buscar- deformaban el toggle de al lado) — mismo menú desplegable
+   que .mapeo-menu, anclado acá. */
+.venc-more-wrap { position: relative; flex-shrink: 0; }
 
 .venc-card {
   display: flex;

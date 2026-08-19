@@ -14,8 +14,13 @@
    La urgencia (color/número de días) sigue visible en cada tarjeta,
    pero no reordena nada — pedido explícito.
 
-   Sin buscador por ahora (se sacó uno anterior por no responder a la
-   lógica de filtro real que hace falta — pendiente de definir).
+   Buscar/Configurar/Descargar viven agrupados en un único menú "más
+   opciones" (ver moreMenuHTML() en renderList) en vez de 3 botones
+   sueltos — con los 3 en la cabecera, en pantallas angostas
+   deformaban el toggle Sugerido/Pendiente/Validado. Buscar filtra en
+   vivo sobre ubicación/descripción/caja/referencia/sector/pedprov/
+   factura, solo disponible en Pendiente/Validado (en Sugerido se ve
+   una sola posición, no una lista para filtrar).
    ============================================================ */
 
 import { icon, iconSolid } from '/shared/js/icons.js';
@@ -72,11 +77,18 @@ function subChipsHTML(item) {
 // no entra a su tamaño normal, toda la fila pasa a fuente más chica
 // — un solo escalón ("levemente"), la elipsis de CSS queda como red
 // de seguridad para el caso extremo en que ni así entre.
+//
+// Tolerancia de 6px (no 0/1px): un desborde mínimo todavía tiene
+// margen para resolverse con la elipsis sin perder información real
+// (recorta como mucho el último carácter) — activar el achique ahí
+// era innecesario y se notaba más el cambio de tamaño que lo que
+// evitaba.
+const OVERFLOW_TOLERANCE_PX = 6;
 function fitSubRows(container) {
   const tight = [];
   container.querySelectorAll('.venc-card-sub').forEach((row) => {
     const overflowing = Array.from(row.querySelectorAll('.venc-card-sub-item'))
-      .some((item) => item.scrollWidth > item.clientWidth + 1);
+      .some((item) => item.scrollWidth > item.clientWidth + OVERFLOW_TOLERANCE_PX);
     if (overflowing) tight.push(row);
   });
   tight.forEach((row) => row.classList.add('is-tight'));
@@ -134,10 +146,9 @@ export async function renderList(outlet) {
             <button type="button" data-view="pendiente">Pendiente</button>
             <button type="button" data-view="validado">Validado</button>
           </div>
-          <div class="venc-toolbar-actions">
-            <button type="button" class="btn-icon" id="vencSearchToggle" title="Buscar" hidden>${icon('search', 18)}</button>
-            <button type="button" class="btn-icon" id="vencSettingsBtn" title="Ubicaciones excluidas">${icon('settings', 18)}</button>
-            <a class="btn-icon" id="vencExportBtn" href="/api/vencimientos/export" title="Descargar XLSX">${icon('download', 18)}</a>
+          <div class="venc-more-wrap">
+            <button type="button" class="btn-icon" id="vencMoreBtn" title="Más opciones">${iconSolid('lista', 18)}</button>
+            <div class="mapeo-menu" id="vencMoreMenu" hidden></div>
           </div>
         </div>
         <div class="searchbar" id="vencSearchBar" hidden>
@@ -152,23 +163,39 @@ export async function renderList(outlet) {
     </div>
   `;
 
-  const searchToggle = outlet.querySelector('#vencSearchToggle');
+  const moreBtn = outlet.querySelector('#vencMoreBtn');
+  const moreMenu = outlet.querySelector('#vencMoreMenu');
   const searchBar = outlet.querySelector('#vencSearchBar');
   const searchInput = outlet.querySelector('#vencSearchInput');
   const searchClear = outlet.querySelector('#vencSearchClear');
 
-  // El buscador solo tiene sentido en Pendiente/Validado (listas reales
-  // para filtrar) — en Sugerido se ve una sola posición a la vez, así
-  // que ni el botón se muestra ahí. Cambiar de modo cierra el
-  // buscador si estaba abierto, para no dejarlo escondido pero activo
-  // filtrando una lista que ya no se ve.
-  function updateSearchVisibility() {
+  // Buscar/Configurar/Descargar viven juntos en un único menú (antes
+  // eran 3 botones sueltos en la cabecera — con el de buscar sumado,
+  // ya no entraban junto al toggle Sugerido/Pendiente/Validado sin
+  // deformarlo en pantallas angostas). "Buscar" solo tiene sentido en
+  // Pendiente/Validado (listas reales para filtrar) — en Sugerido se
+  // ve una sola posición a la vez, así que ni aparece en el menú; se
+  // arma de nuevo cada vez que se abre para reflejar el modo actual.
+  function moreMenuHTML() {
     const canSearch = state.view !== 'sugerido';
-    searchToggle.hidden = !canSearch;
-    if (!canSearch) {
-      searchBar.hidden = true;
-      searchToggle.classList.remove('is-active');
-    }
+    return `
+      ${canSearch ? `<button type="button" class="user-menu-item" data-action="search">${icon('search', 16)} Buscar</button>` : ''}
+      <button type="button" class="user-menu-item" data-action="settings">${icon('settings', 16)} Ubicaciones excluidas</button>
+      <button type="button" class="user-menu-item" data-action="download">${icon('download', 16)} Descargar detalle</button>
+    `;
+  }
+
+  function closeMoreMenu() {
+    moreMenu.hidden = true;
+  }
+
+  function downloadExport() {
+    const a = document.createElement('a');
+    a.href = '/api/vencimientos/export';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   }
 
   function applyQuery() {
@@ -178,17 +205,26 @@ export async function renderList(outlet) {
     draw();
   }
 
-  searchToggle.addEventListener('click', () => {
-    const opening = searchBar.hidden;
-    searchBar.hidden = !opening;
-    searchToggle.classList.toggle('is-active', opening);
-    if (opening) {
-      searchInput.focus();
-    } else {
-      searchInput.value = '';
-      applyQuery();
-    }
+  function openSearchBar() {
+    searchBar.hidden = false;
+    searchInput.focus();
+  }
+
+  moreBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const opening = moreMenu.hidden;
+    if (opening) moreMenu.innerHTML = moreMenuHTML();
+    moreMenu.hidden = !opening;
   });
+  moreMenu.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    closeMoreMenu();
+    if (btn.dataset.action === 'search') openSearchBar();
+    else if (btn.dataset.action === 'settings') openSettingsModal();
+    else if (btn.dataset.action === 'download') downloadExport();
+  });
+
   searchInput.addEventListener('input', applyQuery);
   searchClear.addEventListener('click', () => {
     searchInput.value = '';
@@ -197,11 +233,9 @@ export async function renderList(outlet) {
   });
   // En desuso (se cierra sin haber escrito nada) se oculta solo — mismo
   // criterio que el buscador de Mapear.
-  searchInput.addEventListener('blur', (e) => {
+  searchInput.addEventListener('blur', () => {
     if (searchInput.value.trim()) return;
-    if (e.relatedTarget === searchToggle) return;
     searchBar.hidden = true;
-    searchToggle.classList.remove('is-active');
   });
 
   outlet.querySelectorAll('#vencViewToggle button').forEach((btn) => {
@@ -213,12 +247,11 @@ export async function renderList(outlet) {
       // quedado — drawSuggested() ya lo clampea solo si la cola
       // pendiente cambió de tamaño (por ejemplo, se validó algo).
       outlet.querySelectorAll('#vencViewToggle button').forEach((b) => b.classList.toggle('is-active', b === btn));
-      updateSearchVisibility();
+      // Sugerido no tiene buscador — si estaba abierto, se cierra.
+      if (state.view === 'sugerido') searchBar.hidden = true;
       draw();
     });
   });
-  updateSearchVisibility();
-  outlet.querySelector('#vencSettingsBtn').addEventListener('click', openSettingsModal);
 
   async function load() {
     if (!outlet.isConnected) return;
@@ -448,3 +481,14 @@ export async function renderList(outlet) {
 
   await load();
 }
+
+// Cierra el menú "más opciones" al tocar fuera de él — mismo patrón
+// que el menú de opciones de cada mapeo (ver mapear/list-view.js): un
+// solo listener a nivel documento, agregado una vez al cargar el
+// módulo (no por cada render), que lee outletRef dinámicamente.
+document.addEventListener('click', (e) => {
+  if (!outletRef) return;
+  if (e.target.closest('.venc-more-wrap')) return;
+  const menu = outletRef.querySelector('#vencMoreMenu');
+  if (menu) menu.hidden = true;
+});
