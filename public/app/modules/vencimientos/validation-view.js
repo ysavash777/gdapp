@@ -69,6 +69,12 @@ function truncate(v) {
   return s.length > MISMATCH_MAX_CHARS ? `${s.slice(0, MISMATCH_MAX_CHARS)}…` : s;
 }
 
+// Mismo criterio que daysLabel() en list-view.js (duplicado acá para
+// no crear una dependencia circular entre los dos módulos).
+function daysLabel(days) {
+  return days === 0 ? 'Hoy' : `${days}d`;
+}
+
 export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   let item = initialItem;
 
@@ -77,7 +83,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   overlay.innerHTML = `
     <div class="venc-loc-selector" id="vencLocSelector">
       <button type="button" class="venc-acc-head venc-loc-head" id="vencLocHead">
-        <span class="venc-acc-avatar" id="vencLocAvatar">${icon('pin', 18)}</span>
+        <span class="venc-card-days venc-loc-avatar-days" id="vencLocAvatar"></span>
         <span class="venc-acc-head-text">
           <strong class="venc-acc-head-title" id="vencLocTitle"></strong>
           <span class="venc-acc-head-sub" id="vencLocSub"></span>
@@ -156,6 +162,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
 
   const locHead = overlay.querySelector('#vencLocHead');
   const locMenu = overlay.querySelector('#vencLocMenu');
+  const locAvatar = overlay.querySelector('#vencLocAvatar');
   const locTitle = overlay.querySelector('#vencLocTitle');
   const locSub = overlay.querySelector('#vencLocSub');
 
@@ -449,6 +456,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     }
     return others.map((it) => `
       <button type="button" class="user-menu-item venc-loc-menu-item" data-key="${escapeHtml(it.key)}">
+        <span class="venc-card-days venc-loc-menu-days is-${it.severity}">${daysLabel(it.days)}</span>
         <span class="venc-loc-menu-text">
           <strong>${escapeHtml(it.ubicacion || '-')}</strong>
           <span>${escapeHtml(it.descripcion || 'Producto sin descripción')}</span>
@@ -487,6 +495,8 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     closeLocMenu();
     if (fotoViewOpen) exitFotoMode();
 
+    locAvatar.textContent = daysLabel(item.days);
+    locAvatar.className = `venc-card-days venc-loc-avatar-days is-${item.severity}`;
     locTitle.textContent = item.ubicacion || '-';
     locSub.textContent = `${otherPending().length} más pendiente${otherPending().length === 1 ? '' : 's'}`;
     cajaUbicacionEl.textContent = item.ubicacion || '-';
