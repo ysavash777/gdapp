@@ -1965,6 +1965,11 @@ html, body {
   padding: 0 var(--sp-3) var(--sp-3);
   overflow-y: auto;
 }
+/* display:flex de arriba le gana a [hidden] del navegador por ser
+   regla de autor — sin esto, el panel "cerrado" seguía renderizado
+   (con la cámara ya pausada/oscurecida atrás), dando la sensación de
+   que se había tomado una foto en vez de haber cerrado el escáner. */
+.venc-acc-panel[hidden] { display: none; }
 .venc-acc-panel .scan-camera { flex: 1; min-height: 120px; border-radius: var(--r-md); }
 .venc-acc-controls { flex: 0 0 auto; display: flex; flex-direction: column; gap: var(--sp-2); }
 
@@ -1998,31 +2003,60 @@ html, body {
 .venc-acc-comment-input:focus { box-shadow: 0 0 0 3px var(--accent-100); }
 .venc-acc-comment-input:disabled { cursor: not-allowed; }
 
-.venc-val-mismatch {
+/* Insignia de desacuerdo (código leído no coincide) — flotante SOBRE
+   la cámara (position:absolute, igual que .scan-flash/.scan-hint), no
+   un bloque en el flujo: aparecer/desaparecer nunca achica el espacio
+   de la cámara ni mueve el resto de la pantalla. Solo imprime lo que
+   se leyó (truncado, ver MISMATCH_MAX_CHARS en JS) — no hace falta
+   repetir "esperado/se leyó", el dato solo ya alcanza para
+   diagnosticar. Se retira sola a los ~2s. */
+.scan-mismatch {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%) translateY(6px);
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  background: var(--danger-bg);
-  color: var(--danger);
-  padding: 10px 12px;
-  border-radius: var(--r-md);
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 32px);
+  padding: 8px 14px;
+  border-radius: var(--r-full);
+  background: rgba(24, 24, 27, 0.82);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  color: #fff;
   font-size: var(--text-sm);
-  margin: var(--sp-3) 0;
+  font-weight: 650;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease, transform 200ms ease;
 }
-.venc-val-mismatch svg { flex-shrink: 0; margin-top: 2px; }
+.scan-mismatch.is-visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+.scan-mismatch svg { flex-shrink: 0; color: var(--danger); }
+.scan-mismatch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* Botón secundario "de escape" (reportar faltante / volver a
+   escanear) — pill con borde sutil en vez del link subrayado de
+   antes (se veía "barato"), pero sin competir con el primario: sin
+   relleno sólido ni color de marca. El espaciado con lo de arriba lo
+   da el gap del contenedor (.venc-acc-controls), sin margin propio,
+   para que quede simétrico con el padding inferior del panel. */
 .venc-val-skip {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   width: 100%;
-  text-align: center;
-  padding: 10px;
-  margin-top: var(--sp-2);
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
   background: none;
-  border: none;
-  color: var(--ink-3);
+  color: var(--ink-2);
   font-size: var(--text-sm);
-  text-decoration: underline;
+  font-weight: 600;
 }
+.venc-val-skip svg { flex-shrink: 0; }
+.venc-val-skip:active { background: var(--n-100); }
 
 .venc-photo-hint { font-size: var(--text-sm); color: var(--ink-2); margin-bottom: var(--sp-3); }
 .venc-photo-preview img { width: 100%; border-radius: var(--r-md); margin-bottom: var(--sp-3); display: block; }

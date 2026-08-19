@@ -40,8 +40,14 @@
    desapercibido.
 
    El valor esperado de cada paso nunca se muestra de entrada (eso
-   volvería el paso un trámite de tipeo, no una verificación real) —
-   solo aparece si hay un desacuerdo, para poder diagnosticarlo.
+   volvería el paso un trámite de tipeo, no una verificación real). Si
+   hay un desacuerdo, lo único que se imprime es lo que se leyó (no
+   "esperado X, se leyó Y": alcanza con el dato erróneo para
+   diagnosticarlo) — como una insignia flotante SOBRE la cámara, nunca
+   como bloque de texto en el flujo: eso desarmaba el layout cada vez
+   que aparecía (el panel se achicaba para hacerle lugar). Recortado a
+   14 caracteres porque un QR mal leído puede traer strings larguísimos
+   que igual deformarían la insignia.
    ============================================================ */
 
 import { icon, iconSolid } from '/shared/js/icons.js';
@@ -52,6 +58,12 @@ import * as store from './store.js';
 
 function norm(v) {
   return String(v ?? '').trim().toLowerCase();
+}
+
+const MISMATCH_MAX_CHARS = 14;
+function truncate(v) {
+  const s = String(v ?? '');
+  return s.length > MISMATCH_MAX_CHARS ? `${s.slice(0, MISMATCH_MAX_CHARS)}…` : s;
 }
 
 export function openValidation(item, { onDone }) {
@@ -137,16 +149,31 @@ export function openValidation(item, { onDone }) {
     <video id="scanVideo" autoplay playsinline muted></video>
     <div class="scan-line"></div>
     <div class="scan-flash" id="scanFlash">${icon('check', 32)}</div>
+    <div class="scan-mismatch" id="scanMismatch">${icon('alertTriangle', 14)}<span id="scanMismatchText"></span></div>
     <p class="scan-hint" id="scanHint" hidden></p>
   `;
   const videoEl = cameraMount.querySelector('#scanVideo');
   const hintEl = cameraMount.querySelector('#scanHint');
   const flashEl = cameraMount.querySelector('#scanFlash');
+  const mismatchEl = cameraMount.querySelector('#scanMismatch');
+  const mismatchTextEl = cameraMount.querySelector('#scanMismatchText');
+  let mismatchTimer = null;
 
   function playFlash() {
     flashEl.classList.remove('is-playing');
     void flashEl.offsetWidth; // fuerza reflow para poder re-disparar la animación seguida
     flashEl.classList.add('is-playing');
+  }
+
+  // Insignia flotante SOBRE la cámara (position:absolute, no ocupa
+  // lugar en el flujo) — a diferencia de un bloque de texto en los
+  // controles, aparecer/desaparecer nunca achica el espacio de la
+  // cámara ni mueve nada alrededor.
+  function showMismatch(raw) {
+    mismatchTextEl.textContent = truncate(raw);
+    mismatchEl.classList.add('is-visible');
+    clearTimeout(mismatchTimer);
+    mismatchTimer = setTimeout(() => mismatchEl.classList.remove('is-visible'), 2200);
   }
 
   function moveCameraTo(panel) {
@@ -156,7 +183,6 @@ export function openValidation(item, { onDone }) {
   let openKey = null; // 'caja' | 'prod' | null
   let prodMode = 'scan'; // 'scan' | 'foto'
   const stateOf = { caja: 'pending', prod: 'locked' };
-  const mismatch = { caja: null, prod: null };
   let submitting = false;
   let photoDataUrl = null;
 
@@ -177,24 +203,13 @@ export function openValidation(item, { onDone }) {
     panelEl.hidden = !isOpen;
   }
 
-  function mismatchHTML(m) {
-    if (!m) return '';
-    return `
-      <div class="venc-val-mismatch">
-        ${icon('alertTriangle', 15)}
-        <span>No coincide. Esperado <strong>${escapeHtml(m.expected)}</strong>, se leyó <strong>${escapeHtml(m.scanned)}</strong>.</span>
-      </div>
-    `;
-  }
-
   function renderCajaControls() {
-    controlsCaja.innerHTML = mismatchHTML(mismatch.caja);
+    controlsCaja.innerHTML = '';
   }
 
   function renderProdScanControls() {
     controlsProd.innerHTML = `
-      ${mismatchHTML(mismatch.prod)}
-      <button type="button" class="venc-val-skip" id="skipProd">No lo encuentro — reportar faltante</button>
+      <button type="button" class="venc-val-skip" id="skipProd">${icon('ban', 15)} No lo encuentro — reportar faltante</button>
     `;
     controlsProd.querySelector('#skipProd').addEventListener('click', () => {
       prodMode = 'foto';
@@ -217,7 +232,7 @@ export function openValidation(item, { onDone }) {
         <button type="button" class="btn btn-ghost" id="photoRetake">Repetir foto</button>
         <button type="button" class="btn btn-danger" id="photoConfirm">Confirmar faltante</button>
       </div>
-      <button type="button" class="venc-val-skip" id="backToScan">Volver a escanear</button>
+      <button type="button" class="venc-val-skip" id="backToScan">${icon('scan', 15)} Volver a escanear</button>
     `;
     const captureBtn = controlsProd.querySelector('#photoCapture');
     const actionsEl = controlsProd.querySelector('#photoActions');
@@ -277,6 +292,8 @@ export function openValidation(item, { onDone }) {
     if (openKey && openKey !== key) setOpen(openKey, false);
     openKey = key;
     setOpen(key, true);
+    clearTimeout(mismatchTimer);
+    mismatchEl.classList.remove('is-visible');
     moveCameraTo(key === 'caja' ? panelCaja : panelProd);
     scanner.setPaused(false);
     scanner.resumeView();
@@ -314,7 +331,6 @@ export function openValidation(item, { onDone }) {
   }
 
   function markDone(key) {
-    mismatch[key] = null;
     setItemState(key, 'done');
     setAvatarDone(key);
     closeAccordion(key);
@@ -335,10 +351,8 @@ export function openValidation(item, { onDone }) {
       markDone(key);
       return;
     }
-    mismatch[key] = { expected, scanned: raw };
     if (navigator.vibrate) navigator.vibrate([30, 60, 30]);
-    if (key === 'caja') renderCajaControls();
-    else renderProdControls();
+    showMismatch(raw);
   }
 
   function handleCode(raw) {
