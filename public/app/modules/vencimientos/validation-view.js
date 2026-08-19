@@ -83,7 +83,9 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   overlay.className = 'scan-overlay';
   overlay.innerHTML = `
     <div class="scan-sheet cq-sheet venc-acc-body" id="vencAccBody">
-      <div class="venc-acc-item venc-loc-slider" id="locSlider"></div>
+      <div class="venc-acc-item venc-loc-slider" id="locSlider">
+        <div class="venc-loc-track" id="locTrack"></div>
+      </div>
 
       <div class="venc-scan-box" id="scanBoxCaja">
         <div class="venc-acc-controls" id="controlsCaja"></div>
@@ -145,6 +147,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   }
 
   const locSlider = overlay.querySelector('#locSlider');
+  const locTrack = overlay.querySelector('#locTrack');
   const scanBoxCaja = overlay.querySelector('#scanBoxCaja');
   const controlsCaja = overlay.querySelector('#controlsCaja');
 
@@ -170,12 +173,19 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   const photoConfirmActions = overlay.querySelector('#vencPhotoConfirmActions');
 
   // --- Slider de ubicaciones ---
-  // Se arma UNA sola vez (no se re-renderiza en cada loadItem, para no
-  // perder la posición del scroll) — deslizar y "asentarse" en una
-  // tarjeta distinta es lo que dispara loadItem(). El avatar de la
-  // tarjeta activa se actualiza in-place (findSlide) a medida que se
-  // valida, en vez de vivir en un elemento fijo aparte.
-  locSlider.innerHTML = slides.map((it) => `
+  // Se arma UNA sola vez (no se re-renderiza en cada loadItem) — el
+  // avatar de la tarjeta activa se actualiza in-place (findSlide) a
+  // medida que se valida, en vez de vivir en un elemento fijo aparte.
+  //
+  // Nada de scroll nativo: ni scroll-snap-type ni scroll-snap-stop
+  // garantizan "como mucho 1 tarjeta por swipe" de forma confiable en
+  // todos los navegadores (el impulso de un swipe fuerte puede seguir
+  // corriendo varias tarjetas antes de asentarse). Acá el gesto se
+  // controla a mano: el track se mueve con transform, y al soltar el
+  // dedo SOLO se decide una dirección (izquierda/derecha) — nunca
+  // cuántas tarjetas, así que sea cual sea la fuerza o velocidad del
+  // swipe, currentIndex nunca cambia en más de 1.
+  locTrack.innerHTML = slides.map((it) => `
     <div class="venc-loc-slide" data-key="${escapeHtml(it.key)}" data-state="pending">
       <span class="venc-acc-avatar">${icon('clock', 18)}</span>
       <span class="venc-acc-head-text">
@@ -184,22 +194,68 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
       </span>
     </div>
   `).join('');
-  const initialIndex = Math.max(0, slides.findIndex((i) => i.key === initialItem.key));
-  locSlider.scrollLeft = initialIndex * locSlider.clientWidth;
 
   function findSlide(key) {
-    return Array.from(locSlider.children).find((el) => el.dataset.key === key);
+    return Array.from(locTrack.children).find((el) => el.dataset.key === key);
   }
 
-  let sliderScrollTimer = null;
-  locSlider.addEventListener('scroll', () => {
-    clearTimeout(sliderScrollTimer);
-    sliderScrollTimer = setTimeout(() => {
-      const idx = Math.round(locSlider.scrollLeft / locSlider.clientWidth);
-      const next = slides[idx];
-      if (next && next.key !== item.key) loadItem(next);
-    }, 120);
-  });
+  let currentIndex = Math.max(0, slides.findIndex((i) => i.key === initialItem.key));
+
+  function setTrackPosition(animate) {
+    locTrack.style.transition = animate ? 'transform 220ms ease' : 'none';
+    locTrack.style.transform = `translateX(${-currentIndex * 100}%)`;
+  }
+  setTrackPosition(false);
+
+  let dragging = false;
+  let dragAxis = null; // null (por decidir) | 'x' | 'y'
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let dragDeltaX = 0;
+
+  locSlider.addEventListener('touchstart', (e) => {
+    dragging = true;
+    dragAxis = null;
+    dragStartX = e.touches[0].clientX;
+    dragStartY = e.touches[0].clientY;
+    dragDeltaX = 0;
+    locTrack.style.transition = 'none';
+  }, { passive: true });
+
+  locSlider.addEventListener('touchmove', (e) => {
+    if (!dragging) return;
+    const dx = e.touches[0].clientX - dragStartX;
+    const dy = e.touches[0].clientY - dragStartY;
+    if (!dragAxis) {
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      dragAxis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    }
+    if (dragAxis !== 'x') return; // deja pasar el scroll vertical de la página
+    e.preventDefault();
+    dragDeltaX = dx;
+    // Resistencia en las puntas: no hay adónde ir, así que el
+    // arrastre se amortigua en vez de desplazarse libre.
+    const atStart = currentIndex === 0 && dx > 0;
+    const atEnd = currentIndex === slides.length - 1 && dx < 0;
+    const eased = atStart || atEnd ? dx * 0.35 : dx;
+    const percent = (eased / locSlider.clientWidth) * 100;
+    locTrack.style.transform = `translateX(calc(${-currentIndex * 100}% + ${percent}%))`;
+  }, { passive: false });
+
+  function onDragEnd() {
+    if (!dragging) return;
+    dragging = false;
+    if (dragAxis === 'x') {
+      const threshold = locSlider.clientWidth * 0.18;
+      if (dragDeltaX <= -threshold && currentIndex < slides.length - 1) currentIndex += 1;
+      else if (dragDeltaX >= threshold && currentIndex > 0) currentIndex -= 1;
+    }
+    setTrackPosition(true);
+    const next = slides[currentIndex];
+    if (next && next.key !== item.key) loadItem(next);
+  }
+  locSlider.addEventListener('touchend', onDragEnd);
+  locSlider.addEventListener('touchcancel', onDragEnd);
 
   // Cámara única (video + línea + destello + linterna + teclado)
   // reutilizada en Caja/Producto/foto — se mueve con .prepend, sin

@@ -1882,35 +1882,22 @@ html, body {
    adapta al espacio disponible, nunca al revés. */
 .venc-acc-body { display: flex; flex-direction: column; gap: var(--sp-3); flex: 1; min-height: 0; padding-top: calc(env(safe-area-inset-top) + var(--sp-4)); }
 
-/* Slider de ubicaciones: una tarjeta por posición pendiente,
-   deslizable con scroll-snap nativo (el navegador maneja el gesto,
-   sin matemática de touch a mano) — asentarse en una distinta a la
-   actual cambia el ítem que se está validando (ver loadItem en JS).
-   Separado a propósito del escaneo de Caja (.venc-scan-box más abajo,
-   su propio contenedor gris/redondeado): el slider solo identifica
-   DÓNDE estás parado, no es un paso que se abra/cierre. Mismo
-   contenedor/avatar que el resto (.venc-acc-item), solo que en fila
-   en vez de columna, para que las tarjetas queden lado a lado. */
-.venc-loc-slider {
-  flex-direction: row;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.venc-loc-slider::-webkit-scrollbar { display: none; }
+/* Slider de ubicaciones: una tarjeta por posición pendiente. Nada de
+   scroll nativo — ni scroll-snap-type ni scroll-snap-stop garantizan
+   "como mucho 1 tarjeta por swipe" de forma confiable en todos los
+   navegadores (el impulso de un swipe fuerte puede seguir corriendo
+   varias tarjetas antes de asentarse). El gesto se controla a mano en
+   JS: .venc-loc-track se mueve con transform y al soltar el dedo solo
+   se decide una DIRECCIÓN, nunca una distancia — currentIndex nunca
+   cambia en más de 1, sea cual sea la fuerza del swipe. Separado a
+   propósito del escaneo de Caja (.venc-scan-box más abajo, su propio
+   contenedor gris/redondeado): el slider solo identifica DÓNDE estás
+   parado, no es un paso que se abra/cierre. */
+.venc-loc-slider { overflow: hidden; touch-action: pan-y; }
+.venc-loc-track { display: flex; flex-direction: row; width: 100%; }
 .venc-loc-slide {
   flex: 0 0 100%;
   min-width: 0;
-  scroll-snap-align: center;
-  /* Sin esto, un swipe fuerte usa el impulso/inercia del scroll para
-     "saltar" varias tarjetas de un tirón — scroll-snap-type por sí
-     solo solo ajusta al punto más cercano cuando el scroll YA se
-     frenó, no limita cuánto avanza en el camino. scroll-snap-stop
-     obliga al navegador a parar en CADA tarjeta sin importar la
-     fuerza del gesto: como mucho, una por swipe. */
-  scroll-snap-stop: always;
   display: flex;
   align-items: center;
   gap: var(--sp-3);
@@ -2007,10 +1994,6 @@ html, body {
 .venc-acc-item[data-state="locked"] .venc-acc-head { opacity: 0.45; pointer-events: none; }
 .venc-acc-item[data-state="done"] .venc-acc-head { pointer-events: none; }
 .venc-acc-item[data-state="done"] .venc-acc-avatar { background: var(--ok); color: #fff; }
-/* .venc-acc-item de arriba pisa flex-direction/overflow (mismo
-   selector, orden de archivo) — se repiten acá para que el slider
-   quede en fila y pueda scrollear horizontal. */
-.venc-loc-slider { flex-direction: row; overflow-x: auto; overflow-y: hidden; }
 
 .venc-acc-head {
   flex-shrink: 0;
