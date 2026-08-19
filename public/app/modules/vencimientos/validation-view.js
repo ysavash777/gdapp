@@ -1,58 +1,50 @@
 /* ============================================================
    Módulo App · Vencimientos — validación de un ítem.
 
-   Sin header propio y sin un contenedor de ubicación aparte (antes
-   había un selector propio arriba, duplicando lo que ya muestra Caja)
-   — el desplegable de otras posiciones pendientes vive DENTRO del
-   contenedor de Caja, como un botón chevron aparte del header (no
-   anidado en el <button> del acordeón: HTML no permite botón dentro
-   de botón). Tocarlo despliega pendingItems y permite saltar a
-   cualquiera SIN cerrar esta pantalla (loadItem reinicia el estado
-   para el nuevo ítem, reutilizando la misma cámara ya activa — nunca
-   se vuelve a pedir permiso). Se cierra únicamente con el gesto nativo
-   de "atrás" del navegador/teléfono (popstate).
+   Sin header propio. Arriba, un slider horizontal de ubicaciones
+   (.venc-loc-slider, misma forma/tamaño redondeado que los demás
+   contenedores) — una tarjeta por posición pendiente (pendingItems),
+   deslizable con el dedo. Al asentarse en una tarjeta distinta a la
+   actual, cambia el ítem que se está validando (loadItem reinicia
+   todo el estado, reutilizando la misma cámara ya activa — nunca se
+   vuelve a pedir permiso). Debajo, un contenedor de escaneo aparte
+   (.venc-scan-box) para el paso de Caja: separado del slider a
+   propósito, porque el slider solo identifica DÓNDE estás parado, no
+   es un paso que se abra/cierre como Producto/Observación.
 
-   Acordeón de 3 contenedores debajo, uno a la vez:
-     1) Caja — ubicación + número de caja. Nunca se puede saltar: es
-        el único paso que confirma que el operario está parado frente
-        a la posición correcta (por eso el contenedor 2 arranca
-        BLOQUEADO hasta que este se valida).
-     2) Producto — descripción + referencia/EAN. Acá SÍ se puede
-        reportar "faltante" sin escanear (si el producto de verdad no
-        está, insistir en escanearlo no tiene sentido), pero exige una
-        foto de la posición vacía como evidencia.
+   Se cierra únicamente con el gesto nativo de "atrás" del
+   navegador/teléfono (popstate).
+
+   Pasos:
+     1) Caja — el número escaneado tiene que matchear item.caja. Nunca
+        se puede saltar: es el único paso que confirma que el
+        operario está parado frente a la posición correcta (por eso
+        Producto arranca BLOQUEADO hasta que este se valida).
+     2) Producto — descripción + referencia/EAN, mismo acordeón de
+        siempre (tap para abrir/cerrar, no forma parte del slider).
+        Acá SÍ se puede reportar "faltante" sin escanear (si el
+        producto de verdad no está, insistir en escanearlo no tiene
+        sentido), pero exige una foto de la posición vacía como
+        evidencia.
      3) Observación — se libera recién con 1 y 2 validados. Sin
         motivos predefinidos: texto libre, vacío = "OK". No se valida
         contra nada (es opcional), así que su ícono queda "pendiente"
         para siempre, nunca pasa a "éxito".
 
-   Abrir un contenedor cierra automáticamente cualquier otro que
-   estuviera abierto — pero sin desplazar nada de lugar: el que se abre
-   crece hacia el espacio libre de la pantalla (ver más abajo), nunca
-   empuja lo que sigue. Una vez validado correctamente, el contenedor
-   queda bloqueado (no se puede reabrir ni tiene más lógica) y su
-   avatar pasa de "pendiente" a "éxito".
+   Un solo <video> de cámara se reutiliza en los 3 lugares donde hace
+   falta (Caja, Producto, foto de faltante) — se mueve con .prepend,
+   nunca se recrea ni se vuelve a pedir permiso. Trae dos botones
+   flotando sobre ella (mismo estilo, esquinas opuestas): linterna
+   (derecha) y teclado para tipear el código a mano (izquierda) — el
+   teclado abre un input chico flotando abajo de la cámara, que pasa
+   por el mismo checkMatch() que un código leído por cámara.
 
-   Un solo <video> de cámara se reutiliza entre los contenedores 1 y 2
-   (se monta dentro del que esté abierto, y se estira para ocupar todo
-   el espacio que ese contenedor tenga disponible) — así, en la futura
-   versión handheld (sin cámara), alcanza con no crearlo: el resto de
-   la pantalla (avatares, textos) funciona igual.
-
-   Un match en cualquier paso avanza SOLO, sin pedir confirmación
-   ("sin fricción" es literal) — pero el cambio de paso se marca fuerte
-   (color de éxito + vibración + destello + toast) para que nunca pase
-   desapercibido.
-
-   El valor esperado de cada paso nunca se muestra de entrada (eso
-   volvería el paso un trámite de tipeo, no una verificación real). Si
-   hay un desacuerdo, lo único que se imprime es lo que se leyó (no
-   "esperado X, se leyó Y": alcanza con el dato erróneo para
-   diagnosticarlo) — como una insignia flotante SOBRE la cámara, nunca
-   como bloque de texto en el flujo: eso desarmaba el layout cada vez
-   que aparecía (el panel se achicaba para hacerle lugar). Recortado a
-   14 caracteres porque un QR mal leído puede traer strings larguísimos
-   que igual deformarían la insignia.
+   Un match en cualquier paso avanza SOLO, sin pedir confirmación —
+   pero se marca fuerte (color de éxito + vibración + destello + toast)
+   para que nunca pase desapercibido. El valor esperado nunca se
+   muestra de entrada; si hay un desacuerdo, se imprime solo lo leído
+   (recortado a 14 caracteres) como insignia flotante sobre la cámara,
+   nunca como bloque de texto que deforme el layout.
    ============================================================ */
 
 import { icon, iconSolid } from '/shared/js/icons.js';
@@ -71,12 +63,6 @@ function truncate(v) {
   return s.length > MISMATCH_MAX_CHARS ? `${s.slice(0, MISMATCH_MAX_CHARS)}…` : s;
 }
 
-// Mismo criterio que daysLabel() en list-view.js (duplicado acá para
-// no crear una dependencia circular entre los dos módulos).
-function daysLabel(days) {
-  return days === 0 ? 'Hoy' : `${days}d`;
-}
-
 // Mismo criterio que urgencyBannerHTML() en list-view.js (modo
 // Sugerido) — acá se repite el mismo aviso, ya al final del flujo,
 // para reforzar la acción a tomar justo antes de escribir la
@@ -91,26 +77,16 @@ function urgencyBannerHTML(it) {
 
 export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   let item = initialItem;
+  const slides = pendingItems.length ? pendingItems : [initialItem];
 
   const overlay = document.createElement('div');
   overlay.className = 'scan-overlay';
   overlay.innerHTML = `
     <div class="scan-sheet cq-sheet venc-acc-body" id="vencAccBody">
-      <div class="venc-loc-anchor" id="locAnchor">
-        <div class="venc-acc-item" data-state="pending" id="itemCaja">
-          <button type="button" class="venc-acc-head" id="headCaja">
-            <span class="venc-acc-avatar" id="avatarCaja">${icon('clock', 18)}</span>
-            <span class="venc-acc-head-text">
-              <strong class="venc-acc-head-title" id="cajaUbicacion"></strong>
-              <span class="venc-acc-head-sub">${iconSolid('caja', 13)}<span id="cajaNumero"></span></span>
-            </span>
-          </button>
-          <div class="venc-acc-panel" id="panelCaja" hidden>
-            <div class="venc-acc-controls" id="controlsCaja"></div>
-          </div>
-        </div>
-        <button type="button" class="venc-loc-chevron-btn" id="vencLocToggle" title="Otras posiciones pendientes">${icon('chevronDown', 16)}</button>
-        <div class="mapeo-menu venc-loc-menu" id="vencLocMenu" hidden></div>
+      <div class="venc-acc-item venc-loc-slider" id="locSlider"></div>
+
+      <div class="venc-scan-box" id="scanBoxCaja">
+        <div class="venc-acc-controls" id="controlsCaja"></div>
       </div>
 
       <div class="venc-acc-item" data-state="locked" id="itemProd">
@@ -168,16 +144,8 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     close();
   }
 
-  const locAnchor = overlay.querySelector('#locAnchor');
-  const locToggle = overlay.querySelector('#vencLocToggle');
-  const locMenu = overlay.querySelector('#vencLocMenu');
-
-  const itemCaja = overlay.querySelector('#itemCaja');
-  const headCaja = overlay.querySelector('#headCaja');
-  const avatarCaja = overlay.querySelector('#avatarCaja');
-  const cajaUbicacionEl = overlay.querySelector('#cajaUbicacion');
-  const cajaNumeroEl = overlay.querySelector('#cajaNumero');
-  const panelCaja = overlay.querySelector('#panelCaja');
+  const locSlider = overlay.querySelector('#locSlider');
+  const scanBoxCaja = overlay.querySelector('#scanBoxCaja');
   const controlsCaja = overlay.querySelector('#controlsCaja');
 
   const itemProd = overlay.querySelector('#itemProd');
@@ -201,8 +169,40 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   const photoCaptureRow = overlay.querySelector('#vencPhotoCaptureRow');
   const photoConfirmActions = overlay.querySelector('#vencPhotoConfirmActions');
 
-  // Cámara única (video + línea + destello) reutilizada entre los
-  // contenedores 1 y 2 — se mueve de uno a otro con .prepend, sin
+  // --- Slider de ubicaciones ---
+  // Se arma UNA sola vez (no se re-renderiza en cada loadItem, para no
+  // perder la posición del scroll) — deslizar y "asentarse" en una
+  // tarjeta distinta es lo que dispara loadItem(). El avatar de la
+  // tarjeta activa se actualiza in-place (findSlide) a medida que se
+  // valida, en vez de vivir en un elemento fijo aparte.
+  locSlider.innerHTML = slides.map((it) => `
+    <div class="venc-loc-slide" data-key="${escapeHtml(it.key)}" data-state="pending">
+      <span class="venc-acc-avatar">${icon('clock', 18)}</span>
+      <span class="venc-acc-head-text">
+        <strong class="venc-acc-head-title">${escapeHtml(it.ubicacion || '-')}</strong>
+        <span class="venc-acc-head-sub">${iconSolid('caja', 13)}<span>${escapeHtml(it.caja || '-')}</span></span>
+      </span>
+    </div>
+  `).join('');
+  const initialIndex = Math.max(0, slides.findIndex((i) => i.key === initialItem.key));
+  locSlider.scrollLeft = initialIndex * locSlider.clientWidth;
+
+  function findSlide(key) {
+    return Array.from(locSlider.children).find((el) => el.dataset.key === key);
+  }
+
+  let sliderScrollTimer = null;
+  locSlider.addEventListener('scroll', () => {
+    clearTimeout(sliderScrollTimer);
+    sliderScrollTimer = setTimeout(() => {
+      const idx = Math.round(locSlider.scrollLeft / locSlider.clientWidth);
+      const next = slides[idx];
+      if (next && next.key !== item.key) loadItem(next);
+    }, 120);
+  });
+
+  // Cámara única (video + línea + destello + linterna + teclado)
+  // reutilizada en Caja/Producto/foto — se mueve con .prepend, sin
   // recrearla ni perder el stream. En handheld este bloque no
   // existiría y el resto de la pantalla sigue funcionando igual.
   const cameraMount = document.createElement('div');
@@ -212,6 +212,11 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     <video id="scanVideo" autoplay playsinline muted></video>
     <div class="scan-line"></div>
     <button class="btn-icon scan-torch venc-camera-torch" id="scanTorch" title="Linterna" hidden>${icon('zap', 18)}</button>
+    <button type="button" class="btn-icon venc-camera-keyboard" id="scanKeyboardBtn" title="Ingresar código a mano">${icon('keyboard', 18)}</button>
+    <form class="venc-camera-manual" id="scanManualRow" hidden>
+      <input type="text" inputmode="numeric" id="scanManualInput" placeholder="Ingresar código" autocomplete="off" />
+      <button type="submit" title="Confirmar">${icon('check', 16)}</button>
+    </form>
     <div class="scan-flash" id="scanFlash">${icon('check', 32)}</div>
     <div class="scan-mismatch" id="scanMismatch">${icon('alertTriangle', 14)}<span id="scanMismatchText"></span></div>
     <p class="scan-hint" id="scanHint" hidden></p>
@@ -219,6 +224,9 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   const videoEl = cameraMount.querySelector('#scanVideo');
   const hintEl = cameraMount.querySelector('#scanHint');
   const torchBtn = cameraMount.querySelector('#scanTorch');
+  const keyboardBtn = cameraMount.querySelector('#scanKeyboardBtn');
+  const manualRow = cameraMount.querySelector('#scanManualRow');
+  const manualInput = cameraMount.querySelector('#scanManualInput');
   const flashEl = cameraMount.querySelector('#scanFlash');
   const mismatchEl = cameraMount.querySelector('#scanMismatch');
   const mismatchTextEl = cameraMount.querySelector('#scanMismatchText');
@@ -241,8 +249,27 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     mismatchTimer = setTimeout(() => mismatchEl.classList.remove('is-visible'), 2200);
   }
 
-  function moveCameraTo(panel) {
-    panel.prepend(cameraMount);
+  function closeManualInput() {
+    manualRow.hidden = true;
+    keyboardBtn.classList.remove('is-active');
+  }
+  keyboardBtn.addEventListener('click', () => {
+    const opening = manualRow.hidden;
+    manualRow.hidden = !opening;
+    keyboardBtn.classList.toggle('is-active', opening);
+    if (opening) manualInput.focus();
+  });
+  manualRow.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const value = manualInput.value.trim();
+    if (!value) return;
+    handleCode(value);
+    manualInput.value = '';
+  });
+
+  function moveCameraTo(target) {
+    closeManualInput();
+    target.prepend(cameraMount);
   }
 
   let openKey = null; // 'caja' | 'prod' | null
@@ -253,27 +280,41 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
 
   function setItemState(key, state) {
     stateOf[key] = state;
-    (key === 'caja' ? itemCaja : itemProd).dataset.state = state;
+    if (key === 'caja') {
+      const slide = findSlide(item.key);
+      if (slide) slide.dataset.state = state;
+    } else {
+      itemProd.dataset.state = state;
+    }
   }
 
   function setAvatarDone(key) {
-    const avatar = key === 'caja' ? avatarCaja : avatarProd;
-    avatar.innerHTML = icon('check', 18);
+    if (key === 'caja') {
+      const slide = findSlide(item.key);
+      if (slide) slide.querySelector('.venc-acc-avatar').innerHTML = icon('check', 18);
+    } else {
+      avatarProd.innerHTML = icon('check', 18);
+    }
   }
 
-  function setOpen(key, isOpen) {
-    const itemEl = key === 'caja' ? itemCaja : itemProd;
-    const panelEl = key === 'caja' ? panelCaja : panelProd;
-    itemEl.classList.toggle('is-open', isOpen);
-    panelEl.hidden = !isOpen;
-    // El desplegable de otras posiciones necesita salir del overflow:hidden
-    // de Caja (ver .venc-loc-anchor en CSS) — su wrapper repite el mismo
-    // flex 0/1 para que crecer/achicarse siga igual que antes.
-    if (key === 'caja') locAnchor.classList.toggle('is-open', isOpen);
-  }
-
-  function renderCajaControls() {
+  // Caja no es un contenedor que se abra/cierre con tap (el slider de
+  // arriba solo identifica DÓNDE estás parado) — activarlo simplemente
+  // muestra la caja de escaneo separada, siempre que sea el paso
+  // vigente. Se desactiva al validarla (o al cambiar de ítem).
+  function activateCaja() {
+    openKey = 'caja';
+    scanBoxCaja.hidden = false;
+    clearTimeout(mismatchTimer);
+    mismatchEl.classList.remove('is-visible');
+    moveCameraTo(scanBoxCaja);
+    scanner.setPaused(false);
+    scanner.resumeView();
     controlsCaja.innerHTML = '';
+  }
+
+  function deactivateCaja() {
+    if (openKey === 'caja') openKey = null;
+    scanBoxCaja.hidden = true;
   }
 
   function renderProdScanControls() {
@@ -282,6 +323,31 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     `;
     controlsProd.querySelector('#skipProd').addEventListener('click', enterFotoMode);
   }
+
+  function showProd() {
+    openKey = 'prod';
+    itemProd.classList.add('is-open');
+    panelProd.hidden = false;
+    clearTimeout(mismatchTimer);
+    mismatchEl.classList.remove('is-visible');
+    moveCameraTo(panelProd);
+    scanner.setPaused(false);
+    scanner.resumeView();
+    renderProdScanControls();
+  }
+
+  function hideProd() {
+    if (openKey === 'prod') openKey = null;
+    itemProd.classList.remove('is-open');
+    panelProd.hidden = true;
+  }
+
+  // Tocar Producto ya abierto no lo contrae — nada más lo cierra
+  // (evita cerrar la cámara sin querer).
+  headProd.addEventListener('click', () => {
+    if (stateOf.prod !== 'pending' || openKey === 'prod') return;
+    showProd();
+  });
 
   // Reportar faltante exige una foto de la posición vacía — reemplaza
   // por completo al acordeón mientras dura (ver .venc-photo-view en
@@ -295,6 +361,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     fotoViewOpen = true;
     photoDataUrl = null;
     scanner.setPaused(true); // sin pauseView(): el video sigue en vivo para encuadrar la foto
+    closeManualInput();
     cameraMount.classList.add('is-photo-mode');
     photoFrame.classList.remove('is-previewing');
     photoImgEl.removeAttribute('src');
@@ -354,40 +421,11 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     }
   });
 
-  function openAccordion(key) {
-    if (openKey && openKey !== key) setOpen(openKey, false);
-    openKey = key;
-    setOpen(key, true);
-    clearTimeout(mismatchTimer);
-    mismatchEl.classList.remove('is-visible');
-    moveCameraTo(key === 'caja' ? panelCaja : panelProd);
-    scanner.setPaused(false);
-    scanner.resumeView();
-    if (key === 'caja') renderCajaControls();
-    else renderProdScanControls();
-  }
-
-  function closeAccordion(key) {
-    if (openKey === key) openKey = null;
-    setOpen(key, false);
-  }
-
-  // Tocar el contenedor ya abierto no lo contrae — solo abrir OTRO lo
-  // cierra (ver openAccordion). Evita cerrar la cámara sin querer.
-  headCaja.addEventListener('click', () => {
-    if (stateOf.caja !== 'pending' || openKey === 'caja') return;
-    openAccordion('caja');
-  });
-  headProd.addEventListener('click', () => {
-    if (stateOf.prod !== 'pending' || openKey === 'prod') return;
-    openAccordion('prod');
-  });
-
   // El ícono de Observación queda "pendiente" (reloj) siempre — a
   // diferencia de Caja/Producto, este contenedor no se valida contra
   // nada, así que nunca pasa a "éxito". Mientras el texto no está
   // disponible para escribir, el contenedor tiene el mismo alto/forma
-  // que Caja/Producto cerrados (solo el header, panel oculto).
+  // que Producto cerrado (solo el header, panel oculto).
   function unlockComment() {
     itemComment.dataset.state = 'unlocked';
     panelComment.hidden = false;
@@ -418,13 +456,15 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   function markDone(key) {
     setItemState(key, 'done');
     setAvatarDone(key);
-    closeAccordion(key);
-    (key === 'caja' ? controlsCaja : controlsProd).innerHTML = '';
     if (key === 'caja') {
+      deactivateCaja();
+      controlsCaja.innerHTML = '';
       setItemState('prod', 'pending');
-      openAccordion('prod');
+      showProd();
       showToast('Caja verificada — ahora escaneá el producto.');
     } else {
+      hideProd();
+      controlsProd.innerHTML = '';
       unlockComment();
     }
   }
@@ -468,73 +508,21 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     }
   });
 
-  // --- Selector de ubicación (arriba, en el lugar del header) ---
-  // Solo lista OTRAS posiciones pendientes (nunca la actual, nunca las
-  // ya validadas) — tocar una la carga en el momento (loadItem),
-  // reutilizando esta misma pantalla y la cámara ya activa, sin cerrar
-  // ni volver a pedir permiso.
-  function otherPending() {
-    return pendingItems.filter((i) => i.key !== item.key);
-  }
-
-  function locMenuHTML() {
-    const others = otherPending();
-    if (!others.length) {
-      return `<p class="venc-loc-menu-empty">No hay más posiciones pendientes.</p>`;
-    }
-    return others.map((it) => `
-      <button type="button" class="user-menu-item venc-loc-menu-item" data-key="${escapeHtml(it.key)}">
-        <span class="venc-card-days venc-loc-menu-days is-${it.severity}">${daysLabel(it.days)}</span>
-        <span class="venc-loc-menu-text">
-          <strong>${escapeHtml(it.ubicacion || '-')}</strong>
-          <span>${escapeHtml(it.descripcion || 'Producto sin descripción')}</span>
-        </span>
-      </button>
-    `).join('');
-  }
-
-  function closeLocMenu() {
-    locMenu.hidden = true;
-  }
-
-  locToggle.addEventListener('click', (e) => {
-    e.stopPropagation(); // no debe abrir/cerrar el acordeón de Caja, que vive en el mismo contenedor
-    const opening = locMenu.hidden;
-    if (opening) locMenu.innerHTML = locMenuHTML();
-    locMenu.hidden = !opening;
-  });
-  locMenu.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-key]');
-    if (!btn) return;
-    const next = pendingItems.find((i) => i.key === btn.dataset.key);
-    closeLocMenu();
-    if (next) loadItem(next);
-  });
-  function onDocClick(e) {
-    if (!locMenu.hidden && !overlay.contains(e.target)) closeLocMenu();
-  }
-  document.addEventListener('click', onDocClick);
-
   // Reinicia todo el estado por-ítem (sin recrear la cámara ni pedir
   // permiso de nuevo) — usado tanto al abrir por primera vez como al
-  // saltar a otra posición desde el desplegable de Caja.
+  // deslizar hasta otra tarjeta del slider de arriba.
   function loadItem(newItem) {
     item = newItem;
-    closeLocMenu();
     if (fotoViewOpen) exitFotoMode();
 
-    cajaUbicacionEl.textContent = item.ubicacion || '-';
-    cajaNumeroEl.textContent = item.caja || '-';
     prodDescripcionEl.textContent = item.descripcion || 'Producto sin descripción';
     prodReferenciaEl.textContent = `${item.referencia || '-'} - ${item.ean || '-'}`;
 
     openKey = null;
     setItemState('caja', 'pending');
     setItemState('prod', 'locked');
-    avatarCaja.innerHTML = icon('clock', 18);
     avatarProd.innerHTML = icon('clock', 18);
-    setOpen('caja', false);
-    setOpen('prod', false);
+    hideProd();
 
     itemComment.dataset.state = 'locked';
     panelComment.hidden = true;
@@ -543,7 +531,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     comentarioInput.disabled = true;
     confirmBtn.disabled = true;
 
-    openAccordion('caja');
+    activateCaja();
   }
 
   let closed = false;
@@ -552,7 +540,6 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     closed = true;
     scanner.destroy();
     window.removeEventListener('popstate', onPopState);
-    document.removeEventListener('click', onDocClick);
     overlay.remove();
     if (!closedByPop) history.back();
   }

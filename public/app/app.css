@@ -1874,92 +1874,117 @@ html, body {
 
 /* Ficha de validación: sin header propio — .venc-acc-body llena todo
    el alto de la pantalla (con su propio padding-top para la zona
-   seguridad del notch, ya que Caja es ahora el primer contenedor
-   visible). Acordeón de 3 contenedores (Caja/Producto/Observación),
-   uno a la vez: abrir uno cierra el otro, y una vez validado
-   correctamente el contenedor se bloquea (ya no se puede reabrir ni
-   tiene lógica). El único contenedor abierto es el que crece
-   (is-open → flex:1) para absorber el espacio libre; los demás quedan
-   en su alto natural (solo el header) — así, al pasar de caja a
-   producto, nada se desplaza: la cámara es lo único que se adapta al
-   espacio disponible, nunca al revés. */
+   segura del notch, ya que el slider de ubicaciones es ahora el
+   primer contenedor visible). El único contenedor/caja abierto es el
+   que crece (is-open / .venc-scan-box → flex:1) para absorber el
+   espacio libre; los demás quedan en su alto natural — así, al pasar
+   de un paso a otro, nada se desplaza: la cámara es lo único que se
+   adapta al espacio disponible, nunca al revés. */
 .venc-acc-body { display: flex; flex-direction: column; gap: var(--sp-3); flex: 1; min-height: 0; padding-top: calc(env(safe-area-inset-top) + var(--sp-4)); }
 
-/* El desplegable de otras posiciones pendientes vive DENTRO del
-   contenedor de Caja (antes tenía su propio contenedor arriba,
-   duplicando la ubicación que Caja ya muestra) — un botón chevron
-   aparte del header, nunca anidado en su <button> (HTML no permite
-   botón dentro de botón), position:absolute en la esquina para no
-   competir por espacio con el texto de Caja. */
-/* Envuelve a Caja (no Caja misma) porque .venc-acc-item tiene
-   overflow:hidden (para los bordes redondeados de la cámara) — eso
-   recortaba el desplegable, que necesita salirse del contenedor para
-   flotar por encima. Sin overflow acá, y repitiendo el mismo
-   flex:0/1 que .venc-acc-item según esté abierto o no (ver JS,
-   setOpen), para que crecer/achicarse siga funcionando igual que
-   antes de mover el desplegable adentro. */
-.venc-loc-anchor {
-  position: relative;
-  flex: 0 0 auto;
+/* Slider de ubicaciones: una tarjeta por posición pendiente,
+   deslizable con scroll-snap nativo (el navegador maneja el gesto,
+   sin matemática de touch a mano) — asentarse en una distinta a la
+   actual cambia el ítem que se está validando (ver loadItem en JS).
+   Separado a propósito del escaneo de Caja (.venc-scan-box más abajo,
+   su propio contenedor gris/redondeado): el slider solo identifica
+   DÓNDE estás parado, no es un paso que se abra/cierre. Mismo
+   contenedor/avatar que el resto (.venc-acc-item), solo que en fila
+   en vez de columna, para que las tarjetas queden lado a lado. */
+.venc-loc-slider {
+  flex-direction: row;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.venc-loc-slider::-webkit-scrollbar { display: none; }
+.venc-loc-slide {
+  flex: 0 0 100%;
+  min-width: 0;
+  scroll-snap-align: center;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+}
+.venc-loc-slide[data-state="done"] .venc-acc-avatar { background: var(--ok); color: #fff; }
+
+/* Caja de escaneo separada de la ubicación (antes vivían fusionadas
+   en un solo contenedor) — su propio fondo gris redondeado, igual que
+   el resto. Solo existe mientras Caja es el paso vigente (se oculta
+   por completo al validarla, ver deactivateCaja en JS). */
+.venc-scan-box {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-}
-.venc-loc-anchor.is-open { flex: 1 1 auto; }
-.venc-loc-anchor .venc-acc-head { padding-right: 40px; }
-
-.venc-loc-chevron-btn {
-  position: absolute;
-  top: var(--sp-3);
-  right: var(--sp-3);
-  z-index: 5;
-  padding: 6px;
-  color: var(--ink-3);
-  background: none;
-  border: none;
-}
-/* Mismo ancho que la cámara (mismo inset lateral que .venc-acc-panel:
-   0 var(--sp-3)) y empieza justo donde arranca la cámara (debajo del
-   header de Caja, ~66px) — ni pegado al botón chico (se veía angosto
-   y descolgado) ni estirado hasta el final de la cámara abierta (se
-   veía larguísimo): un panel corto, flotando arriba de la cámara. */
-.venc-loc-menu {
-  left: var(--sp-3);
-  right: var(--sp-3);
-  top: 66px;
-  max-height: 200px;
-  overflow-y: auto;
-  z-index: 5;
-}
-.venc-loc-menu-item { gap: var(--sp-3); }
-/* Mismo círculo de "vida útil" que las tarjetas de la lista
-   (.venc-card-days), solo más chico para las filas del desplegable —
-   mismos colores por severidad, ya definidos junto a .venc-card-days. */
-.venc-loc-menu-days { width: 34px; height: 34px; font-size: 10px; flex-shrink: 0; }
-.venc-loc-menu-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; width: 100%; }
-.venc-loc-menu-text strong { font-size: var(--text-sm); }
-.venc-loc-menu-text span {
-  font-size: var(--text-xs);
-  color: var(--ink-3);
+  gap: var(--sp-3);
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  width: 100%;
 }
-.venc-loc-menu-empty { padding: var(--sp-3); text-align: center; font-size: var(--text-sm); color: var(--ink-3); }
+.venc-scan-box[hidden] { display: none; }
+.venc-scan-box .scan-camera { flex: 1; min-height: 120px; border-radius: var(--r-md); }
 
-/* Linterna flotando sobre la propia cámara (sin header donde vivir) —
-   mismo tratamiento que el destello/insignia: position:absolute,
-   nunca ocupa lugar en el flujo. */
-.venc-camera-torch {
+/* Linterna e ingreso manual flotan sobre la propia cámara (sin header
+   donde vivir), mismo tratamiento que el destello/insignia:
+   position:absolute, nunca ocupan lugar en el flujo — esquinas
+   opuestas, mismo estilo de botón circular translúcido. */
+.venc-camera-torch, .venc-camera-keyboard {
   position: absolute;
   top: var(--sp-3);
-  right: var(--sp-3);
   z-index: 1;
   background: rgba(0, 0, 0, 0.45);
   color: #fff;
 }
-.venc-camera-torch.is-active { color: var(--icon-mapear); background: rgba(0, 0, 0, 0.6); }
+.venc-camera-torch { right: var(--sp-3); }
+.venc-camera-keyboard { left: var(--sp-3); }
+.venc-camera-torch.is-active, .venc-camera-keyboard.is-active { color: var(--icon-mapear); background: rgba(0, 0, 0, 0.6); }
+/* Sacar una foto no es "escanear" — ninguno de los dos aplica ahí
+   (mismo criterio que .scan-line, ya oculta en is-photo-mode). */
+.scan-camera.is-photo-mode .venc-camera-torch,
+.scan-camera.is-photo-mode .venc-camera-keyboard,
+.scan-camera.is-photo-mode .venc-camera-manual { display: none; }
+
+.venc-camera-manual {
+  position: absolute;
+  left: var(--sp-3);
+  right: var(--sp-3);
+  bottom: var(--sp-3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 6px 6px 14px;
+  border-radius: var(--r-full);
+  background: rgba(24, 24, 27, 0.82);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.venc-camera-manual[hidden] { display: none; }
+.venc-camera-manual input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: var(--text-sm);
+  outline: none;
+}
+.venc-camera-manual button {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-full);
+  background: var(--accent-500);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  border: none;
+}
 
 .venc-acc-item {
   flex: 0 0 auto;
@@ -1975,6 +2000,10 @@ html, body {
 .venc-acc-item[data-state="locked"] .venc-acc-head { opacity: 0.45; pointer-events: none; }
 .venc-acc-item[data-state="done"] .venc-acc-head { pointer-events: none; }
 .venc-acc-item[data-state="done"] .venc-acc-avatar { background: var(--ok); color: #fff; }
+/* .venc-acc-item de arriba pisa flex-direction/overflow (mismo
+   selector, orden de archivo) — se repiten acá para que el slider
+   quede en fila y pueda scrollear horizontal. */
+.venc-loc-slider { flex-direction: row; overflow-x: auto; overflow-y: hidden; }
 
 .venc-acc-head {
   flex-shrink: 0;
