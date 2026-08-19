@@ -797,7 +797,11 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.scan-header-actions { display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; }
+/* min-width igual al botón de volver (padding 9px + ícono 22px) para
+   que el título quede realmente centrado incluso cuando este lado
+   está vacío (torch en [hidden]) — si no, al no haber nada que
+   balancee el botón de volver, el título se corre hacia ese lado. */
+.scan-header-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-2); flex-shrink: 0; min-width: 40px; }
 .scan-torch.is-active { color: var(--icon-mapear); background: var(--icon-mapear-light); }
 
 /* La cámara siempre está activa mientras el editor está abierto — un
@@ -1873,21 +1877,36 @@ html, body {
    validado correctamente el contenedor se bloquea (ya no se puede
    reabrir ni tiene lógica). El único bloque que no existiría en la
    futura versión handheld es la cámara (.scan-camera insertada en
-   .venc-acc-panel) — todo lo demás (avatar, textos, input manual) es
-   igual sin ella. */
-.venc-acc-body { display: flex; flex-direction: column; gap: var(--sp-3); overflow-y: auto; }
+   .venc-acc-panel) — todo lo demás (avatar, textos) es igual sin ella.
+
+   La pantalla ocupa siempre el 100% de la ventana (.scan-overlay) y
+   .venc-acc-body llena exactamente lo que queda debajo del header
+   (flex:1) — dentro, el ÚNICO contenedor abierto es el que crece
+   (is-open → flex:1) para absorber todo el espacio libre; los demás
+   quedan en su alto natural (solo el header). Así, al pasar de caja a
+   producto, nada se desplaza: lo que estaba abajo (el contenedor de
+   comentario) sigue exactamente donde estaba, y el contenido del
+   contenedor abierto (la cámara) es lo que se adapta al espacio
+   disponible, nunca al revés. */
+.venc-acc-body { display: flex; flex-direction: column; gap: var(--sp-3); flex: 1; min-height: 0; }
 
 .venc-acc-item {
-  background: var(--surface);
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface-2);
   border: 1px solid var(--line-soft);
   border-radius: var(--r-lg);
   overflow: hidden;
 }
+.venc-acc-item.is-open { flex: 1 1 auto; }
 .venc-acc-item[data-state="locked"] .venc-acc-head { opacity: 0.45; pointer-events: none; }
 .venc-acc-item[data-state="done"] .venc-acc-head { pointer-events: none; }
 .venc-acc-item[data-state="done"] .venc-acc-avatar { background: var(--ok); color: #fff; }
 
 .venc-acc-head {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: var(--sp-3);
@@ -1931,26 +1950,31 @@ html, body {
 }
 .venc-acc-head-sub svg { flex-shrink: 0; }
 
-/* Se despliega EMPUJANDO el contenido de abajo (nunca superpuesto) —
-   grid-template-rows en vez de max-height: se adapta solo a cualquier
-   alto de contenido (cámara, formulario, foto), sin medir nada en JS. */
-.venc-acc-wrap {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 260ms ease;
+/* El panel abierto llena el resto del alto del contenedor (que a su
+   vez es el único que crece dentro de .venc-acc-body) — la cámara es
+   el único contenido con alto variable, así que es ella la que se
+   estira (flex:1) o se achica según lo que sobre; los controles
+   (aviso de desacuerdo, link de faltante) quedan con su alto natural
+   siempre abajo de la cámara. */
+.venc-acc-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-3) var(--sp-3);
+  overflow-y: auto;
 }
-.venc-acc-wrap.is-open { grid-template-rows: 1fr; }
-.venc-acc-inner { overflow: hidden; min-height: 0; }
-.venc-acc-panel { padding: 0 var(--sp-3) var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-3); }
-.venc-acc-panel .scan-camera { flex: none; height: 190px; border-radius: var(--r-md); }
-.venc-acc-controls { display: flex; flex-direction: column; gap: var(--sp-2); }
+.venc-acc-panel .scan-camera { flex: 1; min-height: 120px; border-radius: var(--r-md); }
+.venc-acc-controls { flex: 0 0 auto; display: flex; flex-direction: column; gap: var(--sp-2); }
 
 /* Contenedor 3: bloqueado (solo texto de ayuda, atenuado) hasta
    validar caja y producto — recién ahí se habilita para escribir, sin
    motivos predefinidos: el operario describe la situación con sus
    propias palabras si hace falta. */
 .venc-acc-comment {
-  background: var(--surface);
+  flex: 0 0 auto;
+  background: var(--surface-2);
   border: 1px solid var(--line-soft);
   border-radius: var(--r-lg);
   padding: var(--sp-3);
