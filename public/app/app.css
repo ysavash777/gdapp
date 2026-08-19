@@ -1680,11 +1680,11 @@ html, body {
 
 /* "Vida útil" — círculo PERFECTO (ancho = alto fijo, centrado en las
    dos direcciones vía flex), siempre a la izquierda del contenedor y
-   centrado en toda su altura (ver align-items:center en .venc-card y
-   .venc-val-top) — pedido explícito. El texto nunca lo desborda:
-   font-size chico y fijo, pensado para el peor caso realista
-   ("-120d"), nunca escala con el contenido para no romper el círculo. */
-.venc-card-days, .venc-val-days {
+   centrado en toda su altura (ver align-items:center en .venc-card) —
+   pedido explícito. El texto nunca lo desborda: font-size chico y
+   fijo, pensado para el peor caso realista ("-120d"), nunca escala
+   con el contenido para no romper el círculo. */
+.venc-card-days {
   flex-shrink: 0;
   width: 46px;
   height: 46px;
@@ -1702,10 +1702,9 @@ html, body {
 /* Vencido y "retirar" (vence en <=4 días) comparten el mismo rojo —
    pedido explícito: ambos exigen retirar el producto YA, no tiene
    sentido diferenciarlos por color. */
-.venc-card-days.is-vencido, .venc-val-days.is-vencido,
-.venc-card-days.is-retirar, .venc-val-days.is-retirar { background: var(--danger-bg); color: var(--danger); }
-.venc-card-days.is-proximo, .venc-val-days.is-proximo { background: rgba(251, 146, 60, 0.15); color: var(--icon-vencimientos); }
-.venc-val-days { width: 52px; height: 52px; font-size: 13px; }
+.venc-card-days.is-vencido,
+.venc-card-days.is-retirar { background: var(--danger-bg); color: var(--danger); }
+.venc-card-days.is-proximo { background: rgba(251, 146, 60, 0.15); color: var(--icon-vencimientos); }
 
 /* Jerarquía de lectura pedida explícitamente: ubicación primero (la
    línea más grande/oscura — "a dónde dirigirme"), descripción del
@@ -1869,27 +1868,111 @@ html, body {
 
 .venc-suggest-cta { flex-shrink: 0; padding: 15px 18px; }
 
-/* Ficha de validación: mismo círculo de urgencia a la izquierda,
-   ubicación + descripción a la derecha — y acá SÍ hace falta
-   confirmar la fecha exacta (ver .reg-info-grid, con Caja/Cantidad
-   como íconos en vez de esas dos palabras), a diferencia de la
-   tarjeta de la lista: este es el momento de chequear el ítem
-   puntual, no de decidir a dónde ir. */
-.venc-val-summary { padding: var(--sp-3) 0 var(--sp-2); }
-.venc-val-top { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); }
-.venc-val-top-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.venc-val-ubicacion {
+/* Ficha de validación (acordeón): 2 contenedores (caja / producto)
+   que se despliegan uno a la vez — abrir uno cierra el otro, y una vez
+   validado correctamente el contenedor se bloquea (ya no se puede
+   reabrir ni tiene lógica). El único bloque que no existiría en la
+   futura versión handheld es la cámara (.scan-camera insertada en
+   .venc-acc-panel) — todo lo demás (avatar, textos, input manual) es
+   igual sin ella. */
+.venc-acc-body { display: flex; flex-direction: column; gap: var(--sp-3); overflow-y: auto; }
+
+.venc-acc-item {
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.venc-acc-item[data-state="locked"] .venc-acc-head { opacity: 0.45; pointer-events: none; }
+.venc-acc-item[data-state="done"] .venc-acc-head { pointer-events: none; }
+.venc-acc-item[data-state="done"] .venc-acc-avatar { background: var(--ok); color: #fff; }
+
+.venc-acc-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-3);
+  background: none;
+  border: none;
+  text-align: left;
+}
+.venc-acc-avatar {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--n-100);
+  color: var(--ink-2);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.venc-acc-head-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.venc-acc-head-title {
   display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--text-lg);
+  font-size: var(--text-base);
   font-weight: 700;
   letter-spacing: -0.01em;
 }
-.venc-val-desc { font-size: var(--text-sm); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.reg-info-grid .reg-info-label svg { display: block; margin: 0 auto; }
+.venc-acc-head-sub {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.venc-acc-head-sub svg { flex-shrink: 0; }
+
+/* Se despliega EMPUJANDO el contenido de abajo (nunca superpuesto) —
+   grid-template-rows en vez de max-height: se adapta solo a cualquier
+   alto de contenido (cámara, formulario, foto), sin medir nada en JS. */
+.venc-acc-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 260ms ease;
+}
+.venc-acc-wrap.is-open { grid-template-rows: 1fr; }
+.venc-acc-inner { overflow: hidden; min-height: 0; }
+.venc-acc-panel { padding: 0 var(--sp-3) var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-3); }
+.venc-acc-panel .scan-camera { flex: none; height: 190px; border-radius: var(--r-md); }
+.venc-acc-controls { display: flex; flex-direction: column; gap: var(--sp-2); }
+
+/* Contenedor 3: bloqueado (solo texto de ayuda, atenuado) hasta
+   validar caja y producto — recién ahí se habilita para escribir, sin
+   motivos predefinidos: el operario describe la situación con sus
+   propias palabras si hace falta. */
+.venc-acc-comment {
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.venc-acc-comment-label { font-size: var(--text-sm); font-weight: 650; color: var(--ink-2); }
+.venc-acc-comment[data-state="locked"] { opacity: 0.5; }
+.venc-acc-comment-input {
+  min-height: 70px;
+  padding: 11px 14px;
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--bg);
+  color: var(--ink);
+  resize: none;
+  font: inherit;
+  outline: none;
+}
+.venc-acc-comment-input:focus { box-shadow: 0 0 0 3px var(--accent-100); }
+.venc-acc-comment-input:disabled { cursor: not-allowed; }
 
 .venc-val-mismatch {
   display: flex;
@@ -1916,41 +1999,6 @@ html, body {
   font-size: var(--text-sm);
   text-decoration: underline;
 }
-
-.venc-motivo-pills { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin: var(--sp-3) 0; }
-.venc-motivo-pill {
-  height: 46px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: none;
-  border-radius: var(--r-md);
-  background: var(--bg);
-  color: var(--ink-2);
-  font-weight: 600;
-  font-size: var(--text-sm);
-  transition: background var(--t-fast), color var(--t-fast);
-}
-.venc-motivo-pill.is-ok.is-selected { background: var(--ok); color: #fff; }
-.venc-motivo-pill.is-otro.is-selected { background: var(--icon-mapear-light); color: #fff; }
-
-/* Stepper de 2 pasos (validation-view.js) — junto con el toast al
-   avanzar, hace imposible no notar el cambio de "qué hay que
-   escanear ahora" (antes solo cambiaba el título de arriba, muy
-   discreto). */
-.venc-stepper { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) 0; }
-.venc-step {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--text-xs);
-  font-weight: 650;
-  color: var(--ink-3);
-}
-.venc-step.is-active { color: var(--icon-vencimientos); }
-.venc-step.is-done { color: var(--ok); }
-.venc-step-sep { flex: 1; height: 1px; background: var(--line); }
 
 .venc-photo-hint { font-size: var(--text-sm); color: var(--ink-2); margin-bottom: var(--sp-3); }
 .venc-photo-preview img { width: 100%; border-radius: var(--r-md); margin-bottom: var(--sp-3); display: block; }
