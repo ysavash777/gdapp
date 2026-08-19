@@ -10,8 +10,10 @@
         reportar "faltante" sin escanear (si el producto de verdad no
         está, insistir en escanearlo no tiene sentido), pero exige una
         foto de la posición vacía como evidencia.
-     3) Comentario — se libera recién con 1 y 2 validados. Sin motivos
-        predefinidos: texto libre, vacío = "OK".
+     3) Observación — se libera recién con 1 y 2 validados. Sin
+        motivos predefinidos: texto libre, vacío = "OK". No se valida
+        contra nada (es opcional), así que su ícono queda "pendiente"
+        para siempre, nunca pasa a "éxito".
 
    Abrir un contenedor cierra automáticamente cualquier otro que
    estuviera abierto — pero sin desplazar nada de lugar: el que se abre
@@ -104,10 +106,20 @@ export function openValidation(item, { onDone }) {
         </div>
       </div>
 
-      <div class="venc-acc-comment" data-state="locked" id="commentBox">
-        <label class="venc-acc-comment-label" for="vencComentario">Comentario</label>
-        <textarea class="venc-acc-comment-input" id="vencComentario" rows="3" maxlength="200" placeholder="Validá caja y producto para poder escribir" disabled></textarea>
-        <button type="button" class="btn btn-primary btn-block" id="vencConfirm" disabled>Confirmar</button>
+      <div class="venc-acc-item" data-state="locked" id="itemComment">
+        <div class="venc-acc-head">
+          <span class="venc-acc-avatar" id="avatarComment">${icon('clock', 18)}</span>
+          <span class="venc-acc-head-text">
+            <strong class="venc-acc-head-title">Observación</strong>
+            <span class="venc-acc-head-sub">Opcional</span>
+          </span>
+        </div>
+        <div class="venc-acc-panel" id="panelComment" hidden>
+          <div class="venc-acc-controls">
+            <textarea class="venc-acc-comment-input" id="vencComentario" rows="3" maxlength="200" placeholder="Agregar una observación (opcional)" disabled></textarea>
+            <button type="button" class="btn btn-primary btn-block" id="vencConfirm" disabled>Confirmar</button>
+          </div>
+        </div>
       </div>
     </div>
     <div class="scan-sheet cq-sheet venc-photo-view" id="vencPhotoView" hidden>
@@ -148,7 +160,8 @@ export function openValidation(item, { onDone }) {
   const panelProd = overlay.querySelector('#panelProd');
   const controlsProd = overlay.querySelector('#controlsProd');
 
-  const commentBox = overlay.querySelector('#commentBox');
+  const itemComment = overlay.querySelector('#itemComment');
+  const panelComment = overlay.querySelector('#panelComment');
   const comentarioInput = overlay.querySelector('#vencComentario');
   const confirmBtn = overlay.querySelector('#vencConfirm');
 
@@ -335,10 +348,15 @@ export function openValidation(item, { onDone }) {
     openAccordion('prod');
   });
 
+  // El ícono de Observación queda "pendiente" (reloj) siempre — a
+  // diferencia de Caja/Producto, este contenedor no se valida contra
+  // nada, así que nunca pasa a "éxito". Mientras el texto no está
+  // disponible para escribir, el contenedor tiene el mismo alto/forma
+  // que Caja/Producto cerrados (solo el header, panel oculto).
   function unlockComment() {
-    commentBox.dataset.state = 'unlocked';
+    itemComment.dataset.state = 'unlocked';
+    panelComment.hidden = false;
     comentarioInput.disabled = false;
-    comentarioInput.placeholder = 'Agregar un comentario (opcional)';
     confirmBtn.disabled = false;
     scanner.setPaused(true);
     scanner.pauseView();

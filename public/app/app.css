@@ -1939,12 +1939,14 @@ html, body {
   font-size: var(--text-base);
   font-weight: 700;
   letter-spacing: -0.01em;
+  line-height: 1.3;
 }
 .venc-acc-head-sub {
   display: flex;
   align-items: center;
   gap: 5px;
   font-size: var(--text-sm);
+  line-height: 1.3;
   color: var(--ink-3);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1975,22 +1977,13 @@ html, body {
 .venc-acc-panel .scan-camera { flex: 1; min-height: 120px; border-radius: var(--r-md); }
 .venc-acc-controls { flex: 0 0 auto; display: flex; flex-direction: column; gap: var(--sp-2); }
 
-/* Contenedor 3: bloqueado (solo texto de ayuda, atenuado) hasta
-   validar caja y producto — recién ahí se habilita para escribir, sin
-   motivos predefinidos: el operario describe la situación con sus
-   propias palabras si hace falta. */
-.venc-acc-comment {
-  flex: 0 0 auto;
-  background: var(--surface-2);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-lg);
-  padding: var(--sp-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-}
-.venc-acc-comment-label { font-size: var(--text-sm); font-weight: 650; color: var(--ink-2); }
-.venc-acc-comment[data-state="locked"] { opacity: 0.5; }
+/* Contenedor 3 (Observación): mismo .venc-acc-item que Caja/Producto
+   — bloqueado (solo el header, atenuado, panel oculto) hasta validar
+   caja y producto, mismo alto/forma que esos dos cerrados. Nunca pasa
+   a data-state="done" (su avatar no se valida contra nada, ver
+   [data-state="done"] más arriba), así que el ícono de reloj queda
+   siempre. Sin motivos predefinidos: el operario describe la
+   situación con sus propias palabras si hace falta. */
 .venc-acc-comment-input {
   min-height: 70px;
   padding: 11px 14px;
