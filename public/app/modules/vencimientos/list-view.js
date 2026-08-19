@@ -377,8 +377,8 @@ export async function renderList(outlet) {
           <hr class="venc-suggest-divider" />
           <p class="venc-suggest-desc">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
           <div class="venc-card-sub venc-suggest-sub">${subChipsHTML(item)}</div>
+          ${urgencyBannerHTML(item)}
         </div>
-        ${urgencyBannerHTML(item)}
         <button type="button" class="btn btn-primary btn-block venc-suggest-cta" id="vencSuggestValidate">Validar esta posición</button>
       </div>
     `;

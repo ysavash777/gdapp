@@ -54,6 +54,7 @@ export function openValidation(item, { onDone }) {
     <div class="scan-camera cq-camera" id="scanCamera" title="Tocar para apagar/prender la cámara">
       <video id="scanVideo" autoplay playsinline muted></video>
       <div class="scan-line"></div>
+      <div class="scan-flash" id="scanFlash">${icon('check', 40)}</div>
       <p class="scan-hint" id="scanHint" hidden></p>
       <div class="scan-camera-gradient"></div>
     </div>
@@ -75,6 +76,25 @@ export function openValidation(item, { onDone }) {
   const torchBtn = overlay.querySelector('#scanTorch');
   const titleEl = overlay.querySelector('#vencStepTitle');
   const sheetEl = overlay.querySelector('#vencSheet');
+  const flashEl = overlay.querySelector('#scanFlash');
+
+  // Marco de color de la cámara SEGÚN el paso — a diferencia del toast
+  // (que se lee una vez y desaparece) esto queda a la vista todo el
+  // rato que se está apuntando, así alcanza una mirada rápida para
+  // saber si sigue esperando la caja o ya el producto, sin tener que
+  // leer nada. El destello (playFlash) es el complemento momentáneo,
+  // en el instante exacto de cada acierto — ninguno de los dos pausa
+  // la cámara ni interrumpe el escaneo, que sigue corriendo debajo.
+  function setStepColor(s) {
+    cameraBox.classList.toggle('is-step-caja', s === 'caja');
+    cameraBox.classList.toggle('is-step-barcode', s === 'barcode');
+  }
+
+  function playFlash() {
+    flashEl.classList.remove('is-playing');
+    void flashEl.offsetWidth; // fuerza reflow para poder re-disparar la animación seguida
+    flashEl.classList.add('is-playing');
+  }
 
   let step = 'caja'; // 'caja' -> 'barcode' -> 'motivo' | 'foto'
   let mismatch = null; // { expected, scanned } — solo mientras se muestra el aviso
@@ -154,6 +174,7 @@ export function openValidation(item, { onDone }) {
 
   function renderScanStep() {
     titleEl.textContent = stepTitle(step);
+    setStepColor(step);
     const isBarcode = step === 'barcode';
     sheetEl.innerHTML = `
       ${stepperHTML(step)}
@@ -318,6 +339,7 @@ export function openValidation(item, { onDone }) {
     if (!expected || norm(raw) === norm(expected)) {
       mismatch = null;
       if (navigator.vibrate) navigator.vibrate(35);
+      playFlash();
       if (step === 'caja') {
         step = 'barcode';
         renderScanStep();

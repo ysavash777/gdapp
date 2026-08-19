@@ -840,6 +840,38 @@ html, body {
   0%, 100% { top: 15%; }
   50% { top: 82%; }
 }
+
+/* Marco + línea de color según el paso de Vencimientos (caja vs
+   producto) — puesto por validation-view.js (setStepColor). A
+   diferencia del toast/título, que se leen una sola vez y ya, esto
+   queda a la vista todo el tiempo que se está apuntando la cámara:
+   una mirada alcanza para saber qué está esperando, sin interrumpir
+   el escaneo (el video sigue en vivo, nada se pausa por esto). */
+.scan-camera.is-step-caja { box-shadow: inset 0 0 0 3px rgba(59, 130, 246, 0.55); }
+.scan-camera.is-step-caja .scan-line { background: var(--accent-500); }
+.scan-camera.is-step-barcode { box-shadow: inset 0 0 0 3px rgba(251, 146, 60, 0.55); }
+.scan-camera.is-step-barcode .scan-line { background: var(--icon-vencimientos); }
+
+/* Destello momentáneo (playFlash) en el instante exacto de cada
+   acierto — el complemento puntual del marco de color de arriba.
+   pointer-events:none: nunca debe tapar el tap para apagar/prender la
+   cámara ni ningún otro gesto. */
+.scan-flash {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+.scan-flash.is-playing { animation: scan-flash-pop 650ms cubic-bezier(.16, .8, .24, 1); }
+@keyframes scan-flash-pop {
+  0% { opacity: 0; transform: scale(0.6); background: rgba(74, 222, 128, 0.4); }
+  35% { opacity: 1; transform: scale(1.08); background: rgba(74, 222, 128, 0.4); }
+  100% { opacity: 0; transform: scale(1); background: rgba(74, 222, 128, 0); }
+}
 /* El texto solo aparece si algo falla de verdad (sin cámara, sin
    soporte) — nunca para la instrucción de apuntar. */
 .scan-hint {
@@ -1808,11 +1840,19 @@ html, body {
 .venc-suggest-desc { font-size: var(--text-sm); font-weight: 600; color: var(--ink); }
 .venc-suggest-sub { justify-content: center; margin-top: var(--sp-2); }
 
+/* Ahora vive DENTRO de .venc-suggest-card (debajo de caja/cantidad/
+   vencimiento) en vez de como bloque suelto abajo de toda la tarjeta
+   — pedido explícito: la alerta de qué hacer va junto a la
+   información del SKU que la explica, no separada de ella. width:100%
+   porque .venc-suggest-card centra el contenido de sus hijos
+   (align-items:center), que si no dejaría esta franja angosta. */
 .venc-suggest-urgency {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  width: 100%;
+  margin-top: var(--sp-4);
   padding: 12px;
   border-radius: var(--r-md);
   font-size: var(--text-sm);
