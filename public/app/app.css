@@ -1904,6 +1904,13 @@ html, body {
   flex: 0 0 100%;
   min-width: 0;
   scroll-snap-align: center;
+  /* Sin esto, un swipe fuerte usa el impulso/inercia del scroll para
+     "saltar" varias tarjetas de un tirón — scroll-snap-type por sí
+     solo solo ajusta al punto más cercano cuando el scroll YA se
+     frenó, no limita cuánto avanza en el camino. scroll-snap-stop
+     obliga al navegador a parar en CADA tarjeta sin importar la
+     fuerza del gesto: como mucho, una por swipe. */
+  scroll-snap-stop: always;
   display: flex;
   align-items: center;
   gap: var(--sp-3);
