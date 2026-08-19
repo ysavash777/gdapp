@@ -2048,6 +2048,14 @@ html, body {
 .venc-acc-panel .scan-camera { flex: 1; min-height: 120px; border-radius: var(--r-md); }
 .venc-acc-controls { flex: 0 0 auto; display: flex; flex-direction: column; gap: var(--sp-2); }
 
+/* Repaso final (Observación, ya con Caja y Producto validados): el
+   detalle del producto + fecha/pedprov + la misma sugerencia de
+   acción (retirar / vence en X días) que el modo Sugerido — última
+   oportunidad de revisarlo antes de escribir algo al respecto. */
+.venc-review-box { flex: 0 0 auto; display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-1); }
+.venc-review-desc { font-size: var(--text-sm); color: var(--ink-2); }
+.venc-review-grid { grid-template-columns: repeat(2, 1fr); }
+
 /* Contenedor 3 (Observación): mismo .venc-acc-item que Caja/Producto
    — bloqueado (solo el header, atenuado, panel oculto) hasta validar
    caja y producto, mismo alto/forma que esos dos cerrados. Nunca pasa

@@ -77,6 +77,18 @@ function daysLabel(days) {
   return days === 0 ? 'Hoy' : `${days}d`;
 }
 
+// Mismo criterio que urgencyBannerHTML() en list-view.js (modo
+// Sugerido) — acá se repite el mismo aviso, ya al final del flujo,
+// para reforzar la acción a tomar justo antes de escribir la
+// observación (que es donde tiene más sentido registrarla si hace
+// falta retirar el producto).
+function urgencyBannerHTML(it) {
+  if (it.isRetirar) {
+    return `<div class="venc-suggest-urgency is-${it.severity}">${icon('alertTriangle', 16)} Retirar de ubicación</div>`;
+  }
+  return `<div class="venc-suggest-urgency is-${it.severity}">${icon('calendarAlert', 16)} Vence en ${it.days} día${it.days === 1 ? '' : 's'}</div>`;
+}
+
 export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   let item = initialItem;
 
@@ -123,6 +135,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
           </span>
         </div>
         <div class="venc-acc-panel" id="panelComment" hidden>
+          <div class="venc-review-box" id="vencReviewBox"></div>
           <div class="venc-acc-controls">
             <textarea class="venc-acc-comment-input" id="vencComentario" rows="3" maxlength="200" placeholder="Agregar una observación (opcional)" disabled></textarea>
             <button type="button" class="btn btn-primary btn-block" id="vencConfirm" disabled>Confirmar</button>
@@ -177,6 +190,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
 
   const itemComment = overlay.querySelector('#itemComment');
   const panelComment = overlay.querySelector('#panelComment');
+  const reviewBox = overlay.querySelector('#vencReviewBox');
   const comentarioInput = overlay.querySelector('#vencComentario');
   const confirmBtn = overlay.querySelector('#vencConfirm');
 
@@ -377,6 +391,23 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   function unlockComment() {
     itemComment.dataset.state = 'unlocked';
     panelComment.hidden = false;
+    // Detalle del producto + sugerencia de acción justo antes de
+    // escribir la observación — es donde más sentido tiene revisarlo
+    // una última vez y, si hace falta, anotar algo al respecto.
+    reviewBox.innerHTML = `
+      <p class="venc-review-desc">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
+      <div class="reg-info-grid venc-review-grid">
+        <div class="reg-info-cell">
+          <span class="reg-info-label">Fecha</span>
+          <span class="reg-info-value">${escapeHtml(item.fv || '-')}</span>
+        </div>
+        <div class="reg-info-cell">
+          <span class="reg-info-label">Pedprov</span>
+          <span class="reg-info-value">${escapeHtml(item.pedprov || '-')}</span>
+        </div>
+      </div>
+      ${urgencyBannerHTML(item)}
+    `;
     comentarioInput.disabled = false;
     confirmBtn.disabled = false;
     scanner.setPaused(true);
@@ -507,6 +538,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
 
     itemComment.dataset.state = 'locked';
     panelComment.hidden = true;
+    reviewBox.innerHTML = '';
     comentarioInput.value = '';
     comentarioInput.disabled = true;
     confirmBtn.disabled = true;
