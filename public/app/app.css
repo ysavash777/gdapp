@@ -1923,7 +1923,9 @@ html, body {
   display: grid;
   place-items: center;
   border-radius: var(--r-full);
-  background: var(--n-100);
+  /* --n-100 es igual a --surface-2 (el fondo del contenedor): con eso
+     el círculo quedaba invisible. --n-200 sí es un escalón más claro. */
+  background: var(--n-200);
   color: var(--ink-2);
   transition: background var(--t-fast), color var(--t-fast);
 }
@@ -2058,9 +2060,47 @@ html, body {
 .venc-val-skip svg { flex-shrink: 0; }
 .venc-val-skip:active { background: var(--n-100); }
 
-.venc-photo-hint { font-size: var(--text-sm); color: var(--ink-2); margin-bottom: var(--sp-3); }
-.venc-photo-preview img { width: 100%; border-radius: var(--r-md); margin-bottom: var(--sp-3); display: block; }
-.venc-photo-actions { display: flex; gap: var(--sp-2); }
+/* Vista dedicada de "reportar faltante" — reemplaza por completo al
+   acordeón (.venc-acc-body) mientras está activa, en vez de vivir
+   apretada adentro del contenedor de Producto: la cámara necesita
+   todo el espacio para encuadrar y sacar la foto, y meterla dentro
+   del acordeón (con su header/avatar/otros contenedores alrededor)
+   era lo que "deformaba todo". Mismo tratamiento (scan-sheet) que el
+   acordeón para que el fondo/padding no salte al alternar entre las
+   dos. */
+.venc-photo-view { display: flex; flex-direction: column; gap: var(--sp-3); flex: 1; min-height: 0; }
+.venc-photo-view[hidden] { display: none; }
+
+.venc-photo-frame {
+  position: relative;
+  flex: 1;
+  min-height: 160px;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: #000;
+}
+/* Mientras esta vista está activa, la cámara compartida (.scan-camera)
+   se monta acá adentro sin su línea de escaneo — sacar una foto no es
+   "escanear", mostrarla confundía el paso. */
+.venc-photo-frame .scan-camera.is-photo-mode .scan-line { display: none; }
+.venc-photo-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+/* Al confirmar la toma, la foto tapa la cámara en vez de sumarse abajo
+   (eso era lo que "deformaba" el contenedor) — mismo tamaño exacto,
+   adaptada con object-fit:cover. */
+.venc-photo-frame.is-previewing .scan-camera { visibility: hidden; }
+.venc-photo-frame.is-previewing .venc-photo-img { display: block; }
+
+.venc-photo-hint { flex-shrink: 0; font-size: var(--text-sm); color: var(--ink-2); }
+.venc-photo-capture-row { flex-shrink: 0; display: flex; gap: var(--sp-2); }
+.venc-photo-capture-row .btn-block { flex: 1; }
+.venc-photo-actions { flex-shrink: 0; display: flex; gap: var(--sp-2); }
 .venc-photo-actions .btn { flex: 1; }
 
 /* ============================================================

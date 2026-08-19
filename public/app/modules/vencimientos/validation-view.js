@@ -110,6 +110,20 @@ export function openValidation(item, { onDone }) {
         <button type="button" class="btn btn-primary btn-block" id="vencConfirm" disabled>Confirmar</button>
       </div>
     </div>
+    <div class="scan-sheet cq-sheet venc-photo-view" id="vencPhotoView" hidden>
+      <div class="venc-photo-frame" id="vencPhotoFrame">
+        <img class="venc-photo-img" id="vencPhotoImg" alt="Foto de la posición" />
+      </div>
+      <p class="venc-photo-hint">Encuadrá la posición vacía y tomá la foto — es obligatoria para reportar un faltante.</p>
+      <div class="venc-photo-capture-row" id="vencPhotoCaptureRow">
+        <button type="button" class="venc-val-skip" id="vencPhotoCancel">${icon('chevronLeft', 15)} Cancelar</button>
+        <button type="button" class="btn btn-primary btn-block" id="vencPhotoCapture">${icon('camera', 18)} Tomar foto</button>
+      </div>
+      <div class="venc-photo-actions" id="vencPhotoConfirmActions" hidden>
+        <button type="button" class="btn btn-ghost" id="vencPhotoRetake">Repetir foto</button>
+        <button type="button" class="btn btn-danger" id="vencPhotoConfirm">Confirmar faltante</button>
+      </div>
+    </div>
   `;
   document.body.appendChild(overlay);
 
@@ -137,6 +151,13 @@ export function openValidation(item, { onDone }) {
   const commentBox = overlay.querySelector('#commentBox');
   const comentarioInput = overlay.querySelector('#vencComentario');
   const confirmBtn = overlay.querySelector('#vencConfirm');
+
+  const vencAccBody = overlay.querySelector('#vencAccBody');
+  const photoView = overlay.querySelector('#vencPhotoView');
+  const photoFrame = overlay.querySelector('#vencPhotoFrame');
+  const photoImgEl = overlay.querySelector('#vencPhotoImg');
+  const photoCaptureRow = overlay.querySelector('#vencPhotoCaptureRow');
+  const photoConfirmActions = overlay.querySelector('#vencPhotoConfirmActions');
 
   // Cámara única (video + línea + destello) reutilizada entre los
   // contenedores 1 y 2 — se mueve de uno a otro con .prepend, sin
@@ -181,7 +202,7 @@ export function openValidation(item, { onDone }) {
   }
 
   let openKey = null; // 'caja' | 'prod' | null
-  let prodMode = 'scan'; // 'scan' | 'foto'
+  let fotoViewOpen = false;
   const stateOf = { caja: 'pending', prod: 'locked' };
   let submitting = false;
   let photoDataUrl = null;
@@ -211,82 +232,79 @@ export function openValidation(item, { onDone }) {
     controlsProd.innerHTML = `
       <button type="button" class="venc-val-skip" id="skipProd">${icon('ban', 15)} No lo encuentro — reportar faltante</button>
     `;
-    controlsProd.querySelector('#skipProd').addEventListener('click', () => {
-      prodMode = 'foto';
-      scanner.setPaused(true); // sin pauseView(): el video sigue en vivo para encuadrar la foto
-      renderProdFotoControls();
-    });
+    controlsProd.querySelector('#skipProd').addEventListener('click', enterFotoMode);
   }
 
-  // Reportar faltante exige una foto de la posición vacía — un
-  // snapshot del video YA activo (misma cámara del escaneo, nunca pide
-  // permiso de nuevo). Confirmar acá termina la validación entera,
-  // sin pasar por el contenedor de comentario.
-  function renderProdFotoControls() {
+  // Reportar faltante exige una foto de la posición vacía — reemplaza
+  // por completo al acordeón mientras dura (ver .venc-photo-view en
+  // app.css): meterla adentro del contenedor de Producto lo deformaba,
+  // porque tiene que competir por espacio con el resto de la pantalla.
+  // Usa la misma cámara YA activa (nunca pide permiso de nuevo), sin
+  // la línea de escaneo (sacar una foto no es "escanear"). Confirmar
+  // acá termina la validación entera, sin pasar por el contenedor de
+  // comentario — el motivo queda registrado como "Faltante" directo.
+  function enterFotoMode() {
+    fotoViewOpen = true;
     photoDataUrl = null;
-    controlsProd.innerHTML = `
-      <p class="venc-photo-hint">Encuadrá la posición vacía y tomá la foto — es obligatoria para reportar un faltante.</p>
-      <div class="venc-photo-preview" id="photoPreview" hidden><img id="photoImg" alt="Foto de la posición" /></div>
-      <button type="button" class="btn btn-primary btn-block" id="photoCapture">${icon('camera', 18)} Tomar foto</button>
-      <div class="venc-photo-actions" id="photoActions" hidden>
-        <button type="button" class="btn btn-ghost" id="photoRetake">Repetir foto</button>
-        <button type="button" class="btn btn-danger" id="photoConfirm">Confirmar faltante</button>
-      </div>
-      <button type="button" class="venc-val-skip" id="backToScan">${icon('scan', 15)} Volver a escanear</button>
-    `;
-    const captureBtn = controlsProd.querySelector('#photoCapture');
-    const actionsEl = controlsProd.querySelector('#photoActions');
-    const previewEl = controlsProd.querySelector('#photoPreview');
-    const imgEl = controlsProd.querySelector('#photoImg');
+    scanner.setPaused(true); // sin pauseView(): el video sigue en vivo para encuadrar la foto
+    cameraMount.classList.add('is-photo-mode');
+    photoFrame.classList.remove('is-previewing');
+    photoImgEl.removeAttribute('src');
+    photoFrame.prepend(cameraMount);
+    photoCaptureRow.hidden = false;
+    photoConfirmActions.hidden = true;
+    vencAccBody.hidden = true;
+    photoView.hidden = false;
+  }
 
-    captureBtn.addEventListener('click', () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoEl.videoWidth || 640;
-      canvas.height = videoEl.videoHeight || 480;
-      canvas.getContext('2d').drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-      photoDataUrl = canvas.toDataURL('image/jpeg', 0.6);
-      imgEl.src = photoDataUrl;
-      previewEl.hidden = false;
-      captureBtn.hidden = true;
-      actionsEl.hidden = false;
+  function exitFotoMode() {
+    fotoViewOpen = false;
+    photoDataUrl = null;
+    cameraMount.classList.remove('is-photo-mode');
+    photoView.hidden = true;
+    vencAccBody.hidden = false;
+    moveCameraTo(panelProd);
+    scanner.setPaused(false);
+  }
+
+  overlay.querySelector('#vencPhotoCancel').addEventListener('click', exitFotoMode);
+
+  overlay.querySelector('#vencPhotoCapture').addEventListener('click', () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = videoEl.videoWidth || 640;
+    canvas.height = videoEl.videoHeight || 480;
+    canvas.getContext('2d').drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+    photoDataUrl = canvas.toDataURL('image/jpeg', 0.6);
+    photoImgEl.src = photoDataUrl;
+    photoFrame.classList.add('is-previewing');
+    photoCaptureRow.hidden = true;
+    photoConfirmActions.hidden = false;
+    if (navigator.vibrate) navigator.vibrate(35);
+  });
+
+  overlay.querySelector('#vencPhotoRetake').addEventListener('click', () => {
+    photoDataUrl = null;
+    photoFrame.classList.remove('is-previewing');
+    photoCaptureRow.hidden = false;
+    photoConfirmActions.hidden = true;
+  });
+
+  const photoConfirmBtn = overlay.querySelector('#vencPhotoConfirm');
+  photoConfirmBtn.addEventListener('click', async () => {
+    if (submitting || !photoDataUrl) return;
+    submitting = true;
+    photoConfirmBtn.disabled = true;
+    try {
+      await store.validate(item, 'faltante', 'Faltante', photoDataUrl);
       if (navigator.vibrate) navigator.vibrate(35);
-    });
-
-    controlsProd.querySelector('#photoRetake').addEventListener('click', () => {
-      photoDataUrl = null;
-      previewEl.hidden = true;
-      actionsEl.hidden = true;
-      captureBtn.hidden = false;
-    });
-
-    controlsProd.querySelector('#backToScan').addEventListener('click', () => {
-      prodMode = 'scan';
-      scanner.setPaused(false);
-      renderProdScanControls();
-    });
-
-    const photoConfirmBtn = controlsProd.querySelector('#photoConfirm');
-    photoConfirmBtn.addEventListener('click', async () => {
-      if (submitting || !photoDataUrl) return;
-      submitting = true;
-      photoConfirmBtn.disabled = true;
-      try {
-        await store.validate(item, 'faltante', '', photoDataUrl);
-        if (navigator.vibrate) navigator.vibrate(35);
-        close();
-        onDone();
-      } catch {
-        showToast('No se pudo guardar. Probá de nuevo.', { variant: 'warn' });
-        submitting = false;
-        photoConfirmBtn.disabled = false;
-      }
-    });
-  }
-
-  function renderProdControls() {
-    if (prodMode === 'foto') renderProdFotoControls();
-    else renderProdScanControls();
-  }
+      close();
+      onDone();
+    } catch {
+      showToast('No se pudo guardar. Probá de nuevo.', { variant: 'warn' });
+      submitting = false;
+      photoConfirmBtn.disabled = false;
+    }
+  });
 
   function openAccordion(key) {
     if (openKey && openKey !== key) setOpen(openKey, false);
@@ -298,10 +316,7 @@ export function openValidation(item, { onDone }) {
     scanner.setPaused(false);
     scanner.resumeView();
     if (key === 'caja') renderCajaControls();
-    else {
-      prodMode = 'scan';
-      renderProdControls();
-    }
+    else renderProdScanControls();
   }
 
   function closeAccordion(key) {
@@ -356,8 +371,9 @@ export function openValidation(item, { onDone }) {
   }
 
   function handleCode(raw) {
+    if (fotoViewOpen) return;
     if (openKey === 'caja') checkMatch('caja', raw, item.caja);
-    else if (openKey === 'prod' && prodMode === 'scan') checkMatch('prod', raw, item.referencia);
+    else if (openKey === 'prod') checkMatch('prod', raw, item.referencia);
   }
 
   const scanner = createCameraScanner({
