@@ -1874,36 +1874,13 @@ html, body {
 
 /* Ficha de validación: sin header propio — .venc-acc-body llena todo
    el alto de la pantalla (con su propio padding-top para la zona
-   segura del notch, ya que el slider de ubicaciones es ahora el
-   primer contenedor visible). El único contenedor/caja abierto es el
-   que crece (is-open / .venc-scan-box → flex:1) para absorber el
-   espacio libre; los demás quedan en su alto natural — así, al pasar
-   de un paso a otro, nada se desplaza: la cámara es lo único que se
-   adapta al espacio disponible, nunca al revés. */
+   segura del notch, ya que la ubicación es ahora el primer contenedor
+   visible). El único contenedor/caja abierto es el que crece
+   (is-open / .venc-scan-box → flex:1) para absorber el espacio libre;
+   los demás quedan en su alto natural — así, al pasar de un paso a
+   otro, nada se desplaza: la cámara es lo único que se adapta al
+   espacio disponible, nunca al revés. */
 .venc-acc-body { display: flex; flex-direction: column; gap: var(--sp-3); flex: 1; min-height: 0; padding-top: calc(env(safe-area-inset-top) + var(--sp-4)); }
-
-/* Slider de ubicaciones: una tarjeta por posición pendiente. Nada de
-   scroll nativo — ni scroll-snap-type ni scroll-snap-stop garantizan
-   "como mucho 1 tarjeta por swipe" de forma confiable en todos los
-   navegadores (el impulso de un swipe fuerte puede seguir corriendo
-   varias tarjetas antes de asentarse). El gesto se controla a mano en
-   JS: .venc-loc-track se mueve con transform y al soltar el dedo solo
-   se decide una DIRECCIÓN, nunca una distancia — currentIndex nunca
-   cambia en más de 1, sea cual sea la fuerza del swipe. Separado a
-   propósito del escaneo de Caja (.venc-scan-box más abajo, su propio
-   contenedor gris/redondeado): el slider solo identifica DÓNDE estás
-   parado, no es un paso que se abra/cierre. */
-.venc-loc-slider { overflow: hidden; touch-action: pan-y; }
-.venc-loc-track { display: flex; flex-direction: row; width: 100%; }
-.venc-loc-slide {
-  flex: 0 0 100%;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-3);
-}
-.venc-loc-slide[data-state="done"] .venc-acc-avatar { background: var(--ok); color: #fff; }
 
 /* Caja de escaneo separada de la ubicación (antes vivían fusionadas
    en un solo contenedor) — su propio fondo gris redondeado, igual que
@@ -1922,12 +1899,33 @@ html, body {
   overflow: hidden;
 }
 .venc-scan-box[hidden] { display: none; }
-.venc-scan-box .scan-camera { flex: 1; min-height: 120px; border-radius: var(--r-md); }
 
-/* Linterna e ingreso manual flotan sobre la propia cámara (sin header
-   donde vivir), mismo tratamiento que el destello/insignia:
-   position:absolute, nunca ocupan lugar en el flujo — esquinas
-   opuestas, mismo estilo de botón circular translúcido. */
+/* La cámara vive dentro de un "stage" compartido (torch + teclado +
+   input manual + la cámara en sí) que se mueve entero entre Caja,
+   Producto y la foto de faltante — así el botón de teclado y la
+   linterna quedan siempre en su lugar sin importar qué contenedor
+   esté mostrando la cámara en ese momento. */
+.venc-scan-box .scan-camera-stage,
+.venc-acc-panel .scan-camera-stage { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.venc-scan-box .scan-camera,
+.venc-acc-panel .scan-camera { flex: 1; min-height: 120px; border-radius: var(--r-md); }
+
+/* Modo manual: oculta la cámara por completo (no solo un input
+   flotando encima) y el contenedor entero se achica a la altura justa
+   del input — nada de quedarse con el alto grande que usaba la
+   cámara. .is-manual-active va en el contenedor que esté activo en
+   ese momento (Caja o Producto, nunca los dos a la vez). */
+.venc-scan-box.is-manual-active,
+.venc-acc-panel.is-manual-active { flex: 0 0 auto; }
+.scan-camera-stage.is-manual { flex: 0 0 auto; min-height: 0; }
+.scan-camera-stage.is-manual .scan-camera { display: none; }
+
+/* Linterna y teclado flotan sobre la cámara (sin header donde vivir),
+   mismo tratamiento que el destello/insignia: position:absolute,
+   nunca ocupan lugar en el flujo — esquinas opuestas, mismo estilo de
+   botón circular translúcido. Viven en el stage (no en la cámara
+   misma) para seguir visibles/tocables aunque la cámara esté oculta
+   en modo manual. */
 .venc-camera-torch, .venc-camera-keyboard {
   position: absolute;
   top: var(--sp-3);
@@ -1938,40 +1936,39 @@ html, body {
 .venc-camera-torch { right: var(--sp-3); }
 .venc-camera-keyboard { left: var(--sp-3); }
 .venc-camera-torch.is-active, .venc-camera-keyboard.is-active { color: var(--icon-mapear); background: rgba(0, 0, 0, 0.6); }
-/* Sacar una foto no es "escanear" — ninguno de los dos aplica ahí
-   (mismo criterio que .scan-line, ya oculta en is-photo-mode). */
-.scan-camera.is-photo-mode .venc-camera-torch,
-.scan-camera.is-photo-mode .venc-camera-keyboard,
-.scan-camera.is-photo-mode .venc-camera-manual { display: none; }
+/* Sacar una foto no es "escanear" — ninguno aplica ahí (mismo
+   criterio que .scan-line, ya oculta en is-photo-mode). */
+.scan-camera-stage.is-photo-mode .scan-line,
+.scan-camera-stage.is-photo-mode .venc-camera-torch,
+.scan-camera-stage.is-photo-mode .venc-camera-keyboard,
+.scan-camera-stage.is-photo-mode .venc-camera-manual { display: none; }
 
+/* Ya no flota encima de la cámara (esa cámara ahora está oculta) —
+   ocupa el ancho entero del stage, con solo el alto que necesita un
+   input, nunca más. */
 .venc-camera-manual {
-  position: absolute;
-  left: var(--sp-3);
-  right: var(--sp-3);
-  bottom: var(--sp-3);
-  display: flex;
+  display: none;
   align-items: center;
   gap: 6px;
-  padding: 6px 6px 6px 14px;
+  padding: 8px 8px 8px 16px;
   border-radius: var(--r-full);
-  background: rgba(24, 24, 27, 0.82);
-  backdrop-filter: blur(6px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--bg);
+  border: 1px solid var(--line);
 }
-.venc-camera-manual[hidden] { display: none; }
+.scan-camera-stage.is-manual .venc-camera-manual { display: flex; }
 .venc-camera-manual input {
   flex: 1;
   min-width: 0;
   background: none;
   border: none;
-  color: #fff;
+  color: var(--ink);
   font-size: var(--text-sm);
   outline: none;
 }
 .venc-camera-manual button {
   flex-shrink: 0;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   border-radius: var(--r-full);
   background: var(--accent-500);
   color: #fff;
@@ -1994,6 +1991,34 @@ html, body {
 .venc-acc-item[data-state="locked"] .venc-acc-head { opacity: 0.45; pointer-events: none; }
 .venc-acc-item[data-state="done"] .venc-acc-head { pointer-events: none; }
 .venc-acc-item[data-state="done"] .venc-acc-avatar { background: var(--ok); color: #fff; }
+
+/* Nav de ubicación: contenido centrado con una flecha a cada lado en
+   vez del slider deslizable de antes — mismo contenedor/tamaño
+   redondeado (.venc-acc-item), solo en fila. Flechas grandes (52x65,
+   todo el alto del contenedor) para que sean cómodas de tocar. */
+.venc-loc-nav { flex-direction: row; align-items: center; }
+.venc-loc-arrow {
+  flex-shrink: 0;
+  width: 52px;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+  background: none;
+  border: none;
+}
+.venc-loc-arrow:active { color: var(--ink); }
+.venc-loc-arrow:disabled { opacity: 0.25; }
+.venc-loc-current {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+}
+.venc-loc-current .venc-acc-head-text { flex: 0 1 auto; min-width: 0; text-align: center; }
 
 .venc-acc-head {
   flex-shrink: 0;

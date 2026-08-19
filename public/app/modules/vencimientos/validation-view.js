@@ -1,16 +1,16 @@
 /* ============================================================
    Módulo App · Vencimientos — validación de un ítem.
 
-   Sin header propio. Arriba, un slider horizontal de ubicaciones
-   (.venc-loc-slider, misma forma/tamaño redondeado que los demás
-   contenedores) — una tarjeta por posición pendiente (pendingItems),
-   deslizable con el dedo. Al asentarse en una tarjeta distinta a la
-   actual, cambia el ítem que se está validando (loadItem reinicia
-   todo el estado, reutilizando la misma cámara ya activa — nunca se
-   vuelve a pedir permiso). Debajo, un contenedor de escaneo aparte
-   (.venc-scan-box) para el paso de Caja: separado del slider a
-   propósito, porque el slider solo identifica DÓNDE estás parado, no
-   es un paso que se abra/cierre como Producto/Observación.
+   Sin header propio. Arriba, la ubicación actual centrada con una
+   flecha a cada lado (.venc-loc-nav) — mismo contenedor/tamaño
+   redondeado que el resto, nunca desliza: tocar una flecha avanza o
+   retrocede UNA posición pendiente (pendingItems) y carga ese ítem
+   completo (loadItem reinicia todo el estado, reutilizando la misma
+   cámara ya activa — nunca se vuelve a pedir permiso). Debajo, un
+   contenedor de escaneo aparte (.venc-scan-box) para el paso de Caja:
+   separado de la ubicación a propósito, cada uno con su propio fondo
+   gris redondeado — la ubicación solo identifica DÓNDE estás parado,
+   no es un paso que se abra/cierre.
 
    Se cierra únicamente con el gesto nativo de "atrás" del
    navegador/teléfono (popstate).
@@ -21,23 +21,30 @@
         operario está parado frente a la posición correcta (por eso
         Producto arranca BLOQUEADO hasta que este se valida).
      2) Producto — descripción + referencia/EAN, mismo acordeón de
-        siempre (tap para abrir/cerrar, no forma parte del slider).
-        Acá SÍ se puede reportar "faltante" sin escanear (si el
-        producto de verdad no está, insistir en escanearlo no tiene
-        sentido), pero exige una foto de la posición vacía como
-        evidencia.
+        siempre (tap para abrir/cerrar). Acá SÍ se puede reportar
+        "faltante" sin escanear (si el producto de verdad no está,
+        insistir en escanearlo no tiene sentido), pero exige una foto
+        de la posición vacía como evidencia.
      3) Observación — se libera recién con 1 y 2 validados. Sin
         motivos predefinidos: texto libre, vacío = "OK". No se valida
         contra nada (es opcional), así que su ícono queda "pendiente"
         para siempre, nunca pasa a "éxito".
 
-   Un solo <video> de cámara se reutiliza en los 3 lugares donde hace
-   falta (Caja, Producto, foto de faltante) — se mueve con .prepend,
-   nunca se recrea ni se vuelve a pedir permiso. Trae dos botones
-   flotando sobre ella (mismo estilo, esquinas opuestas): linterna
-   (derecha) y teclado para tipear el código a mano (izquierda) — el
-   teclado abre un input chico flotando abajo de la cámara, que pasa
-   por el mismo checkMatch() que un código leído por cámara.
+   Un solo <video> de cámara (envuelto en .scan-camera-stage junto con
+   linterna/teclado/input manual) se reutiliza en los 3 lugares donde
+   hace falta (Caja, Producto, foto de faltante) — se mueve entero con
+   .prepend, nunca se recrea ni se vuelve a pedir permiso. moveCameraTo
+   evita mover el stage si ya está en el contenedor destino: aunque no
+   relanza nada (ni cámara ni permisos), un .prepend "de más" corta y
+   reinicia la animación de la línea de escaneo — se nota feo cada vez
+   que se cambiaba de ítem sin necesidad.
+
+   El teclado abre un input chico que reemplaza a la cámara por
+   completo (no flota encima): mientras está activo, la cámara se
+   oculta y el contenedor entero se achica a la altura justa del
+   input, en vez de quedarse con el alto grande que usaba la cámara.
+   Ese input pasa por el mismo checkMatch() que un código leído por
+   cámara.
 
    Un match en cualquier paso avanza SOLO, sin pedir confirmación —
    pero se marca fuerte (color de éxito + vibración + destello + toast)
@@ -83,8 +90,16 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   overlay.className = 'scan-overlay';
   overlay.innerHTML = `
     <div class="scan-sheet cq-sheet venc-acc-body" id="vencAccBody">
-      <div class="venc-acc-item venc-loc-slider" id="locSlider">
-        <div class="venc-loc-track" id="locTrack"></div>
+      <div class="venc-acc-item venc-loc-nav" id="locNav">
+        <button type="button" class="venc-loc-arrow" id="locPrev" title="Posición anterior">${icon('chevronLeft', 20)}</button>
+        <div class="venc-loc-current">
+          <span class="venc-acc-avatar" id="avatarCaja">${icon('clock', 18)}</span>
+          <span class="venc-acc-head-text">
+            <strong class="venc-acc-head-title" id="cajaUbicacion"></strong>
+            <span class="venc-acc-head-sub">${iconSolid('caja', 13)}<span id="cajaNumero"></span></span>
+          </span>
+        </div>
+        <button type="button" class="venc-loc-arrow" id="locNext" title="Posición siguiente">${icon('chevronRight', 20)}</button>
       </div>
 
       <div class="venc-scan-box" id="scanBoxCaja">
@@ -146,8 +161,11 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     close();
   }
 
-  const locSlider = overlay.querySelector('#locSlider');
-  const locTrack = overlay.querySelector('#locTrack');
+  const locPrev = overlay.querySelector('#locPrev');
+  const locNext = overlay.querySelector('#locNext');
+  const avatarCaja = overlay.querySelector('#avatarCaja');
+  const cajaUbicacionEl = overlay.querySelector('#cajaUbicacion');
+  const cajaNumeroEl = overlay.querySelector('#cajaNumero');
   const scanBoxCaja = overlay.querySelector('#scanBoxCaja');
   const controlsCaja = overlay.querySelector('#controlsCaja');
 
@@ -172,120 +190,57 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   const photoCaptureRow = overlay.querySelector('#vencPhotoCaptureRow');
   const photoConfirmActions = overlay.querySelector('#vencPhotoConfirmActions');
 
-  // --- Slider de ubicaciones ---
-  // Se arma UNA sola vez (no se re-renderiza en cada loadItem) — el
-  // avatar de la tarjeta activa se actualiza in-place (findSlide) a
-  // medida que se valida, en vez de vivir en un elemento fijo aparte.
-  //
-  // Nada de scroll nativo: ni scroll-snap-type ni scroll-snap-stop
-  // garantizan "como mucho 1 tarjeta por swipe" de forma confiable en
-  // todos los navegadores (el impulso de un swipe fuerte puede seguir
-  // corriendo varias tarjetas antes de asentarse). Acá el gesto se
-  // controla a mano: el track se mueve con transform, y al soltar el
-  // dedo SOLO se decide una dirección (izquierda/derecha) — nunca
-  // cuántas tarjetas, así que sea cual sea la fuerza o velocidad del
-  // swipe, currentIndex nunca cambia en más de 1.
-  locTrack.innerHTML = slides.map((it) => `
-    <div class="venc-loc-slide" data-key="${escapeHtml(it.key)}" data-state="pending">
-      <span class="venc-acc-avatar">${icon('clock', 18)}</span>
-      <span class="venc-acc-head-text">
-        <strong class="venc-acc-head-title">${escapeHtml(it.ubicacion || '-')}</strong>
-        <span class="venc-acc-head-sub">${iconSolid('caja', 13)}<span>${escapeHtml(it.caja || '-')}</span></span>
-      </span>
-    </div>
-  `).join('');
-
-  function findSlide(key) {
-    return Array.from(locTrack.children).find((el) => el.dataset.key === key);
-  }
-
+  // --- Nav de ubicación (flechas) ---
   let currentIndex = Math.max(0, slides.findIndex((i) => i.key === initialItem.key));
 
-  function setTrackPosition(animate) {
-    locTrack.style.transition = animate ? 'transform 220ms ease' : 'none';
-    locTrack.style.transform = `translateX(${-currentIndex * 100}%)`;
+  function updateLocNavButtons() {
+    locPrev.disabled = currentIndex === 0;
+    locNext.disabled = currentIndex === slides.length - 1;
   }
-  setTrackPosition(false);
+  updateLocNavButtons();
 
-  let dragging = false;
-  let dragAxis = null; // null (por decidir) | 'x' | 'y'
-  let dragStartX = 0;
-  let dragStartY = 0;
-  let dragDeltaX = 0;
-
-  locSlider.addEventListener('touchstart', (e) => {
-    dragging = true;
-    dragAxis = null;
-    dragStartX = e.touches[0].clientX;
-    dragStartY = e.touches[0].clientY;
-    dragDeltaX = 0;
-    locTrack.style.transition = 'none';
-  }, { passive: true });
-
-  locSlider.addEventListener('touchmove', (e) => {
-    if (!dragging) return;
-    const dx = e.touches[0].clientX - dragStartX;
-    const dy = e.touches[0].clientY - dragStartY;
-    if (!dragAxis) {
-      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
-      dragAxis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
-    }
-    if (dragAxis !== 'x') return; // deja pasar el scroll vertical de la página
-    e.preventDefault();
-    dragDeltaX = dx;
-    // Resistencia en las puntas: no hay adónde ir, así que el
-    // arrastre se amortigua en vez de desplazarse libre.
-    const atStart = currentIndex === 0 && dx > 0;
-    const atEnd = currentIndex === slides.length - 1 && dx < 0;
-    const eased = atStart || atEnd ? dx * 0.35 : dx;
-    const percent = (eased / locSlider.clientWidth) * 100;
-    locTrack.style.transform = `translateX(calc(${-currentIndex * 100}% + ${percent}%))`;
-  }, { passive: false });
-
-  function onDragEnd() {
-    if (!dragging) return;
-    dragging = false;
-    if (dragAxis === 'x') {
-      const threshold = locSlider.clientWidth * 0.18;
-      if (dragDeltaX <= -threshold && currentIndex < slides.length - 1) currentIndex += 1;
-      else if (dragDeltaX >= threshold && currentIndex > 0) currentIndex -= 1;
-    }
-    setTrackPosition(true);
+  function goToIndex(nextIndex) {
+    if (nextIndex < 0 || nextIndex >= slides.length) return;
+    currentIndex = nextIndex;
+    updateLocNavButtons();
     const next = slides[currentIndex];
-    if (next && next.key !== item.key) loadItem(next);
+    if (next.key !== item.key) loadItem(next);
   }
-  locSlider.addEventListener('touchend', onDragEnd);
-  locSlider.addEventListener('touchcancel', onDragEnd);
+  locPrev.addEventListener('click', () => goToIndex(currentIndex - 1));
+  locNext.addEventListener('click', () => goToIndex(currentIndex + 1));
 
-  // Cámara única (video + línea + destello + linterna + teclado)
-  // reutilizada en Caja/Producto/foto — se mueve con .prepend, sin
-  // recrearla ni perder el stream. En handheld este bloque no
-  // existiría y el resto de la pantalla sigue funcionando igual.
-  const cameraMount = document.createElement('div');
-  cameraMount.className = 'scan-camera';
-  cameraMount.title = 'Tocar para apagar/prender la cámara';
-  cameraMount.innerHTML = `
-    <video id="scanVideo" autoplay playsinline muted></video>
-    <div class="scan-line"></div>
+  // Stage de cámara compartido (video + línea + destello + insignia +
+  // linterna + teclado + input manual) — se mueve entero entre Caja,
+  // Producto y la foto de faltante, sin recrear nada ni perder el
+  // stream. Linterna/teclado viven en el STAGE, no en el <video> en sí,
+  // para seguir tocables aunque la cámara esté oculta (modo manual).
+  const cameraStage = document.createElement('div');
+  cameraStage.className = 'scan-camera-stage';
+  cameraStage.innerHTML = `
+    <div class="scan-camera" id="cameraMount" title="Tocar para apagar/prender la cámara">
+      <video id="scanVideo" autoplay playsinline muted></video>
+      <div class="scan-line"></div>
+      <div class="scan-flash" id="scanFlash">${icon('check', 32)}</div>
+      <div class="scan-mismatch" id="scanMismatch">${icon('alertTriangle', 14)}<span id="scanMismatchText"></span></div>
+      <p class="scan-hint" id="scanHint" hidden></p>
+    </div>
     <button class="btn-icon scan-torch venc-camera-torch" id="scanTorch" title="Linterna" hidden>${icon('zap', 18)}</button>
     <button type="button" class="btn-icon venc-camera-keyboard" id="scanKeyboardBtn" title="Ingresar código a mano">${icon('keyboard', 18)}</button>
-    <form class="venc-camera-manual" id="scanManualRow" hidden>
+    <form class="venc-camera-manual" id="scanManualRow">
       <input type="text" inputmode="numeric" id="scanManualInput" placeholder="Ingresar código" autocomplete="off" />
       <button type="submit" title="Confirmar">${icon('check', 16)}</button>
     </form>
-    <div class="scan-flash" id="scanFlash">${icon('check', 32)}</div>
-    <div class="scan-mismatch" id="scanMismatch">${icon('alertTriangle', 14)}<span id="scanMismatchText"></span></div>
-    <p class="scan-hint" id="scanHint" hidden></p>
   `;
-  const videoEl = cameraMount.querySelector('#scanVideo');
-  const hintEl = cameraMount.querySelector('#scanHint');
-  const torchBtn = cameraMount.querySelector('#scanTorch');
-  const keyboardBtn = cameraMount.querySelector('#scanKeyboardBtn');
-  const manualRow = cameraMount.querySelector('#scanManualRow');
-  const manualInput = cameraMount.querySelector('#scanManualInput');
-  const flashEl = cameraMount.querySelector('#scanFlash');
-  const mismatchEl = cameraMount.querySelector('#scanMismatch');
-  const mismatchTextEl = cameraMount.querySelector('#scanMismatchText');
+  const cameraMount = cameraStage.querySelector('#cameraMount');
+  const videoEl = cameraStage.querySelector('#scanVideo');
+  const hintEl = cameraStage.querySelector('#scanHint');
+  const torchBtn = cameraStage.querySelector('#scanTorch');
+  const keyboardBtn = cameraStage.querySelector('#scanKeyboardBtn');
+  const manualRow = cameraStage.querySelector('#scanManualRow');
+  const manualInput = cameraStage.querySelector('#scanManualInput');
+  const flashEl = cameraStage.querySelector('#scanFlash');
+  const mismatchEl = cameraStage.querySelector('#scanMismatch');
+  const mismatchTextEl = cameraStage.querySelector('#scanMismatchText');
   let mismatchTimer = null;
 
   function playFlash() {
@@ -305,16 +260,25 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     mismatchTimer = setTimeout(() => mismatchEl.classList.remove('is-visible'), 2200);
   }
 
-  function closeManualInput() {
-    manualRow.hidden = true;
-    keyboardBtn.classList.remove('is-active');
+  // Modo manual: reemplaza la cámara por completo (nunca flota
+  // encima) — mientras está activo, se oculta y el contenedor entero
+  // se achica a la altura justa del input. Pausa la detección: no
+  // tiene sentido seguir leyendo frames de una cámara escondida.
+  function setManualMode(active) {
+    cameraStage.classList.toggle('is-manual', active);
+    keyboardBtn.classList.toggle('is-active', active);
+    const activeBox = openKey === 'caja' ? scanBoxCaja : (openKey === 'prod' ? panelProd : null);
+    if (activeBox) activeBox.classList.toggle('is-manual-active', active);
+    scanner.setPaused(active);
+    if (active) {
+      manualInput.value = '';
+      manualInput.focus();
+    }
   }
-  keyboardBtn.addEventListener('click', () => {
-    const opening = manualRow.hidden;
-    manualRow.hidden = !opening;
-    keyboardBtn.classList.toggle('is-active', opening);
-    if (opening) manualInput.focus();
-  });
+  function closeManualInput() {
+    setManualMode(false);
+  }
+  keyboardBtn.addEventListener('click', () => setManualMode(!cameraStage.classList.contains('is-manual')));
   manualRow.addEventListener('submit', (e) => {
     e.preventDefault();
     const value = manualInput.value.trim();
@@ -323,9 +287,14 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     manualInput.value = '';
   });
 
+  // No mover el stage si ya está en el destino: un .prepend "de más"
+  // no relanza la cámara ni pide permiso de nuevo (sigue siendo el
+  // mismo <video>/stream), pero SÍ corta y reinicia la animación de
+  // la línea de escaneo — se notaba feo cada vez que se cambiaba de
+  // ítem con el mismo contenedor ya activo.
   function moveCameraTo(target) {
     closeManualInput();
-    target.prepend(cameraMount);
+    if (cameraStage.parentElement !== target) target.prepend(cameraStage);
   }
 
   let openKey = null; // 'caja' | 'prod' | null
@@ -336,27 +305,17 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
 
   function setItemState(key, state) {
     stateOf[key] = state;
-    if (key === 'caja') {
-      const slide = findSlide(item.key);
-      if (slide) slide.dataset.state = state;
-    } else {
-      itemProd.dataset.state = state;
-    }
+    if (key === 'prod') itemProd.dataset.state = state;
   }
 
   function setAvatarDone(key) {
-    if (key === 'caja') {
-      const slide = findSlide(item.key);
-      if (slide) slide.querySelector('.venc-acc-avatar').innerHTML = icon('check', 18);
-    } else {
-      avatarProd.innerHTML = icon('check', 18);
-    }
+    (key === 'caja' ? avatarCaja : avatarProd).innerHTML = icon('check', 18);
   }
 
-  // Caja no es un contenedor que se abra/cierre con tap (el slider de
-  // arriba solo identifica DÓNDE estás parado) — activarlo simplemente
-  // muestra la caja de escaneo separada, siempre que sea el paso
-  // vigente. Se desactiva al validarla (o al cambiar de ítem).
+  // Caja no es un contenedor que se abra/cierre con tap (la ubicación
+  // de arriba solo identifica DÓNDE estás parado) — activarlo
+  // simplemente muestra la caja de escaneo separada, siempre que sea
+  // el paso vigente. Se desactiva al validarla (o al cambiar de ítem).
   function activateCaja() {
     openKey = 'caja';
     scanBoxCaja.hidden = false;
@@ -371,6 +330,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   function deactivateCaja() {
     if (openKey === 'caja') openKey = null;
     scanBoxCaja.hidden = true;
+    scanBoxCaja.classList.remove('is-manual-active');
   }
 
   function renderProdScanControls() {
@@ -396,6 +356,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     if (openKey === 'prod') openKey = null;
     itemProd.classList.remove('is-open');
     panelProd.hidden = true;
+    panelProd.classList.remove('is-manual-active');
   }
 
   // Tocar Producto ya abierto no lo contrae — nada más lo cierra
@@ -416,22 +377,22 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   function enterFotoMode() {
     fotoViewOpen = true;
     photoDataUrl = null;
-    scanner.setPaused(true); // sin pauseView(): el video sigue en vivo para encuadrar la foto
     closeManualInput();
-    cameraMount.classList.add('is-photo-mode');
+    cameraStage.classList.add('is-photo-mode');
     photoFrame.classList.remove('is-previewing');
     photoImgEl.removeAttribute('src');
-    photoFrame.prepend(cameraMount);
+    photoFrame.prepend(cameraStage);
     photoCaptureRow.hidden = false;
     photoConfirmActions.hidden = true;
     vencAccBody.hidden = true;
     photoView.hidden = false;
+    scanner.setPaused(true); // sin pauseView(): el video sigue en vivo para encuadrar la foto
   }
 
   function exitFotoMode() {
     fotoViewOpen = false;
     photoDataUrl = null;
-    cameraMount.classList.remove('is-photo-mode');
+    cameraStage.classList.remove('is-photo-mode');
     photoView.hidden = true;
     vencAccBody.hidden = false;
     moveCameraTo(panelProd);
@@ -510,6 +471,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   }
 
   function markDone(key) {
+    closeManualInput();
     setItemState(key, 'done');
     setAvatarDone(key);
     if (key === 'caja') {
@@ -566,13 +528,21 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
 
   // Reinicia todo el estado por-ítem (sin recrear la cámara ni pedir
   // permiso de nuevo) — usado tanto al abrir por primera vez como al
-  // deslizar hasta otra tarjeta del slider de arriba.
+  // navegar con las flechas de arriba.
   function loadItem(newItem) {
     item = newItem;
+    closeManualInput();
     if (fotoViewOpen) exitFotoMode();
 
+    currentIndex = Math.max(0, slides.findIndex((i) => i.key === item.key));
+    updateLocNavButtons();
+
+    cajaUbicacionEl.textContent = item.ubicacion || '-';
+    cajaNumeroEl.textContent = item.caja || '-';
+    avatarCaja.innerHTML = icon('clock', 18);
+    // Punto tipo viñeta, no guion — separador entre referencia y EAN.
     prodDescripcionEl.textContent = item.descripcion || 'Producto sin descripción';
-    prodReferenciaEl.textContent = `${item.referencia || '-'} - ${item.ean || '-'}`;
+    prodReferenciaEl.textContent = `${item.referencia || '-'} • ${item.ean || '-'}`;
 
     openKey = null;
     setItemState('caja', 'pending');
