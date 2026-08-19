@@ -25,6 +25,36 @@ import { pickEngine } from './engines/index.js';
 const DETECT_INTERVAL_MS = 350;
 const SAME_CODE_DEBOUNCE_MS = 1200;
 
+// En celulares con varias lentes traseras, "facingMode: environment"
+// a veces elige la gran angular (0.5x) en vez de la lente normal —
+// documentado sobre todo en iPhone Pro con iOS reciente. Esa lente
+// tiene una distancia mínima de foco mucho mayor, así que nunca logra
+// enfocar un código a la distancia habitual de escaneo: la cámara
+// prende y se ve bien, pero jamás decodifica nada. Acá solo se
+// corrige cuando se puede CONFIRMAR por el label del device que la
+// lente activa es la gran angular sola (no el "Back Dual/Triple
+// Camera" combinado, que sí funciona) y existe una alternativa mejor
+// — si los labels no están disponibles o son ambiguos, no se toca
+// nada, así no hay riesgo de romper un dispositivo que hoy funciona
+// bien (Android incluido).
+function isUltraWideLabel(label) {
+  return /ultra[\s-]?wide/i.test(label || '') && !/dual|triple/i.test(label || '');
+}
+
+async function pickBetterBackCamera(currentDeviceId) {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const backCams = devices.filter((d) => d.kind === 'videoinput' && !/front/i.test(d.label));
+    if (backCams.length < 2) return null;
+    const current = backCams.find((d) => d.deviceId === currentDeviceId);
+    if (!current || !isUltraWideLabel(current.label)) return null;
+    const better = backCams.find((d) => !isUltraWideLabel(d.label));
+    return better ? better.deviceId : null;
+  } catch {
+    return null;
+  }
+}
+
 export function createCameraScanner({ videoEl, cameraBox, torchBtn, hintEl, onCode }) {
   let stream = null;
   let track = null;
@@ -57,12 +87,40 @@ export function createCameraScanner({ videoEl, cameraBox, torchBtn, hintEl, onCo
       stream.getTracks().forEach((t) => t.stop());
       return;
     }
+
+    // Recién con el permiso ya concedido los labels de los devices
+    // dejan de venir vacíos, así que esta corrección solo puede
+    // intentarse acá, después del primer getUserMedia.
+    const betterId = await pickBetterBackCamera(stream.getVideoTracks()[0]?.getSettings().deviceId);
+    if (betterId) {
+      try {
+        const betterStream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: { exact: betterId }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        stream.getTracks().forEach((t) => t.stop());
+        stream = betterStream;
+      } catch {
+        /* si falla, se sigue con el stream original (gran angular) */
+      }
+      if (closed) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+    }
+
     cameraOn = true;
 
     videoEl.srcObject = stream;
     track = stream.getVideoTracks()[0];
     const caps = track.getCapabilities ? track.getCapabilities() : {};
     torchBtn.hidden = !caps.torch;
+    // Enfoque continuo explícito donde el dispositivo lo soporte —
+    // sin esto, algunos celulares enfocan una sola vez al abrir la
+    // cámara y no vuelven a intentarlo al acercar el código.
+    if (caps.focusMode?.includes('continuous')) {
+      track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+    }
 
     try {
       engine = await pickEngine();
