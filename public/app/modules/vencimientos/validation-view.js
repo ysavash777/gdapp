@@ -273,15 +273,52 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   }
 
   // Modo manual: reemplaza la cámara por completo (nunca flota
-  // encima) — mientras está activo, se oculta y el contenedor entero
-  // se achica a la altura justa del input. Pausa la detección: no
-  // tiene sentido seguir leyendo frames de una cámara escondida.
+  // encima) — mientras está activo, se oculta y el CONTENEDOR GRIS
+  // ENTERO (no solo la cámara) se achica a la altura justa del input,
+  // con una animación real (mismo ancho, mismo radio, solo el alto se
+  // mueve). Técnica FLIP: se mide el alto real ANTES de cambiar nada,
+  // se aplica el cambio (cámara↔input, y la clase que determina el
+  // alto nuevo), se mide el alto real DESPUÉS, y recién ahí se anima
+  // de un número al otro — animar flex-grow/flex-basis directamente
+  // no da una transición de alto fiable entre navegadores. Pausa la
+  // detección: no tiene sentido seguir leyendo frames de una cámara
+  // escondida.
+  let manualAnimCleanup = null;
   function setManualMode(active) {
-    cameraStage.classList.toggle('is-manual', active);
+    const activeItem = openKey === 'caja' ? itemCaja : (openKey === 'prod' ? itemProd : null);
     keyboardBtn.classList.toggle('is-active', active);
-    const activeBox = openKey === 'caja' ? panelCaja : (openKey === 'prod' ? panelProd : null);
-    if (activeBox) activeBox.classList.toggle('is-manual-active', active);
     scanner.setPaused(active);
+
+    if (manualAnimCleanup) manualAnimCleanup();
+
+    if (!activeItem) {
+      cameraStage.classList.toggle('is-manual', active);
+    } else {
+      const fromHeight = activeItem.getBoundingClientRect().height;
+      cameraStage.classList.toggle('is-manual', active);
+      activeItem.classList.toggle('is-manual-active', active);
+      const toHeight = activeItem.getBoundingClientRect().height;
+
+      activeItem.style.flex = 'none';
+      activeItem.style.height = `${fromHeight}px`;
+      void activeItem.offsetHeight; // fuerza reflow antes de animar
+      activeItem.style.transition = 'height 200ms cubic-bezier(.4, 0, .2, 1)';
+      activeItem.style.height = `${toHeight}px`;
+
+      const cleanup = () => {
+        activeItem.style.transition = '';
+        activeItem.style.height = '';
+        activeItem.style.flex = '';
+        activeItem.removeEventListener('transitionend', onEnd);
+        manualAnimCleanup = null;
+      };
+      const onEnd = (e) => {
+        if (e.propertyName === 'height' && e.target === activeItem) cleanup();
+      };
+      activeItem.addEventListener('transitionend', onEnd);
+      manualAnimCleanup = cleanup;
+    }
+
     if (active) {
       manualInput.value = '';
       manualInput.focus();
@@ -334,7 +371,15 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     const panelEl = key === 'caja' ? panelCaja : panelProd;
     itemEl.classList.toggle('is-open', isOpen);
     panelEl.hidden = !isOpen;
-    if (!isOpen) panelEl.classList.remove('is-manual-active');
+    if (!isOpen) {
+      // Si se cierra con una animación de modo manual a mitad de
+      // camino (p. ej. se validó justo mientras estaba escribiendo a
+      // mano), la termina de una para no dejar estilos inline
+      // colgados (height/transition/flex) en un contenedor que ya no
+      // se ve.
+      itemEl.classList.remove('is-manual-active');
+      if (manualAnimCleanup) { manualAnimCleanup(); manualAnimCleanup = null; }
+    }
   }
 
   function renderCajaControls() {

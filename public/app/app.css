@@ -1876,14 +1876,22 @@ html, body {
    el resto): solo las flechas para saltar de a una posición pendiente
    (pendingItems) y el texto estático "Ubicación" en el medio — no
    muestra datos del ítem actual, esos viven abajo en el contenedor de
-   Caja. El label centrado de verdad (no solo "a ojo"): flex:1 entre
-   dos flechas de igual ancho. */
+   Caja. Mismo fondo/borde/radio y mismo ancho (margin lateral
+   var(--sp-4), igual al padding de .scan-sheet) que los contenedores
+   de abajo — antes no tenía fondo propio y dejaba ver el negro casi
+   puro de .scan-overlay detrás, como una franja aparte. El label
+   centrado de verdad (no solo "a ojo"): flex:1 entre dos flechas de
+   igual ancho. */
 .venc-loc-nav {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  padding: calc(env(safe-area-inset-top) + var(--sp-3)) var(--sp-3) var(--sp-2);
+  margin: calc(env(safe-area-inset-top) + var(--sp-3)) var(--sp-4) var(--sp-3);
+  padding: var(--sp-2);
   gap: var(--sp-2);
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
 }
 .venc-loc-label {
   flex: 1;
@@ -1901,11 +1909,11 @@ html, body {
   display: grid;
   place-items: center;
   border-radius: var(--r-full);
-  background: var(--surface-2);
+  background: var(--n-200);
   color: var(--ink-2);
   border: none;
 }
-.venc-loc-arrow:active { background: var(--n-200); }
+.venc-loc-arrow:active { background: var(--n-100); }
 .venc-loc-arrow:disabled { opacity: 0.3; }
 
 /* Ficha de validación: .venc-acc-body llena el resto del alto debajo
@@ -1925,11 +1933,17 @@ html, body {
 .venc-acc-panel .scan-camera { flex: 1; min-height: 120px; border-radius: var(--r-md); }
 
 /* Modo manual: oculta la cámara por completo (no solo un input
-   flotando encima) y el contenedor entero se achica a la altura justa
-   del input — nada de quedarse con el alto grande que usaba la
-   cámara. .is-manual-active va en el panel que esté activo en ese
-   momento (Caja o Producto, nunca los dos a la vez). */
-.venc-acc-panel.is-manual-active { flex: 0 0 auto; }
+   flotando encima) y el CONTENEDOR GRIS ENTERO (.venc-acc-item, no
+   solo el panel interno) se achica a la altura justa del input —
+   mismo ancho, mismo radio, la única propiedad que cambia es el alto.
+   .is-manual-active va en el ítem que esté activo en ese momento
+   (Caja o Producto, nunca los dos a la vez); el contraer/expandir en
+   sí se anima en JS (setManualMode, técnica FLIP: mide el alto real
+   antes/después y transiciona entre esos dos números), porque
+   animar flex-grow/flex-basis directamente no da una transición de
+   alto fiable entre navegadores. La regla en sí vive repetida más
+   abajo, después de .venc-acc-item.is-open, para poder ganarle
+   cuando el ítem tiene las dos clases a la vez. */
 .scan-camera-stage.is-manual { flex: 0 0 auto; min-height: 0; }
 .scan-camera-stage.is-manual .scan-camera { display: none; }
 
@@ -2022,6 +2036,12 @@ html, body {
   overflow: hidden;
 }
 .venc-acc-item.is-open { flex: 1 1 auto; }
+/* Repetida más abajo que su propia definición (misma especificidad
+   que .is-open, dos clases cada una) para poder ganarle cuando un
+   ítem tiene AMBAS clases a la vez (abierto + en modo manual) — si no,
+   .is-open siempre ganaba por venir después en el archivo, y el
+   contenedor nunca se achicaba. */
+.venc-acc-item.is-manual-active { flex: 0 0 auto; }
 .venc-acc-item[data-state="locked"] .venc-acc-head { opacity: 0.45; pointer-events: none; }
 .venc-acc-item[data-state="done"] .venc-acc-head { pointer-events: none; }
 .venc-acc-item[data-state="done"] .venc-acc-avatar { background: var(--ok); color: #fff; }
