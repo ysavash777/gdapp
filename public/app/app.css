@@ -1873,40 +1873,40 @@ html, body {
 .venc-suggest-cta { flex-shrink: 0; padding: 15px 18px; }
 
 /* Ficha de validación: sin header propio — .venc-acc-body llena todo
-   el alto disponible debajo del selector de ubicación de arriba (ver
-   .venc-loc-selector). Acordeón de 3 contenedores (Caja/Producto/
-   Observación), uno a la vez: abrir uno cierra el otro, y una vez
-   validado correctamente el contenedor se bloquea (ya no se puede
-   reabrir ni tiene lógica). El único contenedor abierto es el que
-   crece (is-open → flex:1) para absorber el espacio libre; los demás
-   quedan en su alto natural (solo el header) — así, al pasar de caja
-   a producto, nada se desplaza: la cámara es lo único que se adapta
-   al espacio disponible, nunca al revés. */
-.venc-acc-body { display: flex; flex-direction: column; gap: var(--sp-3); flex: 1; min-height: 0; }
+   el alto de la pantalla (con su propio padding-top para la zona
+   seguridad del notch, ya que Caja es ahora el primer contenedor
+   visible). Acordeón de 3 contenedores (Caja/Producto/Observación),
+   uno a la vez: abrir uno cierra el otro, y una vez validado
+   correctamente el contenedor se bloquea (ya no se puede reabrir ni
+   tiene lógica). El único contenedor abierto es el que crece
+   (is-open → flex:1) para absorber el espacio libre; los demás quedan
+   en su alto natural (solo el header) — así, al pasar de caja a
+   producto, nada se desplaza: la cámara es lo único que se adapta al
+   espacio disponible, nunca al revés. */
+.venc-acc-body { display: flex; flex-direction: column; gap: var(--sp-3); flex: 1; min-height: 0; padding-top: calc(env(safe-area-inset-top) + var(--sp-4)); }
 
-/* Selector de ubicación (reemplaza al header eliminado): barra
-   entera (sin margen ni borde propio, edge-to-edge) con el mismo gris
-   de las tarjetas — antes tenía margen alrededor, que dejaba ver el
-   fondo casi negro de .scan-overlay detrás/arriba, como si fuera un
-   header oscuro aparte. Es un selector, no un paso: al tocarlo
-   despliega las demás posiciones pendientes (.venc-loc-menu, mismo
-   look que .mapeo-menu) para saltar a cualquiera sin cerrar esta
-   pantalla. */
-.venc-loc-selector {
-  position: relative;
-  flex-shrink: 0;
-  padding-top: env(safe-area-inset-top);
-  background: var(--surface-2);
+/* El desplegable de otras posiciones pendientes vive DENTRO del
+   contenedor de Caja (antes tenía su propio contenedor arriba,
+   duplicando la ubicación que Caja ya muestra) — un botón chevron
+   aparte del header, nunca anidado en su <button> (HTML no permite
+   botón dentro de botón), position:absolute en la esquina para no
+   competir por espacio con el texto de Caja. */
+.venc-loc-anchor { position: relative; }
+.venc-loc-anchor .venc-acc-head { padding-right: 40px; }
+.venc-loc-chevron-btn {
+  position: absolute;
+  top: var(--sp-3);
+  right: var(--sp-3);
+  padding: 6px;
+  color: var(--ink-3);
+  background: none;
+  border: none;
 }
-.venc-loc-head { width: 100%; }
-.venc-loc-chevron { flex-shrink: 0; color: var(--ink-3); }
-.venc-loc-menu { left: var(--sp-4); right: var(--sp-4); top: 100%; max-height: 260px; overflow-y: auto; }
+.venc-loc-menu { left: var(--sp-3); right: var(--sp-3); top: 100%; max-height: 260px; overflow-y: auto; }
 .venc-loc-menu-item { gap: var(--sp-3); }
 /* Mismo círculo de "vida útil" que las tarjetas de la lista
-   (.venc-card-days), solo más chico para caber en el avatar del
-   selector / las filas del desplegable — mismos colores por
-   severidad, ya definidos junto a .venc-card-days. */
-.venc-loc-avatar-days { width: 38px; height: 38px; font-size: 11px; }
+   (.venc-card-days), solo más chico para las filas del desplegable —
+   mismos colores por severidad, ya definidos junto a .venc-card-days. */
 .venc-loc-menu-days { width: 34px; height: 34px; font-size: 10px; flex-shrink: 0; }
 .venc-loc-menu-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; width: 100%; }
 .venc-loc-menu-text strong { font-size: var(--text-sm); }

@@ -1,14 +1,16 @@
 /* ============================================================
    Módulo App · Vencimientos — validación de un ítem.
 
-   Sin header propio: el espacio se lo queda el selector de ubicación
-   de arriba (.venc-loc-selector) — mismo estilo de contenedor que
-   Caja/Producto/Observación, pero es un selector, no un paso: al
-   tocarlo despliega las demás posiciones pendientes (pendingItems) y
-   permite saltar a cualquiera SIN cerrar esta pantalla (loadItem
-   reinicia el estado para el nuevo ítem, reutilizando la misma cámara
-   ya activa — nunca se vuelve a pedir permiso). Se cierra únicamente
-   con el gesto nativo de "atrás" del navegador/teléfono (popstate).
+   Sin header propio y sin un contenedor de ubicación aparte (antes
+   había un selector propio arriba, duplicando lo que ya muestra Caja)
+   — el desplegable de otras posiciones pendientes vive DENTRO del
+   contenedor de Caja, como un botón chevron aparte del header (no
+   anidado en el <button> del acordeón: HTML no permite botón dentro
+   de botón). Tocarlo despliega pendingItems y permite saltar a
+   cualquiera SIN cerrar esta pantalla (loadItem reinicia el estado
+   para el nuevo ítem, reutilizando la misma cámara ya activa — nunca
+   se vuelve a pedir permiso). Se cierra únicamente con el gesto nativo
+   de "atrás" del navegador/teléfono (popstate).
 
    Acordeón de 3 contenedores debajo, uno a la vez:
      1) Caja — ubicación + número de caja. Nunca se puede saltar: es
@@ -81,19 +83,8 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   const overlay = document.createElement('div');
   overlay.className = 'scan-overlay';
   overlay.innerHTML = `
-    <div class="venc-loc-selector" id="vencLocSelector">
-      <button type="button" class="venc-acc-head venc-loc-head" id="vencLocHead">
-        <span class="venc-card-days venc-loc-avatar-days" id="vencLocAvatar"></span>
-        <span class="venc-acc-head-text">
-          <strong class="venc-acc-head-title" id="vencLocTitle"></strong>
-          <span class="venc-acc-head-sub" id="vencLocSub"></span>
-        </span>
-        <span class="venc-loc-chevron">${icon('chevronDown', 16)}</span>
-      </button>
-      <div class="mapeo-menu venc-loc-menu" id="vencLocMenu" hidden></div>
-    </div>
     <div class="scan-sheet cq-sheet venc-acc-body" id="vencAccBody">
-      <div class="venc-acc-item" data-state="pending" id="itemCaja">
+      <div class="venc-acc-item venc-loc-anchor" data-state="pending" id="itemCaja">
         <button type="button" class="venc-acc-head" id="headCaja">
           <span class="venc-acc-avatar" id="avatarCaja">${icon('clock', 18)}</span>
           <span class="venc-acc-head-text">
@@ -101,6 +92,8 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
             <span class="venc-acc-head-sub">${iconSolid('caja', 13)}<span id="cajaNumero"></span></span>
           </span>
         </button>
+        <button type="button" class="venc-loc-chevron-btn" id="vencLocToggle" title="Otras posiciones pendientes">${icon('chevronDown', 16)}</button>
+        <div class="mapeo-menu venc-loc-menu" id="vencLocMenu" hidden></div>
         <div class="venc-acc-panel" id="panelCaja" hidden>
           <div class="venc-acc-controls" id="controlsCaja"></div>
         </div>
@@ -160,11 +153,8 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     close();
   }
 
-  const locHead = overlay.querySelector('#vencLocHead');
+  const locToggle = overlay.querySelector('#vencLocToggle');
   const locMenu = overlay.querySelector('#vencLocMenu');
-  const locAvatar = overlay.querySelector('#vencLocAvatar');
-  const locTitle = overlay.querySelector('#vencLocTitle');
-  const locSub = overlay.querySelector('#vencLocSub');
 
   const itemCaja = overlay.querySelector('#itemCaja');
   const headCaja = overlay.querySelector('#headCaja');
@@ -469,8 +459,8 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     locMenu.hidden = true;
   }
 
-  locHead.addEventListener('click', (e) => {
-    e.stopPropagation();
+  locToggle.addEventListener('click', (e) => {
+    e.stopPropagation(); // no debe abrir/cerrar el acordeón de Caja, que vive en el mismo contenedor
     const opening = locMenu.hidden;
     if (opening) locMenu.innerHTML = locMenuHTML();
     locMenu.hidden = !opening;
@@ -489,16 +479,12 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
 
   // Reinicia todo el estado por-ítem (sin recrear la cámara ni pedir
   // permiso de nuevo) — usado tanto al abrir por primera vez como al
-  // saltar a otra posición desde el selector de arriba.
+  // saltar a otra posición desde el desplegable de Caja.
   function loadItem(newItem) {
     item = newItem;
     closeLocMenu();
     if (fotoViewOpen) exitFotoMode();
 
-    locAvatar.textContent = daysLabel(item.days);
-    locAvatar.className = `venc-card-days venc-loc-avatar-days is-${item.severity}`;
-    locTitle.textContent = item.ubicacion || '-';
-    locSub.textContent = `${otherPending().length} más pendiente${otherPending().length === 1 ? '' : 's'}`;
     cajaUbicacionEl.textContent = item.ubicacion || '-';
     cajaNumeroEl.textContent = item.caja || '-';
     prodDescripcionEl.textContent = item.descripcion || 'Producto sin descripción';
