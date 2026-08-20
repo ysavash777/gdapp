@@ -1767,88 +1767,14 @@ html, body {
 
 .venc-detail-photo { width: 100%; border-radius: var(--r-md); margin-bottom: var(--sp-3); display: block; }
 
-/* Modo "Sugerido" — una sola posición a la vez, pensada para que lo
-   primero (y más grande) que se lea sea A DÓNDE IR, no qué producto
-   es ni cuánto queda. Las flechas van pegadas a la ubicación (son la
-   acción de moverse ENTRE ubicaciones, no un control aparte) — el
-   aviso de "vida útil" es un banner propio, siempre al pie de la
-   tarjeta, con una instrucción directa cuando urge ("Retirar de
-   ubicación") en vez de solo un número de días. La acción de validar
-   cierra la pantalla, a un solo toque. */
-.venc-suggest { display: flex; flex-direction: column; gap: var(--sp-3); }
-.venc-suggest-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  background: var(--surface);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-lg);
-  padding: var(--sp-5) var(--sp-4) var(--sp-4);
-  box-shadow: var(--shadow-1);
-}
-.venc-suggest-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  margin-bottom: var(--sp-2);
-}
-.venc-suggest-locrow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-3);
-  width: 100%;
-}
-.venc-suggest-arrow {
-  flex-shrink: 0;
-  width: 38px;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 50%;
-  background: var(--surface-2);
-  color: var(--ink-2);
-  transition: opacity var(--t-fast);
-}
-.venc-suggest-arrow:disabled { opacity: 0.35; }
-/* SIEMPRE el mismo tamaño (alto fijo, una sola línea, nunca ajusta el
-   contenedor ni desplaza las flechas) — pedido explícito: si el
-   código no entra, se achica LA FUENTE (ver ubicacionSizeClass() en
-   list-view.js), nunca la caja. overflow+ellipsis es la red de
-   seguridad final para un código tan largo que ni achicando entre. */
-.venc-suggest-ubicacion {
-  flex: 1;
-  min-width: 0;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--text-2xl);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: var(--icon-vencimientos);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.venc-suggest-ubicacion.is-md { font-size: var(--text-xl); }
-.venc-suggest-ubicacion.is-sm { font-size: var(--text-lg); }
-.venc-suggest-ubicacion.is-xs { font-size: var(--text-base); }
-.venc-suggest-divider { width: 100%; border: none; border-top: 1px solid var(--line); margin: var(--sp-4) 0 var(--sp-3); }
-.venc-suggest-desc { font-size: var(--text-sm); font-weight: 600; color: var(--ink); }
-.venc-suggest-sub { justify-content: center; margin-top: var(--sp-2); }
-
-/* Ahora vive DENTRO de .venc-suggest-card (debajo de caja/cantidad/
-   vencimiento) en vez de como bloque suelto abajo de toda la tarjeta
-   — pedido explícito: la alerta de qué hacer va junto a la
-   información del SKU que la explica, no separada de ella. width:100%
-   porque .venc-suggest-card centra el contenido de sus hijos
-   (align-items:center), que si no dejaría esta franja angosta. */
+/* Modo "Sugerido": ya no es una tarjeta de resumen con botón "Validar"
+   — la ficha de validación entera (ver .venc-suggest-inline más abajo,
+   montada por mountSuggestedFlow en validation-view.js) vive acá
+   directo. .venc-suggest-urgency se reutiliza tal cual dentro de esa
+   ficha (Observación, justo antes de escribir) y también estaba acá
+   antes para el mismo aviso — "vida útil": para lo que hay que sacar
+   ya (vencido, o vence en <=4 días) es una instrucción directa, nunca
+   solo el número de días. */
 .venc-suggest-urgency {
   display: flex;
   align-items: center;
@@ -1869,8 +1795,6 @@ html, body {
    ámbar). El naranja tenue del módulo queda solo para "próximo". */
 .venc-suggest-urgency.is-vencido, .venc-suggest-urgency.is-retirar { background: var(--danger-bg); color: var(--danger); }
 .venc-suggest-urgency.is-proximo { background: rgba(251, 146, 60, 0.15); color: var(--icon-vencimientos); }
-
-.venc-suggest-cta { flex-shrink: 0; padding: 15px 18px; }
 
 /* Selector de ubicación: NO es un header aparte — es un contenedor
    más DENTRO de .venc-acc-body, primero de la lista, con exactamente
@@ -1920,8 +1844,29 @@ html, body {
    crece (is-open → flex:1) para absorber el espacio libre; los demás
    quedan en su alto natural (solo el header) — así, al pasar de un
    paso a otro, nada se desplaza: la cámara es lo único que se adapta
-   al espacio disponible, nunca al revés. */
+   al espacio disponible, nunca al revés. Ese "espacio libre" existe
+   porque .scan-overlay (el modal) es fixed/inset:0 — el padding-top
+   de acá es su safe-area superior. */
 .venc-acc-body { display: flex; flex-direction: column; gap: var(--sp-3); flex: 1; min-height: 0; padding-top: calc(env(safe-area-inset-top) + var(--sp-4)); }
+
+/* Modo Sugerido (mountSuggestedFlow): la MISMA ficha, pero embebida en
+   el flujo normal de la página en vez de un modal fixed — no hay un
+   ancestro de alto fijo del que "sobre" espacio para repartir, así
+   que flex:1 en la cámara no tiene nada para crecer y quedaría en su
+   min-height mínimo (chica e incómoda). Acá la cámara pasa a un alto
+   explícito en vh (responsivo, se adapta solo al ancho/alto de
+   pantalla) en vez de depender del contenedor. Tampoco hace falta el
+   padding-top de arriba (no hay notch que esquivar a mitad de página). */
+.venc-suggest-inline { display: flex; flex-direction: column; gap: var(--sp-3); }
+.venc-suggest-inline .venc-acc-body { padding-top: 0; }
+.venc-suggest-inline .venc-photo-view { flex: none; }
+.venc-suggest-inline .venc-acc-panel .scan-camera,
+.venc-suggest-inline .venc-photo-frame {
+  flex: none;
+  height: 42vh;
+  min-height: 220px;
+  max-height: 420px;
+}
 
 /* La cámara vive dentro de un "stage" compartido (torch + teclado +
    input manual + la cámara en sí) que se mueve entero entre Caja,

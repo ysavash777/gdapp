@@ -26,7 +26,7 @@
 import { icon, iconSolid } from '/shared/js/icons.js';
 import { escapeHtml, formatDateTime, capitalize } from '/shared/js/format.js';
 import * as store from './store.js';
-import { openValidation } from './validation-view.js';
+import { openValidation, mountSuggestedFlow } from './validation-view.js';
 
 const MOTIVO_LABEL = { ok: 'OK', faltante: 'Faltante', otro: 'Otro' };
 
@@ -45,18 +45,6 @@ function daysLabel(days) {
 function formatQty(saldo) {
   if (saldo == null) return '-';
   return saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 });
-}
-
-// El contenedor de la ubicación (modo Sugerido) tiene que medir
-// siempre lo mismo, sin importar el largo del código — nunca al
-// revés (achicar el texto, nunca estirar la caja): mismo criterio que
-// qtySizeClass()/chipSizeClass() en otras herramientas de la app.
-function ubicacionSizeClass(text) {
-  const len = String(text || '').length;
-  if (len <= 8) return '';
-  if (len <= 11) return 'is-md';
-  if (len <= 14) return 'is-sm';
-  return 'is-xs';
 }
 
 function subChipsHTML(item) {
@@ -120,22 +108,15 @@ function itemCardHTML(item) {
   `;
 }
 
-// "Vida útil": para lo que ya hay que sacar de la góndola (vencido, o
-// vence en <=4 días — mismo corte que RETIRAR_DAYS del servidor) es
-// una instrucción directa, no un dato — "Retirar de ubicación", nunca
-// solo el número de días. Para lo que todavía tiene margen, un aviso
-// más informativo y menos alarmante.
-function urgencyBannerHTML(item) {
-  if (item.isRetirar) {
-    return `<div class="venc-suggest-urgency is-${item.severity}">${icon('alertTriangle', 16)} Retirar de ubicación</div>`;
-  }
-  return `<div class="venc-suggest-urgency is-${item.severity}">${icon('calendarAlert', 16)} Vence en ${item.days} día${item.days === 1 ? '' : 's'}</div>`;
-}
-
 export async function renderList(outlet) {
   outletRef = outlet;
 
   const state = { view: 'sugerido', suggestedIndex: 0, items: [], loading: true, error: null, query: '' };
+  // Ficha de validación montada (cámara ya activa) mientras el modo
+  // "Sugerido" está a la vista — se crea una sola vez al entrar (no en
+  // cada draw()) y se destruye al salir de la pestaña, para no
+  // relanzar la cámara sin necesidad. Ver drawSuggested().
+  let suggestedFlow = null;
 
   outlet.innerHTML = `
     <div class="action-hero">
@@ -241,11 +222,16 @@ export async function renderList(outlet) {
   outlet.querySelectorAll('#vencViewToggle button').forEach((btn) => {
     btn.addEventListener('click', () => {
       if (btn.dataset.view === state.view) return;
+      // Salir de Sugerido apaga la cámara de la ficha montada — nunca
+      // debe seguir corriendo en segundo plano en otra pestaña.
+      if (state.view === 'sugerido' && suggestedFlow) {
+        suggestedFlow.destroy();
+        suggestedFlow = null;
+      }
       state.view = btn.dataset.view;
       // suggestedIndex NO se resetea acá: cambiar de modo y volver a
       // "Sugerido" debe mantener la misma posición donde se había
-      // quedado — drawSuggested() ya lo clampea solo si la cola
-      // pendiente cambió de tamaño (por ejemplo, se validó algo).
+      // quedado — drawSuggested() arranca la ficha en ese índice.
       outlet.querySelectorAll('#vencViewToggle button').forEach((b) => b.classList.toggle('is-active', b === btn));
       // Sugerido no tiene buscador — si estaba abierto, se cierra.
       if (state.view === 'sugerido') searchBar.hidden = true;
@@ -253,17 +239,25 @@ export async function renderList(outlet) {
     });
   });
 
-  async function load() {
-    if (!outlet.isConnected) return;
-    state.loading = true;
-    state.error = null;
+  // Separado de load(): la ficha de Sugerido necesita releer el
+  // listado después de validar un ítem SIN pasar por draw() (eso
+  // remontaría toda la pestaña y reiniciaría la cámara) — ver
+  // drawSuggested()/onValidated más abajo.
+  async function fetchItems() {
     try {
       const data = await store.list();
       state.items = data.items;
+      state.error = null;
     } catch (err) {
       state.error = err;
       state.items = [];
     }
+  }
+
+  async function load() {
+    if (!outlet.isConnected) return;
+    state.loading = true;
+    await fetchItems();
     state.loading = false;
     if (outlet.isConnected) draw();
   }
@@ -288,6 +282,12 @@ export async function renderList(outlet) {
   function draw() {
     const wrap = outlet.querySelector('#vencListWrap');
     if (!wrap) return;
+
+    // Un error de red al recargar (p. ej. tras guardar Configurar)
+    // reemplaza el contenido de wrap por la tarjeta de error de abajo
+    // — sin esto, la ficha de Sugerido quedaba con la cámara corriendo
+    // detrás de ese cartel, desconectada del DOM visible.
+    if (state.error && suggestedFlow) { suggestedFlow.destroy(); suggestedFlow = null; }
 
     if (state.error) {
       wrap.innerHTML = `
@@ -337,65 +337,55 @@ export async function renderList(outlet) {
     });
   }
 
-  // "Sugerido": una sola posición pendiente a la vez, en el mismo
-  // orden alfabético que el resto — pensado para que el operario sepa
-  // YA a dónde ir, sin tener que leer y elegir de una lista. Las
-  // flechas van a los costados de la ubicación (es la acción de
-  // moverse ENTRE ubicaciones, tiene que estar pegada a ese dato, no
-  // en una barra aparte). Validar esa posición la saca de la cola y
-  // la siguiente ocupa su lugar solo (mismo índice, cola más corta) —
-  // sin eso, tendría que buscar manualmente por dónde seguía.
+  // "Sugerido": ya no es una tarjeta de resumen con un botón "Validar"
+  // que abre una pantalla aparte — ese paso era innecesario, la ficha
+  // de validación entera (selector de ubicación + acordeón Caja/
+  // Producto/Observación) vive ACÁ directamente, montada una sola vez
+  // mientras esta pestaña está a la vista (mountSuggestedFlow, ver
+  // validation-view.js). Confirmar un ítem no cierra nada: la propia
+  // ficha relee la cola (onValidated) y pasa sola a la siguiente
+  // posición pendiente, sin volver a montar la cámara.
+  function renderSuggestedEmpty(wrap) {
+    wrap.innerHTML = `
+      <div class="card cq-fade-in">
+        <div class="empty-state">
+          <div class="es-icon">${icon('check', 26)}</div>
+          <h3>¡Todo validado!</h3>
+          <p>No queda ninguna posición pendiente en la ventana configurada.</p>
+        </div>
+      </div>
+    `;
+  }
+
   function drawSuggested(wrap) {
     const queue = pendingQueue();
     if (!queue.length) {
-      wrap.innerHTML = `
-        <div class="card cq-fade-in">
-          <div class="empty-state">
-            <div class="es-icon">${icon('check', 26)}</div>
-            <h3>¡Todo validado!</h3>
-            <p>No queda ninguna posición pendiente en la ventana configurada.</p>
-          </div>
-        </div>
-      `;
+      if (suggestedFlow) { suggestedFlow.destroy(); suggestedFlow = null; }
+      renderSuggestedEmpty(wrap);
+      return;
+    }
+    if (suggestedFlow) {
+      // Ya montada: no se recrea nada (evita relanzar la cámara) — si
+      // la cola cambió por otro motivo (p. ej. se excluyó una
+      // ubicación desde Configurar), la ficha se entera sola y sigue
+      // en el mismo ítem si sigue vigente, o avanza si no.
+      suggestedFlow.refresh(queue);
       return;
     }
 
     state.suggestedIndex = Math.min(Math.max(state.suggestedIndex, 0), queue.length - 1);
-    const item = queue[state.suggestedIndex];
-    const isFirst = state.suggestedIndex === 0;
-    const isLast = state.suggestedIndex === queue.length - 1;
-
-    wrap.innerHTML = `
-      <div class="venc-suggest cq-fade-in">
-        <div class="venc-suggest-card">
-          <span class="venc-suggest-label">Ubicación</span>
-          <div class="venc-suggest-locrow">
-            <button type="button" class="venc-suggest-arrow" id="vencSuggestPrev" title="Anterior" ${isFirst ? 'disabled' : ''}>${icon('chevronLeft', 22)}</button>
-            <div class="venc-suggest-ubicacion ${ubicacionSizeClass(item.ubicacion)}">${escapeHtml(item.ubicacion || '-')}</div>
-            <button type="button" class="venc-suggest-arrow" id="vencSuggestNext" title="Siguiente" ${isLast ? 'disabled' : ''}>${icon('chevronRight', 22)}</button>
-          </div>
-          <hr class="venc-suggest-divider" />
-          <p class="venc-suggest-desc">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
-          <div class="venc-card-sub venc-suggest-sub">${subChipsHTML(item)}</div>
-          ${urgencyBannerHTML(item)}
-        </div>
-        <button type="button" class="btn btn-primary btn-block venc-suggest-cta" id="vencSuggestValidate">Validar esta posición</button>
-      </div>
-    `;
-    fitSubRows(wrap);
-
-    wrap.querySelector('#vencSuggestPrev').addEventListener('click', () => {
-      if (isFirst) return;
-      state.suggestedIndex -= 1;
-      draw();
-    });
-    wrap.querySelector('#vencSuggestNext').addEventListener('click', () => {
-      if (isLast) return;
-      state.suggestedIndex += 1;
-      draw();
-    });
-    wrap.querySelector('#vencSuggestValidate').addEventListener('click', () => {
-      openValidation(item, { onDone: load, pendingItems: pendingQueue() });
+    wrap.innerHTML = '';
+    suggestedFlow = mountSuggestedFlow(wrap, queue[state.suggestedIndex], {
+      pendingItems: queue,
+      onIndexChange: (idx) => { state.suggestedIndex = idx; },
+      onValidated: async () => {
+        await fetchItems();
+        return pendingQueue();
+      },
+      onEmpty: () => {
+        suggestedFlow = null;
+        renderSuggestedEmpty(wrap);
+      },
     });
   }
 

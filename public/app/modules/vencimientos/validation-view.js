@@ -1,13 +1,29 @@
 /* ============================================================
    Módulo App · Vencimientos — validación de un ítem.
 
-   Sin header propio. Arriba de todo, una barra fija solo con las
-   flechas de navegación entre posiciones pendientes y el texto
-   estático "Ubicación" en el medio (.venc-loc-nav) — no muestra datos
-   del ítem, es puramente el control para saltar de a una posición
-   (pendingItems) sin cerrar esta pantalla (loadItem reinicia todo el
-   estado, reutilizando la misma cámara ya activa — nunca se vuelve a
-   pedir permiso).
+   El acordeón (nav de ubicación + Caja/Producto/Observación) se
+   arma en renderValidationFlow(), y se monta de DOS formas distintas
+   según quién llame:
+     - openValidation()     → modal a pantalla completa (.scan-overlay,
+       fixed/inset:0) con historial (back cierra), usado al tocar un
+       ítem en la lista "Pendiente" — ahí sí hace falta un cierre
+       explícito para volver a la lista.
+     - mountSuggestedFlow() → embebido en el flujo normal de la página,
+       DEBAJO del toggle Sugerido/Pendiente/Validado (ver list-view.js,
+       modo "Sugerido"): ya no hace falta tocar "Validar" para entrar,
+       esta ficha ES el modo Sugerido. No hay overlay ni historial —
+       "confirmar" no cierra nada, la propia ficha relee la cola
+       (onValidated) y pasa sola a la siguiente posición pendiente.
+   Las dos comparten toda la lógica interna (cámara, acordeón, modo
+   manual, foto de faltante) — lo único que cambia es qué pasa cuando
+   un ítem termina de validarse (ver onValidated en cada export).
+
+   Arriba de todo, una barra solo con las flechas de navegación entre
+   posiciones pendientes y el texto estático "Ubicación" en el medio
+   (.venc-loc-nav) — no muestra datos del ítem, es puramente el
+   control para saltar de a una posición (pendingItems) sin perder el
+   estado (loadItem reinicia todo el estado, reutilizando la misma
+   cámara ya activa — nunca se vuelve a pedir permiso).
 
    Debajo, el acordeón de 3 contenedores de siempre, uno a la vez:
      1) Caja — ubicación + número de caja + avatar de estado, mismo
@@ -30,9 +46,6 @@
    sigue. Una vez validado correctamente, el contenedor queda bloqueado
    (no se puede reabrir ni tiene más lógica) y su avatar pasa de
    "pendiente" a "éxito".
-
-   Se cierra únicamente con el gesto nativo de "atrás" del
-   navegador/teléfono (popstate).
 
    Un solo <video> de cámara (envuelto en .scan-camera-stage junto con
    linterna/teclado/input manual) se reutiliza en los 3 lugares donde
@@ -87,12 +100,22 @@ function urgencyBannerHTML(it) {
   return `<div class="venc-suggest-urgency is-${it.severity}">${icon('calendarAlert', 16)} Vence en ${it.days} día${it.days === 1 ? '' : 's'}</div>`;
 }
 
-export function openValidation(initialItem, { onDone, pendingItems = [] }) {
+// Núcleo compartido entre el modal (openValidation) y la ficha embebida
+// del modo Sugerido (mountSuggestedFlow) — arma todo el acordeón
+// dentro de `overlay` (que puede ser un <div class="scan-overlay">
+// fixed o un <div> cualquiera ya insertado en el flujo normal, da
+// igual: acá adentro nunca se asume posición fixed).
+//   - onValidated(): se llama después de guardar OK un ítem. Si
+//     devuelve un array, se usa como cola nueva (refreshQueue) — el
+//     modal devuelve null (ya se está cerrando); la ficha embebida
+//     devuelve la cola pendiente recién releída, para avanzar sola.
+//   - onIndexChange(idx)/onEmpty(): opcionales, solo los usa la ficha
+//     embebida (persistir la posición, mostrar el estado "todo
+//     validado" cuando la cola queda vacía).
+function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValidated, onIndexChange, onEmpty }) {
   let item = initialItem;
-  const slides = pendingItems.length ? pendingItems : [initialItem];
+  let slides = pendingItems.length ? pendingItems : [initialItem];
 
-  const overlay = document.createElement('div');
-  overlay.className = 'scan-overlay';
   overlay.innerHTML = `
     <div class="scan-sheet cq-sheet venc-acc-body" id="vencAccBody">
       <div class="venc-acc-item venc-loc-nav" id="locNav">
@@ -158,15 +181,6 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-
-  history.pushState({ vencValidation: true }, '', location.href);
-  let closedByPop = false;
-  window.addEventListener('popstate', onPopState);
-  function onPopState() {
-    closedByPop = true;
-    close();
-  }
 
   const locPrev = overlay.querySelector('#locPrev');
   const locNext = overlay.querySelector('#locNext');
@@ -214,6 +228,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     if (nextIndex < 0 || nextIndex >= slides.length) return;
     currentIndex = nextIndex;
     updateLocNavButtons();
+    onIndexChange?.(currentIndex);
     const next = slides[currentIndex];
     if (next.key !== item.key) loadItem(next);
   }
@@ -481,20 +496,9 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   });
 
   const photoConfirmBtn = overlay.querySelector('#vencPhotoConfirm');
-  photoConfirmBtn.addEventListener('click', async () => {
-    if (submitting || !photoDataUrl) return;
-    submitting = true;
-    photoConfirmBtn.disabled = true;
-    try {
-      await store.validate(item, 'faltante', 'Faltante', photoDataUrl);
-      if (navigator.vibrate) navigator.vibrate(35);
-      close();
-      onDone();
-    } catch {
-      showToast('No se pudo guardar. Probá de nuevo.', { variant: 'warn' });
-      submitting = false;
-      photoConfirmBtn.disabled = false;
-    }
+  photoConfirmBtn.addEventListener('click', () => {
+    if (!photoDataUrl) return;
+    finishValidation('faltante', 'Faltante', photoDataUrl, photoConfirmBtn);
   });
 
   // El ícono de Observación queda "pendiente" (reloj) siempre — a
@@ -566,22 +570,58 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     onCode: (code) => handleCode(code),
   });
 
-  confirmBtn.addEventListener('click', async () => {
+  confirmBtn.addEventListener('click', () => {
+    const texto = comentarioInput.value.trim();
+    finishValidation(texto ? 'otro' : 'ok', texto, null, confirmBtn);
+  });
+
+  // Único punto de guardado, usado tanto por "Confirmar" (Observación)
+  // como por "Confirmar faltante" (foto). Al terminar OK, onValidated
+  // decide qué sigue: el modal cierra y listo (devuelve null); la
+  // ficha embebida relee la cola pendiente y, si onValidated devuelve
+  // un array, refreshQueue() avanza sola al siguiente ítem (o muestra
+  // el estado vacío si ya no queda nada).
+  async function finishValidation(motivo, texto, photoUrl, busyBtn) {
     if (submitting) return;
     submitting = true;
-    confirmBtn.disabled = true;
-    const texto = comentarioInput.value.trim();
+    busyBtn.disabled = true;
     try {
-      await store.validate(item, texto ? 'otro' : 'ok', texto);
+      await store.validate(item, motivo, texto, photoUrl);
       if (navigator.vibrate) navigator.vibrate(35);
-      close();
-      onDone();
+      submitting = false;
+      const freshQueue = await onValidated();
+      if (Array.isArray(freshQueue)) refreshQueue(freshQueue);
     } catch {
       showToast('No se pudo guardar. Probá de nuevo.', { variant: 'warn' });
       submitting = false;
-      confirmBtn.disabled = false;
+      busyBtn.disabled = false;
     }
-  });
+  }
+
+  // Tras validar un ítem (o si la cola cambia por otro motivo, p. ej.
+  // se excluyó una ubicación), la ficha embebida se reacomoda sola:
+  // si el ítem actual sigue en la cola nueva, solo actualiza los
+  // límites de las flechas (sin tocar nada visible); si no (el caso
+  // normal después de validar), avanza a la posición que haya quedado
+  // en el mismo índice, o a la última si la cola se acortó más allá.
+  function refreshQueue(newSlides) {
+    slides = newSlides;
+    if (!slides.length) {
+      onEmpty?.();
+      return;
+    }
+    const idx = slides.findIndex((s) => s.key === item.key);
+    if (idx !== -1) {
+      currentIndex = idx;
+      updateLocNavButtons();
+      onIndexChange?.(currentIndex);
+      return;
+    }
+    currentIndex = Math.min(currentIndex, slides.length - 1);
+    updateLocNavButtons();
+    onIndexChange?.(currentIndex);
+    loadItem(slides[currentIndex]);
+  }
 
   // Destello mínimo (fade + corrimiento leve) al cambiar el dato de
   // ubicación/SKU — sin esto, entre posiciones parecidas no se
@@ -630,16 +670,69 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     openAccordion('caja');
   }
 
+  loadItem(item);
+  scanner.start();
+
+  return {
+    destroy() { scanner.destroy(); },
+    refresh: refreshQueue,
+  };
+}
+
+// Modal a pantalla completa (usado desde la lista "Pendiente"): validar
+// UN ítem siempre cierra la ficha entera y vuelve a la lista, aunque
+// pendingItems traiga más posiciones (esas solo sirven para navegar
+// con las flechas mientras el modal está abierto). Se cierra con el
+// gesto nativo de "atrás" del navegador/teléfono (popstate).
+export function openValidation(initialItem, { onDone, pendingItems = [] }) {
+  const overlay = document.createElement('div');
+  overlay.className = 'scan-overlay';
+  document.body.appendChild(overlay);
+
+  history.pushState({ vencValidation: true }, '', location.href);
+  let closedByPop = false;
   let closed = false;
-  function close() {
+  window.addEventListener('popstate', onPopState);
+  function onPopState() {
+    closedByPop = true;
+    teardown();
+  }
+
+  const flow = renderValidationFlow(overlay, initialItem, {
+    pendingItems,
+    onValidated: async () => {
+      teardown();
+      onDone();
+      return null;
+    },
+  });
+
+  function teardown() {
     if (closed) return;
     closed = true;
-    scanner.destroy();
+    flow.destroy();
     window.removeEventListener('popstate', onPopState);
     overlay.remove();
     if (!closedByPop) history.back();
   }
+}
 
-  loadItem(item);
-  scanner.start();
+// Ficha embebida del modo "Sugerido" (ver list-view.js/drawSuggested):
+// se monta una sola vez dentro de `container` y queda viva mientras esa
+// pestaña está a la vista — validar un ítem no cierra nada, onValidated
+// releé la cola pendiente y la propia ficha avanza sola a la siguiente
+// posición (o dispara onEmpty si ya no queda ninguna).
+export function mountSuggestedFlow(container, initialItem, { pendingItems, onValidated, onIndexChange, onEmpty }) {
+  const root = document.createElement('div');
+  root.className = 'venc-suggest-inline cq-fade-in';
+  container.appendChild(root);
+
+  const flow = renderValidationFlow(root, initialItem, {
+    pendingItems, onValidated, onIndexChange, onEmpty,
+  });
+
+  return {
+    destroy() { flow.destroy(); root.remove(); },
+    refresh: flow.refresh,
+  };
 }
