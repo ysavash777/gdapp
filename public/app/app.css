@@ -1866,23 +1866,29 @@ html, body {
         corrige entera la cadena a flex:none (alto natural, hereda de
         su contenido) y la cámara pasa a un alto explícito en vh — la
         única pieza con tamaño fijo, de la que el resto cuelga.
-     2) Chrome de tarjeta: sin sentido acá (ya está embebida en la
-        página, no hace falta simular un contenedor propio encima) —
-        cada fila pierde fondo/borde, solo queda el espaciado (gap).
+     2) Fondo: cada fila (Ubicación/Caja/Producto/Observación) sigue
+        con su propia tarjeta gris redondeada (.venc-acc-item, sin
+        tocar) — lo que SÍ desaparece es el fondo/borde-superior de
+        .scan-sheet en .venc-acc-body (ver más abajo): ese gris era
+        del modal completo (una sola superficie detrás de todo), acá
+        el fondo de atrás es el negro global del módulo, y el gris
+        queda solo en cada tarjeta.
      3) Todo un poco más compacto (paddings, avatar, alto de cámara)
         para entrar sin scroll en un espacio verticalmente más chico
         que el del modal a pantalla completa. */
 .venc-suggest-inline { display: flex; flex-direction: column; gap: var(--sp-2); }
-.venc-suggest-inline .venc-acc-body { flex: none; min-height: 0; padding-top: 0; gap: var(--sp-2); }
-.venc-suggest-inline .venc-acc-item {
+.venc-suggest-inline .venc-acc-body {
+  flex: none;
+  min-height: 0;
+  padding-top: 0;
+  gap: var(--sp-2);
   background: none;
-  border: none;
-  border-radius: 0;
+  border-top: none;
 }
 .venc-suggest-inline .venc-acc-item.is-open { flex: none; }
-.venc-suggest-inline .venc-acc-head { padding: var(--sp-2) 0; }
+.venc-suggest-inline .venc-acc-head { padding: var(--sp-2); }
 .venc-suggest-inline .venc-acc-avatar { width: 32px; height: 32px; }
-.venc-suggest-inline .venc-loc-nav { padding: var(--sp-2) 0; }
+.venc-suggest-inline .venc-loc-nav { padding: var(--sp-2); }
 .venc-suggest-inline .venc-loc-arrow { width: 38px; height: 38px; }
 .venc-suggest-inline .venc-acc-panel {
   flex: none;
