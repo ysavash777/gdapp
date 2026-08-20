@@ -1880,20 +1880,26 @@ html, body {
 .venc-suggest-inline .venc-acc-body {
   flex: none;
   min-height: 0;
-  padding-top: 0;
+  /* .scan-sheet (la otra clase de este mismo elemento) trae padding
+     lateral propio (var(--sp-4), pensado para separar de los bordes
+     del modal a pantalla completa) — acá lo saca del todo: las
+     tarjetas deben ocupar el mismo ancho que .venc-card en Pendiente/
+     Validado (mismo #vencListWrap, sin ningún padding extra propio),
+     no quedar más angostas por un padding que ya no aplica. */
+  padding: 0;
   gap: var(--sp-2);
   background: none;
   border-top: none;
 }
 .venc-suggest-inline .venc-acc-item.is-open { flex: none; }
-.venc-suggest-inline .venc-acc-head { padding: var(--sp-2); }
+.venc-suggest-inline .venc-acc-head { padding: var(--sp-2) var(--sp-3); }
 .venc-suggest-inline .venc-acc-avatar { width: 32px; height: 32px; }
-.venc-suggest-inline .venc-loc-nav { padding: var(--sp-2); }
+.venc-suggest-inline .venc-loc-nav { padding: var(--sp-2) var(--sp-3); }
 .venc-suggest-inline .venc-loc-arrow { width: 38px; height: 38px; }
 .venc-suggest-inline .venc-acc-panel {
   flex: none;
   min-height: 0;
-  padding: 0 0 var(--sp-2);
+  padding: 0 var(--sp-3) var(--sp-2);
   overflow-y: visible;
 }
 .venc-suggest-inline .venc-acc-panel .scan-camera-stage { flex: none; min-height: 0; }
