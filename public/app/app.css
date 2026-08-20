@@ -1850,22 +1850,55 @@ html, body {
 .venc-acc-body { display: flex; flex-direction: column; gap: var(--sp-3); flex: 1; min-height: 0; padding-top: calc(env(safe-area-inset-top) + var(--sp-4)); }
 
 /* Modo Sugerido (mountSuggestedFlow): la MISMA ficha, pero embebida en
-   el flujo normal de la página en vez de un modal fixed — no hay un
-   ancestro de alto fijo del que "sobre" espacio para repartir, así
-   que flex:1 en la cámara no tiene nada para crecer y quedaría en su
-   min-height mínimo (chica e incómoda). Acá la cámara pasa a un alto
-   explícito en vh (responsivo, se adapta solo al ancho/alto de
-   pantalla) en vez de depender del contenedor. Tampoco hace falta el
-   padding-top de arriba (no hay notch que esquivar a mitad de página). */
-.venc-suggest-inline { display: flex; flex-direction: column; gap: var(--sp-3); }
-.venc-suggest-inline .venc-acc-body { padding-top: 0; }
+   el flujo normal de la página en vez de un modal fixed — una
+   adaptación real, no solo "meterla adentro":
+     1) Alto: en el modal, TODA la cadena (body → item abierto → panel
+        → stage de cámara) es flex:1;min-height:0 porque hay un
+        ancestro de alto fijo (.scan-overlay, inset:0) del que "sobra"
+        espacio para repartir. Acá NO hay ningún ancestro de alto
+        fijo — .venc-acc-body mide lo que ocupan sus hijos, así que
+        esa misma cadena flex:1;min-height:0 (basis 0%) deja de tener
+        de dónde crecer y, encima, con min-height:0 explícito pierde
+        el piso mínimo por contenido: cada nivel intermedio colapsa a
+        ~0 sin que se note (overflow:hidden del contenedor se lo come)
+        aunque la cámara en sí tenga alto — quedaba "rota" o
+        parpadeando invisible según el contenido de al lado. Se
+        corrige entera la cadena a flex:none (alto natural, hereda de
+        su contenido) y la cámara pasa a un alto explícito en vh — la
+        única pieza con tamaño fijo, de la que el resto cuelga.
+     2) Chrome de tarjeta: sin sentido acá (ya está embebida en la
+        página, no hace falta simular un contenedor propio encima) —
+        cada fila pierde fondo/borde, solo queda el espaciado (gap).
+     3) Todo un poco más compacto (paddings, avatar, alto de cámara)
+        para entrar sin scroll en un espacio verticalmente más chico
+        que el del modal a pantalla completa. */
+.venc-suggest-inline { display: flex; flex-direction: column; gap: var(--sp-2); }
+.venc-suggest-inline .venc-acc-body { flex: none; min-height: 0; padding-top: 0; gap: var(--sp-2); }
+.venc-suggest-inline .venc-acc-item {
+  background: none;
+  border: none;
+  border-radius: 0;
+}
+.venc-suggest-inline .venc-acc-item.is-open { flex: none; }
+.venc-suggest-inline .venc-acc-head { padding: var(--sp-2) 0; }
+.venc-suggest-inline .venc-acc-avatar { width: 32px; height: 32px; }
+.venc-suggest-inline .venc-loc-nav { padding: var(--sp-2) 0; }
+.venc-suggest-inline .venc-loc-arrow { width: 38px; height: 38px; }
+.venc-suggest-inline .venc-acc-panel {
+  flex: none;
+  min-height: 0;
+  padding: 0 0 var(--sp-2);
+  overflow-y: visible;
+}
+.venc-suggest-inline .venc-acc-panel .scan-camera-stage { flex: none; min-height: 0; }
+.venc-suggest-inline .venc-acc-comment-input { min-height: 56px; }
 .venc-suggest-inline .venc-photo-view { flex: none; }
 .venc-suggest-inline .venc-acc-panel .scan-camera,
 .venc-suggest-inline .venc-photo-frame {
   flex: none;
-  height: 42vh;
-  min-height: 220px;
-  max-height: 420px;
+  height: 30vh;
+  min-height: 150px;
+  max-height: 260px;
 }
 
 /* La cámara vive dentro de un "stage" compartido (torch + teclado +

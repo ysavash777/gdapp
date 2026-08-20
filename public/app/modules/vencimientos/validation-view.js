@@ -301,6 +301,17 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
   // escondida.
   let manualAnimCleanup = null;
   function setManualMode(active) {
+    // closeManualInput() se llama "por las dudas" en varios puntos
+    // (moveCameraTo, loadItem, markDone...) aunque el modo manual ya
+    // esté apagado — sin este freno, cada una de esas llamadas
+    // disparaba igual toda la animación FLIP de abajo (mide alto
+    // ANTES/DESPUÉS aunque nada vaya a cambiar) y, si esa medición
+    // ocurre con el panel todavía vacío (cámara sin mover adentro
+    // todavía), el alto capturado quedaba mal — sin una transición
+    // real de por medio nunca dispara "transitionend", así que el
+    // cleanup que libera el height inline nunca llegaba a correr y el
+    // contenedor quedaba con un alto fijo pegado para siempre.
+    if (active === cameraStage.classList.contains('is-manual')) return;
     const activeItem = openKey === 'caja' ? itemCaja : (openKey === 'prod' ? itemProd : null);
     keyboardBtn.classList.toggle('is-active', active);
     scanner.setPaused(active);
