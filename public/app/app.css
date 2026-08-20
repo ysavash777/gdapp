@@ -1872,37 +1872,21 @@ html, body {
 
 .venc-suggest-cta { flex-shrink: 0; padding: 15px 18px; }
 
-/* Arriba de todo (fuera de .venc-acc-body, no scrollea con el resto):
-   solo las flechas para saltar de a una posición pendiente
-   (pendingItems) y el texto estático "Seleccionar ubicación" en el
-   medio — no muestra datos del ítem actual, esos viven abajo en el
-   contenedor de Caja.
-
-   .venc-loc-bar es el fondo de atrás: el MISMO gris (var(--surface))
-   que usa .scan-sheet para el resto de la pantalla — antes esta franja
-   de arriba no tenía ese fondo y quedaba directo sobre .scan-overlay
-   (var(--bg), bastante más oscuro/negro), así que se leía como una
-   franja distinta pegada arriba en vez de parte del mismo fondo. La
-   zona segura del notch va acá, con PADDING-top (no margin): con
-   margin, arriba de la franja se seguiría viendo el negro de
-   .scan-overlay. .venc-loc-nav adentro es la tarjeta propiamente
-   dicha, con su propio gris más claro (var(--surface-2)) — mismo
-   ancho que los contenedores de abajo (padding lateral var(--sp-4),
-   igual al padding de .scan-sheet). El label centrado de verdad (no
-   solo "a ojo"): flex:1 entre dos flechas de igual ancho. */
-.venc-loc-bar {
-  flex-shrink: 0;
-  background: var(--surface);
-  padding: calc(env(safe-area-inset-top) + var(--sp-3)) var(--sp-4) var(--sp-2);
-}
+/* Selector de ubicación: NO es un header aparte — es un contenedor
+   más DENTRO de .venc-acc-body, primero de la lista, con exactamente
+   el mismo margen/fondo/borde/radio que Caja/Producto/Observación
+   (comparte la clase .venc-acc-item a secas, sin nada propio para
+   fondo/ancho). Solo las flechas para saltar de a una posición
+   pendiente (pendingItems) y el texto estático "Seleccionar
+   ubicación" en el medio — no muestra datos del ítem actual, esos
+   viven abajo en el contenedor de Caja. La única diferencia con los
+   demás: fila en vez de columna (mismo padding-row que .venc-acc-head
+   para que se vea igual de alto), y el label centrado de verdad
+   (flex:1 entre dos flechas de igual ancho). */
 .venc-loc-nav {
-  display: flex;
   align-items: center;
-  padding: var(--sp-2);
+  padding: var(--sp-3);
   gap: var(--sp-2);
-  background: var(--surface-2);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-lg);
 }
 .venc-loc-label {
   flex: 1;
@@ -1937,7 +1921,7 @@ html, body {
    quedan en su alto natural (solo el header) — así, al pasar de un
    paso a otro, nada se desplaza: la cámara es lo único que se adapta
    al espacio disponible, nunca al revés. */
-.venc-acc-body { display: flex; flex-direction: column; gap: var(--sp-3); flex: 1; min-height: 0; }
+.venc-acc-body { display: flex; flex-direction: column; gap: var(--sp-3); flex: 1; min-height: 0; padding-top: calc(env(safe-area-inset-top) + var(--sp-4)); }
 
 /* La cámara vive dentro de un "stage" compartido (torch + teclado +
    input manual + la cámara en sí) que se mueve entero entre Caja,
@@ -2054,6 +2038,10 @@ html, body {
   overflow: hidden;
 }
 .venc-acc-item.is-open { flex: 1 1 auto; }
+/* .venc-acc-item de arriba fija flex-direction:column (misma
+   especificidad, viene después en el archivo) — se repite acá para
+   que el selector de ubicación quede en fila. */
+.venc-loc-nav { flex-direction: row; }
 /* Repetida más abajo que su propia definición (misma especificidad
    que .is-open, dos clases cada una) para poder ganarle cuando un
    ítem tiene AMBAS clases a la vez (abierto + en modo manual) — si no,
