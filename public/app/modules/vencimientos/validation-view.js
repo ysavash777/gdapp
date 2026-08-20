@@ -116,7 +116,7 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
       <div class="venc-acc-item" data-state="locked" id="itemProd">
         <button type="button" class="venc-acc-head" id="headProd">
           <span class="venc-acc-avatar" id="avatarProd">${icon('clock', 18)}</span>
-          <span class="venc-acc-head-text" id="prodHeadText">
+          <span class="venc-acc-head-text">
             <strong class="venc-acc-head-title" id="prodDescripcion"></strong>
             <span class="venc-acc-head-sub" id="prodReferencia"></span>
           </span>
@@ -183,7 +183,6 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   const itemProd = overlay.querySelector('#itemProd');
   const headProd = overlay.querySelector('#headProd');
   const avatarProd = overlay.querySelector('#avatarProd');
-  const prodHeadTextEl = overlay.querySelector('#prodHeadText');
   const prodDescripcionEl = overlay.querySelector('#prodDescripcion');
   const prodReferenciaEl = overlay.querySelector('#prodReferencia');
   const panelProd = overlay.querySelector('#panelProd');
@@ -304,7 +303,9 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
       activeItem.style.flex = 'none';
       activeItem.style.height = `${fromHeight}px`;
       void activeItem.offsetHeight; // fuerza reflow antes de animar
-      activeItem.style.transition = 'height 200ms cubic-bezier(.4, 0, .2, 1)';
+      // Curva suave (ease-out pronunciado, sin frenada seca al final)
+      // en vez del material-standard más "mecánico" de antes.
+      activeItem.style.transition = 'height 280ms cubic-bezier(.22, 1, .36, 1)';
       activeItem.style.height = `${toHeight}px`;
 
       const cleanup = () => {
@@ -607,8 +608,9 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
     // Punto tipo viñeta, no guion — separador entre referencia y EAN.
     prodDescripcionEl.textContent = item.descripcion || 'Producto sin descripción';
     prodReferenciaEl.textContent = `${item.referencia || '-'} • ${item.ean || '-'}`;
+    // Solo en Ubicación (Caja) — Producto/SKU no forma parte de la
+    // navegación con flechas, así que no hace falta destacarlo ahí.
     flashDataSwap(cajaHeadTextEl);
-    flashDataSwap(prodHeadTextEl);
 
     openKey = null;
     setItemState('caja', 'pending');
