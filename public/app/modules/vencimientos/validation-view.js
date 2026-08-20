@@ -94,10 +94,12 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
   const overlay = document.createElement('div');
   overlay.className = 'scan-overlay';
   overlay.innerHTML = `
-    <div class="venc-loc-nav" id="locNav">
-      <button type="button" class="venc-loc-arrow" id="locPrev" title="Posición anterior">${icon('chevronLeft', 20)}</button>
-      <span class="venc-loc-label">Seleccionar ubicación</span>
-      <button type="button" class="venc-loc-arrow" id="locNext" title="Posición siguiente">${icon('chevronRight', 20)}</button>
+    <div class="venc-loc-bar">
+      <div class="venc-loc-nav" id="locNav">
+        <button type="button" class="venc-loc-arrow" id="locPrev" title="Posición anterior">${icon('chevronLeft', 20)}</button>
+        <span class="venc-loc-label">Seleccionar ubicación</span>
+        <button type="button" class="venc-loc-arrow" id="locNext" title="Posición siguiente">${icon('chevronRight', 20)}</button>
+      </div>
     </div>
     <div class="scan-sheet cq-sheet venc-acc-body" id="vencAccBody">
       <div class="venc-acc-item" data-state="pending" id="itemCaja">

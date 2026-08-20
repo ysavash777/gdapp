@@ -1876,21 +1876,29 @@ html, body {
    solo las flechas para saltar de a una posición pendiente
    (pendingItems) y el texto estático "Seleccionar ubicación" en el
    medio — no muestra datos del ítem actual, esos viven abajo en el
-   contenedor de Caja. Mismo fondo/borde/radio y mismo ancho (margin
-   lateral var(--sp-4), igual al padding de .scan-sheet) que los
-   contenedores de abajo. La zona segura del notch va con PADDING-top,
-   no margin: si fuera margin, ahí arriba se seguiría viendo el negro
-   casi puro de .scan-overlay detrás, con el borde de abajo del propio
-   contenedor marcando la línea — con padding, el gris se estira hasta
-   el borde físico de la pantalla y no queda ningún resto negro. El
-   label centrado de verdad (no solo "a ojo"): flex:1 entre dos
-   flechas de igual ancho. */
-.venc-loc-nav {
+   contenedor de Caja.
+
+   .venc-loc-bar es el fondo de atrás: el MISMO gris (var(--surface))
+   que usa .scan-sheet para el resto de la pantalla — antes esta franja
+   de arriba no tenía ese fondo y quedaba directo sobre .scan-overlay
+   (var(--bg), bastante más oscuro/negro), así que se leía como una
+   franja distinta pegada arriba en vez de parte del mismo fondo. La
+   zona segura del notch va acá, con PADDING-top (no margin): con
+   margin, arriba de la franja se seguiría viendo el negro de
+   .scan-overlay. .venc-loc-nav adentro es la tarjeta propiamente
+   dicha, con su propio gris más claro (var(--surface-2)) — mismo
+   ancho que los contenedores de abajo (padding lateral var(--sp-4),
+   igual al padding de .scan-sheet). El label centrado de verdad (no
+   solo "a ojo"): flex:1 entre dos flechas de igual ancho. */
+.venc-loc-bar {
   flex-shrink: 0;
+  background: var(--surface);
+  padding: calc(env(safe-area-inset-top) + var(--sp-3)) var(--sp-4) var(--sp-2);
+}
+.venc-loc-nav {
   display: flex;
   align-items: center;
-  margin: 0 var(--sp-4) var(--sp-3);
-  padding: calc(env(safe-area-inset-top) + var(--sp-2)) var(--sp-2) var(--sp-2);
+  padding: var(--sp-2);
   gap: var(--sp-2);
   background: var(--surface-2);
   border: 1px solid var(--line-soft);
