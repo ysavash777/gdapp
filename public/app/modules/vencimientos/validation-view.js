@@ -154,7 +154,7 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
       <div class="venc-acc-item venc-loc-nav" id="locNav">
         <button type="button" class="venc-loc-arrow" id="locPrev" title="Posición anterior">${icon('chevronLeft', 20)}</button>
         <div class="venc-loc-info" id="locInfo">
-          <span class="venc-loc-caption">- CONFIRMAR UBICACIÓN -</span>
+          <span class="venc-loc-caption">Ubicación sugerida:</span>
           <strong class="venc-loc-ubicacion" id="locUbicacion"></strong>
           <span class="venc-loc-caja">${iconSolid('caja', 13)}<span id="locCajaNumero"></span></span>
         </div>
@@ -164,7 +164,7 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
         <button type="button" class="venc-acc-head" id="headCaja">
           <span class="venc-acc-avatar" id="avatarCaja">${icon('clock', 18)}</span>
           <span class="venc-acc-head-text">
-            <strong class="venc-acc-head-title" id="cajaHeadTitle">Escanear etiqueta de ubicación</strong>
+            <strong class="venc-acc-head-title" id="cajaHeadTitle">- CONFIRMAR UBICACIÓN -</strong>
           </span>
         </button>
         <div class="venc-acc-panel" id="panelCaja" hidden>
@@ -705,7 +705,7 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     openKey = null;
     setItemState('caja', 'pending');
     setItemState('prod', 'locked');
-    cajaHeadTitleEl.textContent = 'Escanear etiqueta de ubicación';
+    cajaHeadTitleEl.textContent = '- CONFIRMAR UBICACIÓN -';
     avatarCaja.innerHTML = icon('clock', 18);
     avatarProd.innerHTML = icon('clock', 18);
     setOpen('caja', false);

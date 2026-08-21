@@ -1834,6 +1834,7 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
+  text-transform: uppercase;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -2093,6 +2094,12 @@ html, body {
    explícito solo para este contenedor, no para Producto/Observación. */
 #itemCaja .venc-acc-avatar { display: none; }
 #itemCaja[data-state="done"] .venc-acc-avatar { display: grid; }
+/* Sin avatar, "- CONFIRMAR UBICACIÓN -" queda centrado en toda la fila
+   (no hay nada a la izquierda que lo empuje) — un llamado a la acción,
+   no un dato. Al validar, el título cambia a "Ubicación validada" Y
+   vuelve a quedar a la izquierda, al lado del avatar verde que
+   reaparece — mismo layout que Producto/Observación. */
+#itemCaja[data-state="pending"] .venc-acc-head-title { text-align: center; }
 
 
 .venc-acc-head {
