@@ -2073,6 +2073,11 @@ html, body {
   overflow: hidden;
 }
 .venc-acc-item.is-open { flex: 1 1 auto; }
+/* display:flex de arriba le gana a [hidden] del navegador por ser
+   regla de autor — sin esto, el contenedor de Observación (oculto por
+   completo hasta validar Caja y Producto) se seguía viendo como una
+   caja vacía con borde. */
+.venc-acc-item[hidden] { display: none; }
 /* .venc-acc-item de arriba fija flex-direction:column (misma
    especificidad, viene después en el archivo) — se repite acá para
    que el selector de ubicación quede en fila. */
@@ -2192,20 +2197,35 @@ html, body {
 .venc-acc-controls { flex: 0 0 auto; display: flex; flex-direction: column; gap: var(--sp-2); }
 
 /* Repaso final (Observación, ya con Caja y Producto validados): el
-   detalle del producto + fecha/pedprov + la misma sugerencia de
-   acción (retirar / vence en X días) que el modo Sugerido — última
-   oportunidad de revisarlo antes de escribir algo al respecto. */
+   detalle del producto + saldo/pedprov/vencimiento + la misma
+   sugerencia de acción (retirar / vence en X días) que el modo
+   Sugerido — última oportunidad de revisarlo antes de escribir la
+   observación. */
 .venc-review-box { flex: 0 0 auto; display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-1); }
-.venc-review-desc { font-size: var(--text-sm); color: var(--ink-2); }
-.venc-review-grid { grid-template-columns: repeat(2, 1fr); }
+.venc-comment-desc {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--ink);
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+.venc-comment-label {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--ink);
+}
 
-/* Contenedor 3 (Observación): mismo .venc-acc-item que Caja/Producto
-   — bloqueado (solo el header, atenuado, panel oculto) hasta validar
-   caja y producto, mismo alto/forma que esos dos cerrados. Nunca pasa
-   a data-state="done" (su avatar no se valida contra nada, ver
-   [data-state="done"] más arriba), así que el ícono de reloj queda
-   siempre. Sin motivos predefinidos: el operario describe la
-   situación con sus propias palabras si hace falta. */
+/* Contenedor 3 (Observación): a diferencia de Caja/Producto queda
+   OCULTO por completo (no solo atenuado) hasta validar los otros
+   dos — no tiene avatar de estado propio (no se valida contra nada),
+   así que no hay nada útil que mostrar antes de eso. El textarea no
+   lleva foco automático al revelarse ("no dejarlo activo") ni borde
+   en ningún estado — ni siquiera al enfocarlo. */
 .venc-acc-comment-input {
   min-height: 70px;
   padding: 11px 14px;
@@ -2217,7 +2237,9 @@ html, body {
   font: inherit;
   outline: none;
 }
-.venc-acc-comment-input:focus { box-shadow: 0 0 0 3px var(--accent-100); }
+.venc-acc-comment-input:focus,
+.venc-acc-comment-input:hover,
+.venc-acc-comment-input:active { border: none; box-shadow: none; }
 .venc-acc-comment-input:disabled { cursor: not-allowed; }
 
 /* Insignia de desacuerdo (código leído no coincide) — flotante SOBRE

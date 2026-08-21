@@ -35,10 +35,12 @@
         reportar "faltante" sin escanear (si el producto de verdad no
         está, insistir en escanearlo no tiene sentido), pero exige una
         foto de la posición vacía como evidencia.
-     3) Observación — se libera recién con 1 y 2 validados. Sin
-        motivos predefinidos: texto libre, vacío = "OK". No se valida
-        contra nada (es opcional), así que su ícono queda "pendiente"
-        para siempre, nunca pasa a "éxito".
+     3) Observación — contenedor de cierre, oculto por completo hasta
+        validar 1 y 2. Repite la info del producto (descripción,
+        saldo, pedprov, vencimiento) para la última revisión y pide
+        una observación en texto libre — obligatoria, no se puede
+        confirmar vacía. No se valida contra nada, así que no tiene
+        avatar de estado propio.
 
    Abrir un contenedor cierra automáticamente cualquier otro que
    estuviera abierto — pero sin desplazar nada de lugar: el que se abre
@@ -86,6 +88,12 @@ const MISMATCH_MAX_CHARS = 14;
 function truncate(v) {
   const s = String(v ?? '');
   return s.length > MISMATCH_MAX_CHARS ? `${s.slice(0, MISMATCH_MAX_CHARS)}…` : s;
+}
+
+// Mismo criterio que formatQty() en list-view.js.
+function formatQty(saldo) {
+  if (saldo == null) return '-';
+  return saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 });
 }
 
 // La ubicación en la barra de navegación (arriba de todo) tiene que
@@ -186,18 +194,12 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
         </div>
       </div>
 
-      <div class="venc-acc-item" data-state="locked" id="itemComment">
-        <div class="venc-acc-head">
-          <span class="venc-acc-avatar" id="avatarComment">${icon('clock', 18)}</span>
-          <span class="venc-acc-head-text">
-            <strong class="venc-acc-head-title">Observación</strong>
-            <span class="venc-acc-head-sub">Opcional</span>
-          </span>
-        </div>
-        <div class="venc-acc-panel" id="panelComment" hidden>
+      <div class="venc-acc-item" id="itemComment" hidden>
+        <div class="venc-acc-panel" id="panelComment">
           <div class="venc-review-box" id="vencReviewBox"></div>
           <div class="venc-acc-controls">
-            <textarea class="venc-acc-comment-input" id="vencComentario" rows="3" maxlength="200" placeholder="Agregar una observación (opcional)" disabled></textarea>
+            <label class="venc-comment-label" for="vencComentario">Observación:</label>
+            <textarea class="venc-acc-comment-input" id="vencComentario" rows="3" maxlength="200" placeholder="Añadir observación" disabled></textarea>
             <button type="button" class="btn btn-primary btn-block" id="vencConfirm" disabled>Confirmar</button>
           </div>
         </div>
@@ -242,7 +244,6 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
   const controlsProd = overlay.querySelector('#controlsProd');
 
   const itemComment = overlay.querySelector('#itemComment');
-  const panelComment = overlay.querySelector('#panelComment');
   const reviewBox = overlay.querySelector('#vencReviewBox');
   const comentarioInput = overlay.querySelector('#vencComentario');
   const confirmBtn = overlay.querySelector('#vencConfirm');
@@ -551,36 +552,46 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     finishValidation('faltante', 'Faltante', photoDataUrl, photoConfirmBtn);
   });
 
-  // El ícono de Observación queda "pendiente" (reloj) siempre — a
-  // diferencia de Caja/Producto, este contenedor no se valida contra
-  // nada, así que nunca pasa a "éxito". Mientras el texto no está
-  // disponible para escribir, el contenedor tiene el mismo alto/forma
-  // que Caja/Producto cerrados (solo el header, panel oculto).
-  function unlockComment() {
-    itemComment.dataset.state = 'unlocked';
-    panelComment.hidden = false;
-    // Detalle del producto + sugerencia de acción justo antes de
-    // escribir la observación — es donde más sentido tiene revisarlo
-    // una última vez y, si hace falta, anotar algo al respecto.
+  // Detalle del producto (descripción + saldo/pedprov/vencimiento +
+  // sugerencia de acción) — última revisión antes de escribir la
+  // observación. Se arma recién en unlockComment(), nunca antes: con
+  // el contenedor todavía oculto (display:none) fitProdDescription()
+  // mide alto 0 y nunca llega a achicar la fuente si el texto es
+  // largo (mismo problema que ya se vio con setManualMode).
+  function renderCommentInfo(it) {
+    const um = it.unidadmedida ? ` ${it.unidadmedida}` : '';
     reviewBox.innerHTML = `
-      <p class="venc-review-desc">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
+      <p class="venc-comment-desc" id="commentDescripcion">${escapeHtml(it.descripcion || 'Producto sin descripción')}</p>
       <div class="reg-info-grid venc-review-grid">
         <div class="reg-info-cell">
-          <span class="reg-info-label">Fecha</span>
-          <span class="reg-info-value">${escapeHtml(item.fv || '-')}</span>
+          <span class="reg-info-label">Saldo</span>
+          <span class="reg-info-value">${escapeHtml(formatQty(it.saldo))}${escapeHtml(um)}</span>
         </div>
         <div class="reg-info-cell">
           <span class="reg-info-label">Pedprov</span>
-          <span class="reg-info-value">${escapeHtml(item.pedprov || '-')}</span>
+          <span class="reg-info-value">${escapeHtml(it.pedprov || '-')}</span>
+        </div>
+        <div class="reg-info-cell">
+          <span class="reg-info-label">Vencimiento</span>
+          <span class="reg-info-value">${escapeHtml(it.fv || '-')}</span>
         </div>
       </div>
-      ${urgencyBannerHTML(item)}
+      ${urgencyBannerHTML(it)}
     `;
+    fitProdDescription(reviewBox.querySelector('#commentDescripcion'));
+  }
+
+  // El contenedor queda oculto por completo hasta validar Caja y
+  // Producto (a diferencia de esos dos, acá no hay nada contra qué
+  // validar — la observación es texto libre, obligatorio). Sin foco
+  // automático: el operario ya viene de escanear, no tiene sentido
+  // "robarle" el teclado antes de que decida escribir.
+  function unlockComment() {
+    itemComment.hidden = false;
+    renderCommentInfo(item);
     comentarioInput.disabled = false;
-    confirmBtn.disabled = false;
     scanner.setPaused(true);
     scanner.pauseView();
-    comentarioInput.focus();
   }
 
   function markDone(key) {
@@ -625,9 +636,15 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     onCode: (code) => handleCode(code),
   });
 
+  // La observación es obligatoria — "Confirmar" queda deshabilitado
+  // hasta que haya texto.
+  comentarioInput.addEventListener('input', () => {
+    confirmBtn.disabled = !comentarioInput.value.trim();
+  });
   confirmBtn.addEventListener('click', () => {
     const texto = comentarioInput.value.trim();
-    finishValidation(texto ? 'otro' : 'ok', texto, null, confirmBtn);
+    if (!texto) return;
+    finishValidation('otro', texto, null, confirmBtn);
   });
 
   // Único punto de guardado, usado tanto por "Confirmar" (Observación)
@@ -719,8 +736,7 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     setOpen('caja', false);
     setOpen('prod', false);
 
-    itemComment.dataset.state = 'locked';
-    panelComment.hidden = true;
+    itemComment.hidden = true;
     reviewBox.innerHTML = '';
     comentarioInput.value = '';
     comentarioInput.disabled = true;
