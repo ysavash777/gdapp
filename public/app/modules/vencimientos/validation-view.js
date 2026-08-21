@@ -590,12 +590,15 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     closeAccordion(key);
     (key === 'caja' ? controlsCaja : controlsProd).innerHTML = '';
     if (key === 'caja') {
-      cajaHeadTitleEl.textContent = 'Ubicación validada';
+      cajaHeadTitleEl.textContent = 'Ubicación confirmada';
       cajaHeadSubEl.hidden = true;
       setItemState('prod', 'pending');
       openAccordion('prod');
       showToast('Caja verificada — ahora escaneá el producto.');
     } else {
+      prodDescripcionEl.textContent = 'Artículo confirmado';
+      prodDescripcionEl.style.fontSize = '';
+      prodReferenciaEl.hidden = true;
       unlockComment();
     }
   }
@@ -701,6 +704,7 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     prodDescripcionEl.textContent = item.descripcion || 'Producto sin descripción';
     fitProdDescription(prodDescripcionEl);
     prodReferenciaEl.textContent = item.referencia || '-';
+    prodReferenciaEl.hidden = false;
     // Ubicación y número de caja cambian juntos con cada ítem — un
     // solo destello para todo el bloque de arriba.
     flashDataSwap(locInfoEl);
