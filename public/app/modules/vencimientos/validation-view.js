@@ -153,15 +153,18 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     <div class="scan-sheet cq-sheet venc-acc-body" id="vencAccBody">
       <div class="venc-acc-item venc-loc-nav" id="locNav">
         <button type="button" class="venc-loc-arrow" id="locPrev" title="Posición anterior">${icon('chevronLeft', 20)}</button>
-        <span class="venc-loc-label" id="locLabel"></span>
+        <div class="venc-loc-info" id="locInfo">
+          <span class="venc-loc-caption">Ubicación sugerida:</span>
+          <strong class="venc-loc-ubicacion" id="locUbicacion"></strong>
+          <span class="venc-loc-caja">${iconSolid('caja', 13)}<span id="locCajaNumero"></span></span>
+        </div>
         <button type="button" class="venc-loc-arrow" id="locNext" title="Posición siguiente">${icon('chevronRight', 20)}</button>
       </div>
       <div class="venc-acc-item" data-state="pending" id="itemCaja">
         <button type="button" class="venc-acc-head" id="headCaja">
           <span class="venc-acc-avatar" id="avatarCaja">${icon('clock', 18)}</span>
-          <span class="venc-acc-head-text" id="cajaHeadText">
-            <strong class="venc-acc-head-title">Escanear ubicación</strong>
-            <span class="venc-acc-head-sub">${iconSolid('caja', 13)}<span id="cajaNumero"></span></span>
+          <span class="venc-acc-head-text">
+            <strong class="venc-acc-head-title">Escanear etiqueta de ubicación</strong>
           </span>
         </button>
         <div class="venc-acc-panel" id="panelCaja" hidden>
@@ -217,13 +220,13 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
 
   const locPrev = overlay.querySelector('#locPrev');
   const locNext = overlay.querySelector('#locNext');
-  const locLabelEl = overlay.querySelector('#locLabel');
+  const locInfoEl = overlay.querySelector('#locInfo');
+  const locUbicacionEl = overlay.querySelector('#locUbicacion');
+  const locCajaNumeroEl = overlay.querySelector('#locCajaNumero');
 
   const itemCaja = overlay.querySelector('#itemCaja');
   const headCaja = overlay.querySelector('#headCaja');
   const avatarCaja = overlay.querySelector('#avatarCaja');
-  const cajaHeadTextEl = overlay.querySelector('#cajaHeadText');
-  const cajaNumeroEl = overlay.querySelector('#cajaNumero');
   const panelCaja = overlay.querySelector('#panelCaja');
   const controlsCaja = overlay.querySelector('#controlsCaja');
 
@@ -687,16 +690,15 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     currentIndex = Math.max(0, slides.findIndex((i) => i.key === item.key));
     updateLocNavButtons();
 
-    locLabelEl.textContent = item.ubicacion || '-';
-    locLabelEl.className = `venc-loc-label ${locSizeClass(item.ubicacion)}`;
-    cajaNumeroEl.textContent = item.caja || '-';
+    locUbicacionEl.textContent = item.ubicacion || '-';
+    locUbicacionEl.className = `venc-loc-ubicacion ${locSizeClass(item.ubicacion)}`;
+    locCajaNumeroEl.textContent = item.caja || '-';
     prodDescripcionEl.textContent = item.descripcion || 'Producto sin descripción';
     fitProdDescription(prodDescripcionEl);
     prodReferenciaEl.textContent = item.referencia || '-';
-    // Ubicación (arriba) y número de caja cambian juntos con cada
-    // ítem — mismo destello para las dos.
-    flashDataSwap(locLabelEl);
-    flashDataSwap(cajaHeadTextEl);
+    // Ubicación y número de caja cambian juntos con cada ítem — un
+    // solo destello para todo el bloque de arriba.
+    flashDataSwap(locInfoEl);
 
     openKey = null;
     setItemState('caja', 'pending');
