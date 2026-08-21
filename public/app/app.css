@@ -2078,6 +2078,14 @@ html, body {
 .venc-acc-item[data-state="done"] .venc-acc-head { pointer-events: none; }
 .venc-acc-item[data-state="done"] .venc-acc-avatar { background: var(--ok); color: #fff; }
 
+/* Contenedor de ubicación (Caja): sin avatar mientras no está
+   validado — acá el reloj de "pendiente" no suma nada (ya es obvio
+   que es el primer paso), así que directamente no se ve nada hasta
+   validar, donde recién aparece el círculo verde de éxito. Pedido
+   explícito solo para este contenedor, no para Producto/Observación. */
+#itemCaja .venc-acc-avatar { display: none; }
+#itemCaja[data-state="done"] .venc-acc-avatar { display: grid; }
+
 
 .venc-acc-head {
   flex-shrink: 0;
