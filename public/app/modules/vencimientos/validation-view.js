@@ -164,7 +164,8 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
         <button type="button" class="venc-acc-head" id="headCaja">
           <span class="venc-acc-avatar" id="avatarCaja">${icon('clock', 18)}</span>
           <span class="venc-acc-head-text">
-            <strong class="venc-acc-head-title" id="cajaHeadTitle">- CONFIRMAR UBICACIÓN -</strong>
+            <strong class="venc-acc-head-title" id="cajaHeadTitle">Confirmar ubicación</strong>
+            <span class="venc-acc-head-sub" id="cajaHeadSub">Escanea la etiqueta</span>
           </span>
         </button>
         <div class="venc-acc-panel" id="panelCaja" hidden>
@@ -228,6 +229,7 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
   const headCaja = overlay.querySelector('#headCaja');
   const avatarCaja = overlay.querySelector('#avatarCaja');
   const cajaHeadTitleEl = overlay.querySelector('#cajaHeadTitle');
+  const cajaHeadSubEl = overlay.querySelector('#cajaHeadSub');
   const panelCaja = overlay.querySelector('#panelCaja');
   const controlsCaja = overlay.querySelector('#controlsCaja');
 
@@ -589,6 +591,7 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     (key === 'caja' ? controlsCaja : controlsProd).innerHTML = '';
     if (key === 'caja') {
       cajaHeadTitleEl.textContent = 'Ubicación validada';
+      cajaHeadSubEl.hidden = true;
       setItemState('prod', 'pending');
       openAccordion('prod');
       showToast('Caja verificada — ahora escaneá el producto.');
@@ -705,7 +708,8 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     openKey = null;
     setItemState('caja', 'pending');
     setItemState('prod', 'locked');
-    cajaHeadTitleEl.textContent = '- CONFIRMAR UBICACIÓN -';
+    cajaHeadTitleEl.textContent = 'Confirmar ubicación';
+    cajaHeadSubEl.hidden = false;
     avatarCaja.innerHTML = icon('clock', 18);
     avatarProd.innerHTML = icon('clock', 18);
     setOpen('caja', false);

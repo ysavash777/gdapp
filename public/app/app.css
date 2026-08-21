@@ -2087,20 +2087,6 @@ html, body {
 .venc-acc-item[data-state="done"] .venc-acc-head { pointer-events: none; }
 .venc-acc-item[data-state="done"] .venc-acc-avatar { background: var(--ok); color: #fff; }
 
-/* Contenedor de ubicación (Caja): sin avatar mientras no está
-   validado — acá el reloj de "pendiente" no suma nada (ya es obvio
-   que es el primer paso), así que directamente no se ve nada hasta
-   validar, donde recién aparece el círculo verde de éxito. Pedido
-   explícito solo para este contenedor, no para Producto/Observación. */
-#itemCaja .venc-acc-avatar { display: none; }
-#itemCaja[data-state="done"] .venc-acc-avatar { display: grid; }
-/* Sin avatar, "- CONFIRMAR UBICACIÓN -" queda centrado en toda la fila
-   (no hay nada a la izquierda que lo empuje) — un llamado a la acción,
-   no un dato. Al validar, el título cambia a "Ubicación validada" Y
-   vuelve a quedar a la izquierda, al lado del avatar verde que
-   reaparece — mismo layout que Producto/Observación. */
-#itemCaja[data-state="pending"] .venc-acc-head-title { text-align: center; }
-
 
 .venc-acc-head {
   flex-shrink: 0;
@@ -2150,6 +2136,10 @@ html, body {
   white-space: nowrap;
 }
 .venc-acc-head-sub svg { flex-shrink: 0; }
+/* display:flex de arriba le gana a [hidden] del navegador por ser
+   regla de autor — sin esto, "Escanea la etiqueta" seguía viéndose
+   aunque markDone() la ocultara al validar Caja. */
+.venc-acc-head-sub[hidden] { display: none; }
 
 /* Descripción del producto: a diferencia del resto de .venc-acc-head-
    title (una sola línea, corta con elipsis), acá se pide ver el texto
