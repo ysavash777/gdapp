@@ -88,6 +88,39 @@ function truncate(v) {
   return s.length > MISMATCH_MAX_CHARS ? `${s.slice(0, MISMATCH_MAX_CHARS)}…` : s;
 }
 
+// La ubicación en la barra de navegación (arriba de todo) tiene que
+// entrar siempre en una sola línea, sin importar el largo del código
+// — nunca deformar el contenedor ni saltar de línea. Mismo criterio
+// que el resto de "medidas fijas" de la app (ver qtySizeClass/
+// chipSizeClass en otras herramientas): se va escalando el tamaño de
+// fuente en vez de cortar texto.
+function locSizeClass(text) {
+  const len = String(text || '').length;
+  if (len <= 8) return '';
+  if (len <= 11) return 'is-md';
+  if (len <= 14) return 'is-sm';
+  return 'is-xs';
+}
+
+// La descripción del producto no tiene un largo predecible como la
+// ubicación (es texto libre) — achicar por escalones fijos según
+// cantidad de caracteres no alcanza (dos textos del mismo largo
+// pueden ocupar distinto según el ancho de cada letra/palabra). Se
+// mide de verdad: con el texto puesto a tamaño normal y recortado a 2
+// líneas (line-clamp), scrollHeight > clientHeight indica que sigue
+// sin entrar completo — de a un pixel, hasta que entre o se llegue al
+// piso mínimo (nunca desaparece del todo, en el peor caso queda algo
+// recortado por la elipsis del line-clamp, red de seguridad final).
+const PROD_DESC_MIN_FONT_PX = 11;
+function fitProdDescription(el) {
+  el.style.fontSize = '';
+  let size = parseFloat(getComputedStyle(el).fontSize);
+  while (el.scrollHeight > el.clientHeight + 1 && size > PROD_DESC_MIN_FONT_PX) {
+    size -= 1;
+    el.style.fontSize = `${size}px`;
+  }
+}
+
 // Mismo criterio que urgencyBannerHTML() en list-view.js (modo
 // Sugerido) — acá se repite el mismo aviso, ya al final del flujo,
 // para reforzar la acción a tomar justo antes de escribir la
@@ -120,14 +153,14 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     <div class="scan-sheet cq-sheet venc-acc-body" id="vencAccBody">
       <div class="venc-acc-item venc-loc-nav" id="locNav">
         <button type="button" class="venc-loc-arrow" id="locPrev" title="Posición anterior">${icon('chevronLeft', 20)}</button>
-        <span class="venc-loc-label">Seleccionar ubicación</span>
+        <span class="venc-loc-label" id="locLabel"></span>
         <button type="button" class="venc-loc-arrow" id="locNext" title="Posición siguiente">${icon('chevronRight', 20)}</button>
       </div>
       <div class="venc-acc-item" data-state="pending" id="itemCaja">
         <button type="button" class="venc-acc-head" id="headCaja">
           <span class="venc-acc-avatar" id="avatarCaja">${icon('clock', 18)}</span>
           <span class="venc-acc-head-text" id="cajaHeadText">
-            <strong class="venc-acc-head-title" id="cajaUbicacion"></strong>
+            <strong class="venc-acc-head-title">Escanear ubicación</strong>
             <span class="venc-acc-head-sub">${iconSolid('caja', 13)}<span id="cajaNumero"></span></span>
           </span>
         </button>
@@ -140,7 +173,7 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
         <button type="button" class="venc-acc-head" id="headProd">
           <span class="venc-acc-avatar" id="avatarProd">${icon('clock', 18)}</span>
           <span class="venc-acc-head-text">
-            <strong class="venc-acc-head-title" id="prodDescripcion"></strong>
+            <strong class="venc-acc-head-title venc-prod-desc" id="prodDescripcion"></strong>
             <span class="venc-acc-head-sub" id="prodReferencia"></span>
           </span>
         </button>
@@ -184,12 +217,12 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
 
   const locPrev = overlay.querySelector('#locPrev');
   const locNext = overlay.querySelector('#locNext');
+  const locLabelEl = overlay.querySelector('#locLabel');
 
   const itemCaja = overlay.querySelector('#itemCaja');
   const headCaja = overlay.querySelector('#headCaja');
   const avatarCaja = overlay.querySelector('#avatarCaja');
   const cajaHeadTextEl = overlay.querySelector('#cajaHeadText');
-  const cajaUbicacionEl = overlay.querySelector('#cajaUbicacion');
   const cajaNumeroEl = overlay.querySelector('#cajaNumero');
   const panelCaja = overlay.querySelector('#panelCaja');
   const controlsCaja = overlay.querySelector('#controlsCaja');
@@ -654,13 +687,15 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     currentIndex = Math.max(0, slides.findIndex((i) => i.key === item.key));
     updateLocNavButtons();
 
-    cajaUbicacionEl.textContent = item.ubicacion || '-';
+    locLabelEl.textContent = item.ubicacion || '-';
+    locLabelEl.className = `venc-loc-label ${locSizeClass(item.ubicacion)}`;
     cajaNumeroEl.textContent = item.caja || '-';
-    // Punto tipo viñeta, no guion — separador entre referencia y EAN.
     prodDescripcionEl.textContent = item.descripcion || 'Producto sin descripción';
-    prodReferenciaEl.textContent = `${item.referencia || '-'} • ${item.ean || '-'}`;
-    // Solo en Ubicación (Caja) — Producto/SKU no forma parte de la
-    // navegación con flechas, así que no hace falta destacarlo ahí.
+    fitProdDescription(prodDescripcionEl);
+    prodReferenciaEl.textContent = item.referencia || '-';
+    // Ubicación (arriba) y número de caja cambian juntos con cada
+    // ítem — mismo destello para las dos.
+    flashDataSwap(locLabelEl);
     flashDataSwap(cajaHeadTextEl);
 
     openKey = null;
