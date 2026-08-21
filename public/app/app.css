@@ -1803,15 +1803,21 @@ html, body {
    fondo/ancho). Solo las flechas para saltar de a una posición
    pendiente (pendingItems) y, en el medio, el bloque de datos del
    ítem actual (.venc-loc-info, loadItem lo pisa cada vez que cambia):
-   "Ubicación sugerida:" chico y apagado arriba, la ubicación en
+   "- CONFIRMAR UBICACIÓN -" chico y apagado arriba, la ubicación en
    grande/blanco/bold (el dato principal) y abajo, más chico y liviano,
    el número de caja con su ícono. La única diferencia con los demás:
    fila en vez de columna (mismo padding-row que .venc-acc-head para
    que se vea igual de alto), y el bloque centrado de verdad (flex:1
-   entre dos flechas de igual ancho). */
+   entre dos flechas de igual ancho). Alto FIJO (height, no solo
+   padding): sin esto, el paso de fuente de la ubicación
+   (locSizeClass, según el largo del código) hacía variar unos pocos
+   px el alto total de la barra entre una posición y otra — con
+   align-items:center ya alcanza, el bloque queda centrado igual sin
+   importar cuál de los 3 tamaños esté activo. */
 .venc-loc-nav {
   align-items: center;
-  padding: var(--sp-3);
+  height: 88px;
+  padding: 0 var(--sp-3);
   gap: var(--sp-2);
 }
 .venc-loc-info {
@@ -1827,9 +1833,11 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--text-xs);
+  text-align: center;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--ink-3);
+  letter-spacing: 0.02em;
+  color: rgba(250, 250, 250, 0.55);
 }
 .venc-loc-ubicacion {
   max-width: 100%;
