@@ -2200,9 +2200,15 @@ html, body {
    detalle del producto + saldo/pedprov/vencimiento + la misma
    sugerencia de acción (retirar / vence en X días) que el modo
    Sugerido — última oportunidad de revisarlo antes de escribir la
-   observación. */
-.venc-review-box { flex: 0 0 auto; display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-1); }
+   observación. Gap del panel más chico que el genérico (--sp-2 en vez
+   de --sp-3): acá no hay cámara de por medio, con el espaciado normal
+   quedaba demasiado aire entre los bloques internos. */
+#itemComment .venc-acc-panel { gap: var(--sp-2); }
+.venc-review-box { flex: 0 0 auto; display: flex; flex-direction: column; gap: var(--sp-2); }
+.venc-comment-head { display: flex; align-items: center; gap: var(--sp-3); }
 .venc-comment-desc {
+  flex: 1;
+  min-width: 0;
   font-size: var(--text-sm);
   font-weight: 700;
   color: var(--ink);
@@ -2214,11 +2220,12 @@ html, body {
   text-overflow: ellipsis;
   line-height: 1.3;
 }
-.venc-comment-label {
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--ink);
-}
+/* Un escalón más oscuro que el fondo del contenedor (--surface, no
+   --surface-2 — ese es el mismo tono que .venc-acc-item, quedaba
+   invisible) y con menos padding que el .reg-info-grid de Mapear:
+   acá es un resumen chico, no la ficha principal. */
+.venc-review-grid { background: var(--surface); }
+.venc-review-grid .reg-info-cell { padding: var(--sp-2); }
 
 /* Contenedor 3 (Observación): a diferencia de Caja/Producto queda
    OCULTO por completo (no solo atenuado) hasta validar los otros

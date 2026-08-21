@@ -198,7 +198,6 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
         <div class="venc-acc-panel" id="panelComment">
           <div class="venc-review-box" id="vencReviewBox"></div>
           <div class="venc-acc-controls">
-            <label class="venc-comment-label" for="vencComentario">Observación:</label>
             <textarea class="venc-acc-comment-input" id="vencComentario" rows="3" maxlength="200" placeholder="Añadir observación" disabled></textarea>
             <button type="button" class="btn btn-primary btn-block" id="vencConfirm" disabled>Confirmar</button>
           </div>
@@ -561,7 +560,10 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
   function renderCommentInfo(it) {
     const um = it.unidadmedida ? ` ${it.unidadmedida}` : '';
     reviewBox.innerHTML = `
-      <p class="venc-comment-desc" id="commentDescripcion">${escapeHtml(it.descripcion || 'Producto sin descripción')}</p>
+      <div class="venc-comment-head">
+        <span class="venc-acc-avatar">${icon('clock', 18)}</span>
+        <p class="venc-comment-desc" id="commentDescripcion">${escapeHtml(it.descripcion || 'Producto sin descripción')}</p>
+      </div>
       <div class="reg-info-grid venc-review-grid">
         <div class="reg-info-cell">
           <span class="reg-info-label">Saldo</span>
