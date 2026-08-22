@@ -1516,16 +1516,24 @@ html, body {
    mismo orden que las devuelve stockAlerts() en el servidor. */
 .reg-stock-alerts { display: flex; flex-direction: column; gap: var(--sp-2); }
 .reg-stock-alerts:empty { display: none; }
+/* Amarillo suave, mismo par que .settings-status-icon.is-warn
+   (--warn/--warn-bg) — la única pareja "amarillo pastel" que ya
+   existe en la paleta, para no inventar un tono nuevo. */
 .reg-stock-alert {
   width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   padding: 12px;
   border-radius: var(--r-md);
-  background: var(--n-100);
-  color: var(--ink-2);
+  background: var(--warn-bg);
+  color: var(--warn);
   font-size: var(--text-sm);
   font-weight: 700;
   text-align: center;
 }
+.reg-stock-alert svg { flex-shrink: 0; }
 .reg-field-label {
   font-size: 10px;
   font-weight: 700;

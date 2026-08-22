@@ -34,7 +34,7 @@
    solo el ícono de cada tarjeta, sin tocar nada más.
    ============================================================ */
 
-import { icon } from '/shared/js/icons.js';
+import { icon, iconSolid } from '/shared/js/icons.js';
 import { apiFetch } from '/shared/js/api.js';
 import * as store from './store.js';
 import { escapeHtml, CONDITIONS, conditionLabel, getIncludeUbicacion, setIncludeUbicacion } from './format.js';
@@ -583,7 +583,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
       .then((res) => {
         if (!backdrop.isConnected) return;
         stockAlertsEl.innerHTML = (res.alerts || []).map((a) => `
-          <div class="reg-stock-alert">${formatStockQty(a.qty)} ${escapeHtml(a.unit)} en ${escapeHtml(a.ubicacion)}</div>
+          <div class="reg-stock-alert">${iconSolid('alertTriangleSolid', 18)}<span>${formatStockQty(a.qty)} ${escapeHtml(a.unit)} en ${escapeHtml(a.ubicacion)}</span></div>
         `).join('');
       })
       .catch(() => {});
