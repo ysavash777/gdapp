@@ -61,4 +61,26 @@ function pickUbicacion(referenciaRows) {
   return SIN_STOCK;
 }
 
-module.exports = { pickUbicacion, SIN_STOCK };
+// Aviso al registrar un código en Mapear (ver openRegisterSheet() en
+// editor-view.js): Recupero y Diferencias no son ubicaciones inválidas
+// como Aduana/BIN/Z (si hay stock ahí, hay que saberlo), pero tampoco
+// es lo esperado — es stock "descolocado" que vale la pena marcar
+// antes de seguir. Recupero primero, Diferencias después (siempre en
+// ese orden si ambas tienen stock). Distintas cajas del mismo código
+// en la misma ubicación se CONSOLIDAN sumando el saldo — pedido
+// explícito ("son recupero en fin"), el número de caja no importa acá.
+const ALERT_UBICACIONES = ['recupero', 'diferencias'];
+
+function stockAlerts(referenciaRows) {
+  const alerts = [];
+  for (const name of ALERT_UBICACIONES) {
+    const matches = referenciaRows.filter((r) => norm(r.ubicacion) === name);
+    if (!matches.length) continue;
+    const qty = matches.reduce((sum, r) => sum + (parseFloat(r.saldo) || 0), 0);
+    if (qty <= 0) continue;
+    alerts.push({ ubicacion: name.toUpperCase(), qty, unit: String(matches[0].unidadmedida ?? '').trim() });
+  }
+  return alerts;
+}
+
+module.exports = { pickUbicacion, stockAlerts, SIN_STOCK };

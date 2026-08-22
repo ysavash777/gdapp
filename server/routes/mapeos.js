@@ -14,6 +14,8 @@ const store = require('../store/mapeos.store');
 const variablesStore = require('../store/variables.store');
 const { requirePermission } = require('../middleware/auth');
 const { buildWorkbook } = require('../services/mapeo-export');
+const inventoryStore = require('../store/inventory.store');
+const { stockAlerts } = require('../services/ubicacion-picker');
 
 router.use(requirePermission('mapear', 'mapeos'));
 
@@ -63,6 +65,22 @@ router.get('/lookup-catalog', (_req, res) => {
     res.json({ ok: true, items });
   } catch (e) {
     console.error('[routes/mapeos] lookup-catalog falló:', e.message);
+    res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
+  }
+});
+
+// GET /api/mapeos/stock-alerts?code=... — aviso de stock "de paso"
+// (Recupero/Diferencias) del código contra Referencia, ver
+// openRegisterSheet() en app/modules/mapear/editor-view.js y
+// services/ubicacion-picker.js#stockAlerts. Tiene que ir antes de
+// GET /:id — si no, Express matchearía "stock-alerts" como un id.
+router.get('/stock-alerts', (req, res) => {
+  try {
+    const code = String(req.query.code || '').trim();
+    if (!code) return res.json({ ok: true, alerts: [] });
+    res.json({ ok: true, alerts: stockAlerts(inventoryStore.findAllByReferencia(code)) });
+  } catch (e) {
+    console.error('[routes/mapeos] stock-alerts falló:', e.message);
     res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
   }
 });

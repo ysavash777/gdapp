@@ -1507,6 +1507,25 @@ html, body {
 }
 .reg-field-cell:last-child { border-right: none; }
 .reg-field-cell[hidden] { display: none; }
+
+/* Aviso de stock "de paso" (Recupero/Diferencias), arriba de
+   Cantidad — mismo ancho que el resto del footer. Sin contenido no
+   debe ocupar el gap del footer (ver .reg-sheet-footer): por eso
+   :empty se saca del flujo entero en vez de solo achicarse a 0. Puede
+   haber dos a la vez (una por ubicación con stock), siempre en el
+   mismo orden que las devuelve stockAlerts() en el servidor. */
+.reg-stock-alerts { display: flex; flex-direction: column; gap: var(--sp-2); }
+.reg-stock-alerts:empty { display: none; }
+.reg-stock-alert {
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--r-md);
+  background: var(--n-100);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-align: center;
+}
 .reg-field-label {
   font-size: 10px;
   font-weight: 700;

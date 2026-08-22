@@ -35,6 +35,7 @@
    ============================================================ */
 
 import { icon } from '/shared/js/icons.js';
+import { apiFetch } from '/shared/js/api.js';
 import * as store from './store.js';
 import { escapeHtml, CONDITIONS, conditionLabel, getIncludeUbicacion, setIncludeUbicacion } from './format.js';
 import { currentUser } from '/shared/js/session.js';
@@ -51,6 +52,11 @@ let lastRoturaResponsible = null;
 
 function actor() {
   return currentUser()?.username || null;
+}
+
+// Mismo criterio que formatQty() en vencimientos/list-view.js.
+function formatStockQty(qty) {
+  return Number(qty).toLocaleString('es-AR', { maximumFractionDigits: 2 });
 }
 
 // La caja de "Unidades" tiene ancho fijo (ver .record-qty en app.css):
@@ -512,6 +518,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
         </div>
         <div class="reg-extra" id="regExtra"></div>
         <div class="reg-sheet-footer">
+          <div class="reg-stock-alerts" id="regStockAlerts"></div>
           <div class="reg-fields-grid" id="regFieldsGrid">
             <div class="reg-field-cell" id="vtoFieldCell" hidden>
               <span class="reg-field-label">Vencimiento</span>
@@ -564,6 +571,22 @@ export async function openEditor({ mapeoId, title, onClose }) {
     const extraEl = backdrop.querySelector('#regExtra');
     const qtyInput = backdrop.querySelector('#qtyInput');
     const doneBtn = backdrop.querySelector('#regDone');
+
+    // Aviso de stock "de paso" (Recupero/Diferencias) del código —
+    // se resuelve en vivo contra Referencia, nunca es parte del
+    // registro en sí. Silencioso ante error/sin conexión: es un dato
+    // secundario, no tiene sentido interrumpir el alta por esto. Si el
+    // sheet ya se cerró para cuando responde, backdrop quedó afuera
+    // del DOM — no hay nada que pintar.
+    const stockAlertsEl = backdrop.querySelector('#regStockAlerts');
+    apiFetch(`/api/mapeos/stock-alerts?code=${encodeURIComponent(entry.code)}`)
+      .then((res) => {
+        if (!backdrop.isConnected) return;
+        stockAlertsEl.innerHTML = (res.alerts || []).map((a) => `
+          <div class="reg-stock-alert">${formatStockQty(a.qty)} ${escapeHtml(a.unit)} en ${escapeHtml(a.ubicacion)}</div>
+        `).join('');
+      })
+      .catch(() => {});
 
     // "Listo" solo se habilita con el registro realmente completo:
     // motivo elegido siempre, y si el motivo es Rotura, ADEMÁS el
