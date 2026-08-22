@@ -6,7 +6,7 @@
 
 import { icon } from '/shared/js/icons.js';
 import * as store from './store.js';
-import { formatDateTime, formatDateHeading, escapeHtml, capitalize } from './format.js';
+import { formatDateTime, formatDateHeading, escapeHtml, capitalize, getIncludeUbicacion } from './format.js';
 import { openEditor } from './editor-view.js';
 import { currentUser } from '/shared/js/session.js';
 
@@ -286,7 +286,7 @@ document.addEventListener('click', (e) => {
 // nunca se agrega visible ni se navega con location.href).
 function downloadMapeo(id) {
   const a = document.createElement('a');
-  a.href = `/api/mapeos/${id}/export`;
+  a.href = `/api/mapeos/${id}/export${getIncludeUbicacion() ? '?ubicacion=1' : ''}`;
   a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();

@@ -36,7 +36,7 @@
 
 import { icon } from '/shared/js/icons.js';
 import * as store from './store.js';
-import { escapeHtml, CONDITIONS, conditionLabel } from './format.js';
+import { escapeHtml, CONDITIONS, conditionLabel, getIncludeUbicacion, setIncludeUbicacion } from './format.js';
 import { currentUser } from '/shared/js/session.js';
 import { existsLocal, hasData } from '/shared/js/product-catalog.js';
 import { showToast } from '/shared/js/toast.js';
@@ -178,6 +178,15 @@ export async function openEditor({ mapeoId, title, onClose }) {
             </div>
           </div>
           <button type="button" class="btn-icon" id="searchToggle" title="Buscar en los registros">${icon('search', 15)}</button>
+          <div class="sheet-tool-wrap">
+            <button type="button" class="btn-icon" id="settingsToggle" title="Configuración">${icon('settings', 15)}</button>
+            <div class="mapeo-menu settings-menu" id="settingsMenu" hidden>
+              <button type="button" class="user-menu-item" id="includeUbicacionItem">
+                <span class="settings-item-check">${icon('check', 14)}</span>
+                <span>Incluir ubicación</span>
+              </button>
+            </div>
+          </div>
           <button type="button" class="manual-toggle" id="manualToggle" title="Ingresar código manualmente">${icon('plus', 13)} Manual</button>
         </div>
       </div>
@@ -217,6 +226,9 @@ export async function openEditor({ mapeoId, title, onClose }) {
   const searchInput = overlay.querySelector('#scanSearchInput');
   const manualForm = overlay.querySelector('#scanManual');
   const manualToggle = overlay.querySelector('#manualToggle');
+  const settingsToggle = overlay.querySelector('#settingsToggle');
+  const settingsMenu = overlay.querySelector('#settingsMenu');
+  const includeUbicacionItem = overlay.querySelector('#includeUbicacionItem');
 
   let codes = mapeo.codes;
   let closed = false;
@@ -333,6 +345,9 @@ export async function openEditor({ mapeoId, title, onClose }) {
     if (!filterMenu.hidden && !e.target.closest('#filterToggle') && !e.target.closest('#filterMenu')) {
       filterMenu.hidden = true;
     }
+    if (!settingsMenu.hidden && !e.target.closest('#settingsToggle') && !e.target.closest('#settingsMenu')) {
+      settingsMenu.hidden = true;
+    }
   }
   document.addEventListener('click', onDocClick);
 
@@ -367,6 +382,23 @@ export async function openEditor({ mapeoId, title, onClose }) {
       filterToggle.classList.toggle('is-active', !!activeFilter);
       renderCodes();
     });
+  });
+
+  // Configuración: hoy solo "Incluir ubicación" — un simple prendido/
+  // apagado (sin más opciones que elegir, así que un solo botón que se
+  // marca/desmarca solo alcanza, no hace falta un formulario). Se
+  // guarda en localStorage (ver format.js): list-view.js, quien
+  // dispara la descarga real, lo lee desde ahí sin depender de que
+  // este editor siga abierto.
+  includeUbicacionItem.classList.toggle('is-checked', getIncludeUbicacion());
+  settingsToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    settingsMenu.hidden = !settingsMenu.hidden;
+  });
+  includeUbicacionItem.addEventListener('click', () => {
+    const next = !getIncludeUbicacion();
+    setIncludeUbicacion(next);
+    includeUbicacionItem.classList.toggle('is-checked', next);
   });
 
   // Búsqueda en vivo por cualquier dato del registro. Igual que el

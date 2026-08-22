@@ -17,9 +17,17 @@
    coincide también el dato extra propio de esa hoja (vencimiento en
    Unidades, responsable en Rotura/Vencido): comportamiento permanente
    pedido explícitamente, no algo puntual de una corrida.
+
+   Columna "Ubicación" (UBICACION_COLUMN): opcional, solo se agrega si
+   quien pide la descarga prendió "Incluir ubicación" (gear de
+   editor-view.js, ver routes/mapeos.js#export → includeUbicacion). No
+   es un dato del mapeo — se resuelve acá mismo contra Referencia (ver
+   ubicacion-picker.js), nunca se guarda en Supabase.
    ============================================================ */
 
 const ExcelJS = require('exceljs');
+const inventoryStore = require('../store/inventory.store');
+const { pickUbicacion } = require('./ubicacion-picker');
 
 const HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } };
 const HEADER_FONT = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -47,6 +55,15 @@ const BASE_COLUMNS = [
   { header: 'EAN', width: 14, value: (c) => c.ean || '' },
   { header: 'Cantidad', width: 10, value: (c) => c.quantity },
 ];
+
+// Solo se agrega cuando "Incluir ubicación" está prendido (gear de
+// editor-view.js) — no es un dato del mapeo en sí, se resuelve recién
+// acá buscando el código contra Referencia (ver ubicacion-picker.js).
+const UBICACION_COLUMN = {
+  header: 'Ubicación',
+  width: 16,
+  value: (c) => pickUbicacion(inventoryStore.findAllByReferencia(c.code)),
+};
 
 // Consolida códigos repetidos DENTRO de una misma hoja (mismo motivo)
 // sumando su cantidad — pedido explícito y permanente: "123 rotura x6"
@@ -88,18 +105,20 @@ function styleDataRow(row) {
   });
 }
 
-function buildWorkbook(mapeo) {
+function buildWorkbook(mapeo, { includeUbicacion = false } = {}) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'GStock';
   wb.created = new Date();
+
+  const baseColumns = includeUbicacion ? [...BASE_COLUMNS, UBICACION_COLUMN] : BASE_COLUMNS;
 
   for (const sheetDef of SHEETS) {
     const codes = mapeo.codes.filter((c) => (c.condition || null) === sheetDef.value);
     if (!codes.length) continue;
 
     const columns = sheetDef.extraHeader
-      ? [...BASE_COLUMNS, { header: sheetDef.extraHeader, width: 16, value: sheetDef.extraValue }]
-      : BASE_COLUMNS;
+      ? [...baseColumns, { header: sheetDef.extraHeader, width: 16, value: sheetDef.extraValue }]
+      : baseColumns;
 
     const sheet = wb.addWorksheet(sheetDef.label);
     sheet.columns = columns.map((col) => ({ header: col.header, width: col.width }));

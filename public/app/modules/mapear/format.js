@@ -20,3 +20,17 @@ export const CONDITIONS = [
 export function conditionLabel(value) {
   return CONDITIONS.find((c) => c.value === value)?.label || null;
 }
+
+// Preferencia "Incluir ubicación" del XLSX exportado (gear de
+// editor-view.js) — un solo toggle global, no por mapeo, así que
+// alcanza con localStorage: list-view.js (que dispara la descarga) lo
+// lee sin depender de que el editor de ese mapeo siga abierto.
+const INCLUDE_UBICACION_KEY = 'gstock:mapear:incluirUbicacion';
+
+export function getIncludeUbicacion() {
+  return localStorage.getItem(INCLUDE_UBICACION_KEY) === '1';
+}
+
+export function setIncludeUbicacion(value) {
+  localStorage.setItem(INCLUDE_UBICACION_KEY, value ? '1' : '0');
+}

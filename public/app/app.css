@@ -948,6 +948,12 @@ html, body {
 .scan-sheet-tools .btn-icon { padding: 7px; }
 .sheet-tool-wrap { position: relative; }
 .filter-menu { top: calc(100% + 6px); left: auto; right: 0; min-width: 160px; }
+.settings-menu { top: calc(100% + 6px); left: auto; right: 0; min-width: 200px; }
+/* Único ítem de .settings-menu hoy ("Incluir ubicación"): el check a
+   la izquierda queda invisible pero ocupando su lugar cuando está
+   apagado, para que el texto no salte de posición al prenderlo. */
+.settings-item-check { display: flex; flex-shrink: 0; opacity: 0; color: var(--icon-mapear); }
+.user-menu-item.is-checked .settings-item-check { opacity: 1; }
 /* Estado activo genérico para íconos chicos del header/toolbar
    (linterna, filtro, búsqueda) — mismo tratamiento en los tres. */
 .btn-icon.is-active { color: var(--icon-mapear); background: var(--icon-mapear-light); }
