@@ -239,9 +239,8 @@ html, body {
 
 .notif-item {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  align-items: center;
+  gap: var(--sp-2);
   width: 100%;
   padding: 8px 10px;
   border: none;
@@ -250,14 +249,36 @@ html, body {
   text-align: left;
 }
 .notif-item:hover { background: var(--n-100); }
+/* Mismo criterio que .tc-icon (tarjetas de herramienta en el inicio):
+   círculo de color + ícono blanco — así una notificación se reconoce
+   de qué herramienta viene de un vistazo, sin leer el texto primero.
+   Reusa los mismos tokens --tool-*-icon que ya pinta cada tarjeta —
+   nunca un color nuevo, para que el aviso y la tarjeta de origen se
+   vean como la misma marca. data-key cubre las 4 herramientas de una,
+   aunque hoy solo Vencimientos disparé notificaciones. */
+.notif-item-avatar {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  color: var(--ink);
+  background: var(--accent-500);
+}
+.notif-item-avatar[data-key="consultas"] { background: var(--tool-consultas-icon); }
+.notif-item-avatar[data-key="mapear"] { background: var(--tool-mapear-icon); }
+.notif-item-avatar[data-key="vencimientos"] { background: var(--tool-vencimientos-icon); }
+.notif-item-avatar[data-key="vacios"] { background: var(--tool-vacios-icon); }
 .notif-item-desc {
+  flex: 1;
+  min-width: 0;
   font-size: var(--text-sm);
   font-weight: 700;
   color: var(--danger);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 100%;
 }
 
 /* --- Contenido --- */

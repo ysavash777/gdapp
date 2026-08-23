@@ -17,6 +17,7 @@
    ============================================================ */
 
 import { list } from './modules/vencimientos/store.js';
+import { icon } from '/shared/js/icons.js';
 
 const ALERT_KEY = 'gd.vencidos.alertDate.v1';
 
@@ -70,10 +71,14 @@ export function markAlertSeen() {
   setAlertedDate(todayKey());
 }
 
+// El avatar usa el mismo ícono/color que la tarjeta de Vencimientos en
+// el inicio (ver TOOLS en app.js y .notif-item-avatar en app.css) —
+// así el aviso se reconoce de qué herramienta viene de un vistazo.
 export function notifMessageHTML(count) {
   if (!count) return `<p class="notif-empty">No tenés notificaciones</p>`;
   return `
     <button type="button" class="notif-item">
+      <span class="notif-item-avatar" data-key="vencimientos">${icon('calendarAlert', 16)}</span>
       <span class="notif-item-desc">Existen ${count} artículo${count === 1 ? '' : 's'} vencido${count === 1 ? '' : 's'}</span>
     </button>
   `;
