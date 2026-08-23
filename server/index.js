@@ -36,11 +36,29 @@ app.use('/api/consultas', require('./routes/consultas'));
 app.use('/api/catalog', require('./routes/catalog'));
 app.use('/api/vencimientos', require('./routes/vencimientos'));
 
-// Estáticos
+// Estáticos — sin hash en el nombre de archivo (app.css es siempre
+// app.css, nunca app.abc123.css), así que un max-age largo en TODO
+// arriesgaría servir JS/CSS viejo desde el caché del navegador después
+// de un deploy hasta que venza. 1h es el equilibrio: en un turno con
+// varias reaperturas de la app, la mayoría ya no vuelve a pedirle nada
+// al servidor (hoy siempre revalida, aunque termine en un 304 barato)
+// — y ante un deploy, como mucho una hora de desfase, nunca días. Las
+// imágenes (fondos, ícono) sí son verdaderamente estáticas en la
+// práctica (cambian rarísima vez y un ícono viejo no rompe nada
+// mientras tanto), así que esas sí llevan una ventana bien larga.
 const PUBLIC = path.join(__dirname, '..', 'public');
-app.use('/shared', express.static(path.join(PUBLIC, 'shared')));
-app.use('/desk', express.static(path.join(PUBLIC, 'desk')));
-app.use('/app', express.static(path.join(PUBLIC, 'app')));
+const STATIC_MAX_AGE_MS = 60 * 60 * 1000; // 1h
+const IMAGE_MAX_AGE_S = 7 * 24 * 60 * 60; // 7 días
+const IMAGE_EXT = /\.(png|jpe?g|webp|gif|svg|ico)$/i;
+const staticOptions = {
+  maxAge: STATIC_MAX_AGE_MS,
+  setHeaders(res, filePath) {
+    if (IMAGE_EXT.test(filePath)) res.setHeader('Cache-Control', `public, max-age=${IMAGE_MAX_AGE_S}`);
+  },
+};
+app.use('/shared', express.static(path.join(PUBLIC, 'shared'), staticOptions));
+app.use('/desk', express.static(path.join(PUBLIC, 'desk'), staticOptions));
+app.use('/app', express.static(path.join(PUBLIC, 'app'), staticOptions));
 
 // Fallback SPA: rutas internas de cada shell devuelven su index.html
 app.get('/desk/*', (_req, res) => res.sendFile(path.join(PUBLIC, 'desk', 'index.html')));

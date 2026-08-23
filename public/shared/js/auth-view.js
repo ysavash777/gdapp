@@ -27,7 +27,7 @@ export function renderAuth(container, onSuccess, { showBack = false } = {}) {
         <div class="auth-card">
           <div class="auth-top">
             ${showBack ? `<button class="auth-back" id="authBack" aria-label="Volver">${icon('arrowLeft', 20)}</button>` : ''}
-            <div class="auth-image" style="background-image:url('/shared/images/login-bg.png')"></div>
+            <div class="auth-image" style="background-image:url('/shared/images/login-bg.jpg')"></div>
             <div class="auth-gradient"></div>
           </div>
 

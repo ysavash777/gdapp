@@ -4,7 +4,7 @@
    intenta lo fresco; sin red, sirve lo guardado).
    ============================================================ */
 
-const CACHE = 'gdapp-shell-v6';
+const CACHE = 'gdapp-shell-v7';
 
 const SHELL = [
   '/app',
@@ -13,7 +13,7 @@ const SHELL = [
   '/app/app.js',
   '/app/manifest.webmanifest',
   '/app/icons/icon.png',
-  '/shared/images/login-bg.png',
+  '/shared/images/login-bg.jpg',
   '/shared/styles/tokens.css',
   '/shared/styles/base.css',
   '/shared/styles/components.css',
