@@ -1499,6 +1499,17 @@ html, body {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+/* Variante circular — mismo shimmer, para reemplazar un ícono/avatar
+   que todavía no tiene dato real (ver .settings-status-icon en
+   Configuración). El tamaño lo pone quien la combina con otra clase
+   (ej. .settings-status-icon ya define 26x26 + radio full). */
+.cq-skeleton-circle {
+  display: inline-block;
+  border-radius: var(--r-full);
+  background: linear-gradient(90deg, var(--n-200) 25%, var(--surface-2) 50%, var(--n-200) 75%);
+  background-size: 200% 100%;
+  animation: cq-shimmer 1.3s ease-in-out infinite;
+}
 .cq-fade-in { animation: cq-fadein 320ms ease; }
 @keyframes cq-fadein {
   from { opacity: 0; transform: translateY(3px); }
@@ -2415,10 +2426,6 @@ html, body {
    ============================================================ */
 .settings-screen { display: flex; flex-direction: column; gap: var(--sp-4); }
 .settings-empty { text-align: center; color: var(--ink-3); font-size: var(--text-sm); padding: var(--sp-6) 0; }
-
-/* Spinner de carga: .gd-spinner-wrap/.gd-spinner en shared/styles/
-   components.css (compartido con Vencimientos) — mientras Bases de
-   datos pide su estado al servidor, ver render() en settings.js. */
 
 .settings-block { display: flex; flex-direction: column; gap: var(--sp-3); }
 .settings-block-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); }

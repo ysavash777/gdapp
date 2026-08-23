@@ -82,6 +82,23 @@ function mapeoCardSkeletonHTML() {
   `;
 }
 
+// Encabezado "hueso" de un grupo por fecha (mapeoListHTML sí los
+// intercala de verdad) — sin esto, el esqueleto se veía como una
+// lista plana de 3 tarjetas sueltas, nada parecido a la lista real
+// (varios grupos, cada uno con más de un mapeo). No hace falta saber
+// el número real de grupos/mapeos de antemano (eso es justo lo que
+// se está esperando) — dos grupos alcanza para transmitir la forma
+// real sin pedirle un dato extra al servidor solo para adivinar
+// cuántos esqueletos dibujar.
+function mapeoListSkeletonHTML() {
+  return `
+    <div class="mapeo-date-heading"><span class="cq-skeleton" style="width:90px; height:11px;"></span></div>
+    ${[1, 2, 3].map(mapeoCardSkeletonHTML).join('')}
+    <div class="mapeo-date-heading"><span class="cq-skeleton" style="width:70px; height:11px;"></span></div>
+    ${[1, 2].map(mapeoCardSkeletonHTML).join('')}
+  `;
+}
+
 export async function renderList(outlet, { onNew }) {
   outletRef = outlet;
   refreshRef = () => renderList(outlet, { onNew });
@@ -94,7 +111,7 @@ export async function renderList(outlet, { onNew }) {
         <button type="button" class="searchbar-clear" id="mapeoSearchClear" title="Limpiar búsqueda" aria-label="Limpiar búsqueda" hidden>${icon('x', 14)}</button>
       </div>
       <div id="mapeoListWrap">
-        <div class="mapeo-list">${[1, 2, 3].map(mapeoCardSkeletonHTML).join('')}</div>
+        <div class="mapeo-list">${mapeoListSkeletonHTML()}</div>
       </div>
     </div>
   `;

@@ -108,6 +108,46 @@ function itemCardHTML(item) {
   `;
 }
 
+// Mismo acordeón que la ficha real de Sugerido (ver validation-view.js
+// #renderValidationFlow) pero con esqueleto en vez de dato real — se
+// muestra mientras store.list() contesta, así el contenedor entero
+// (nav de ubicación + Caja + Producto) está siempre ahí, nunca una
+// pantalla en blanco con spinner. "Sugerido" es la vista por defecto,
+// así que es lo único que hace falta para el primer pintado.
+function suggestedSkeletonHTML() {
+  return `
+    <div class="venc-suggest-inline">
+      <div class="venc-acc-item venc-loc-nav">
+        <button type="button" class="venc-loc-arrow" disabled>${icon('chevronLeft', 20)}</button>
+        <div class="venc-loc-info">
+          <span class="venc-loc-caption">Ubicación sugerida:</span>
+          <strong class="venc-loc-ubicacion"><span class="cq-skeleton" style="width:64px;"></span></strong>
+          <span class="venc-loc-caja">${iconSolid('caja', 13)}<span class="cq-skeleton" style="width:32px;"></span></span>
+        </div>
+        <button type="button" class="venc-loc-arrow" disabled>${icon('chevronRight', 20)}</button>
+      </div>
+      <div class="venc-acc-item" data-state="pending">
+        <div class="venc-acc-head">
+          <span class="venc-acc-avatar">${icon('clock', 18)}</span>
+          <span class="venc-acc-head-text">
+            <strong class="venc-acc-head-title">Confirmar ubicación</strong>
+            <span class="venc-acc-head-sub">Escanea la etiqueta</span>
+          </span>
+        </div>
+      </div>
+      <div class="venc-acc-item" data-state="locked">
+        <div class="venc-acc-head">
+          <span class="venc-acc-avatar">${icon('clock', 18)}</span>
+          <span class="venc-acc-head-text">
+            <strong class="venc-acc-head-title"><span class="cq-skeleton" style="width:90%;"></span></strong>
+            <span class="venc-acc-head-sub"><span class="cq-skeleton" style="width:70px;"></span></span>
+          </span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export async function renderList(outlet) {
   outletRef = outlet;
 
@@ -138,9 +178,7 @@ export async function renderList(outlet) {
           <button type="button" class="searchbar-clear" id="vencSearchClear" title="Limpiar búsqueda" aria-label="Limpiar búsqueda" hidden>${icon('x', 14)}</button>
         </div>
       </div>
-      <div id="vencListWrap">
-        <div class="gd-spinner-wrap"><div class="gd-spinner"></div></div>
-      </div>
+      <div id="vencListWrap">${suggestedSkeletonHTML()}</div>
     </div>
   `;
 

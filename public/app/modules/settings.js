@@ -43,7 +43,11 @@ const STATUS_ICON = {
   mirrorError: { name: 'alertTriangle', cls: 'is-warn', title: 'Actualizado, pero el respaldo en Supabase está fallando' },
 };
 
-const EMPTY_SOURCE = { status: 'empty', lastUpdatedAt: null, rowCount: 0, durationMs: null, mirrorDurationMs: null, mirrorStatus: 'unknown', mirrorError: null };
+// 'loading' es un estado propio de acá (nunca lo manda el servidor):
+// distingue "todavía no sabemos" de "ya sabemos que no hay datos"
+// (status real 'empty') — sourceRowHTML() se apoya en esto para
+// mostrar esqueleto solo mientras de verdad no hay respuesta.
+const EMPTY_SOURCE = { status: 'loading', lastUpdatedAt: null, rowCount: 0, durationMs: null, mirrorDurationMs: null, mirrorStatus: 'unknown', mirrorError: null };
 
 // Solo las tres activas: a diferencia del desk (que muestra "Líneas
 // picking" como vidriera de lo que vendrá, ocupando un lugar fijo en
@@ -56,39 +60,28 @@ const SOURCES = [
 ];
 const KEYS = SOURCES.map((s) => s.key);
 
-// La contraseña se pinta al instante (formulario estático), pero
-// Bases de datos necesita un pedido al servidor (loadStatus()) — sin
-// esperarlo, la pantalla se armaba en dos tiempos (contraseña ya
-// visible, bases de datos apareciendo un instante después de la
-// nada), que se ve roto. Un spinner mínimo cubre esa espera y recién
-// entonces se muestra todo junto, ya completo.
+// Los dos bloques quedan en el DOM YA, sin esperar nada: la
+// contraseña se pinta al instante (formulario estático) y Bases de
+// datos pinta su propio esqueleto (drawShell()+drawRows(), ver
+// mountDatabases) antes de pedirle el estado real al servidor — nunca
+// más una pantalla en blanco con un spinner tapando todo mientras
+// tanto.
 export async function render(root, user) {
   const hasDbPerm = user?.permissions?.includes('basesdatos');
 
-  if (!hasDbPerm) {
-    root.innerHTML = `<div class="settings-screen" id="settingsRoot"></div>`;
-    const pwBlock = document.createElement('div');
-    root.querySelector('#settingsRoot').appendChild(pwBlock);
-    mountPassword(pwBlock);
-    return;
-  }
-
-  root.innerHTML = `<div class="gd-spinner-wrap"><div class="gd-spinner"></div></div>`;
-
-  const dbBlock = document.createElement('div');
-  await mountDatabases(dbBlock); // corre detached del documento — sus listeners igual quedan atados
-
-  if (!root.isConnected) return; // se salió de Configuración mientras cargaba
-
-  const pwBlock = document.createElement('div');
-  mountPassword(pwBlock);
-
   root.innerHTML = `<div class="settings-screen" id="settingsRoot"></div>`;
   const container = root.querySelector('#settingsRoot');
-  container.appendChild(dbBlock);
-  // Separador minimalista entre las dos secciones ya resueltas.
-  container.appendChild(document.createElement('hr')).className = 'settings-separator';
+
+  if (hasDbPerm) {
+    const dbBlock = document.createElement('div');
+    container.appendChild(dbBlock);
+    container.appendChild(document.createElement('hr')).className = 'settings-separator';
+    mountDatabases(dbBlock); // sin await: pinta su esqueleto ya, completa los datos en segundo plano
+  }
+
+  const pwBlock = document.createElement('div');
   container.appendChild(pwBlock);
+  mountPassword(pwBlock);
 }
 
 async function mountDatabases(root) {
@@ -100,6 +93,7 @@ async function mountDatabases(root) {
   };
 
   drawShell();
+  drawRows(); // las 3 filas YA, con esqueleto — loadStatus() las completa apenas conteste el servidor
   await loadStatus();
 
   function applySources(sourcesMeta) {
@@ -251,10 +245,14 @@ async function mountDatabases(root) {
 
   function sourceRowHTML(src) {
     const s = state.sources[src.key];
-    const st = (s.status === 'ok' && s.mirrorStatus === 'error') ? STATUS_ICON.mirrorError : (STATUS_ICON[s.status] || STATUS_ICON.empty);
+    const isLoading = s.status === 'loading';
+    const st = isLoading ? null : ((s.status === 'ok' && s.mirrorStatus === 'error') ? STATUS_ICON.mirrorError : (STATUS_ICON[s.status] || STATUS_ICON.empty));
     const hasData = s.rowCount > 0;
     const isRunningThis = !!state.runningKeys && state.runningKeys.length === 1 && state.runningKeys[0] === src.key;
 
+    // Ícono/título de cada fuente son estáticos (SOURCES ya los sabe
+    // de antemano) — el esqueleto va solo en lo que de verdad depende
+    // del servidor: el resumen de filas/fecha y el ícono de estado.
     return `
       <div class="settings-source-row" data-key="${src.key}">
         <div class="settings-source-top">
@@ -262,12 +260,14 @@ async function mountDatabases(root) {
             <div class="settings-source-icon">${icon(src.icon, 16)}</div>
             <div>
               <h3>${src.label}</h3>
-              <p>${hasData ? `${s.rowCount.toLocaleString('es')} filas · ${escapeHtml(formatDateTime(s.lastUpdatedAt))}` : 'Sin datos'}</p>
+              <p>${isLoading ? `<span class="cq-skeleton" style="width:130px;"></span>` : (hasData ? `${s.rowCount.toLocaleString('es')} filas · ${escapeHtml(formatDateTime(s.lastUpdatedAt))}` : 'Sin datos')}</p>
             </div>
           </div>
           <div class="settings-source-actions">
             <button type="button" class="btn-icon settings-source-refresh${isRunningThis ? ' is-loading' : ''}" data-key="${src.key}" title="Actualizar ${src.label}" ${state.refreshing ? 'disabled' : ''}>${icon('refresh', 14)}</button>
-            <div class="settings-status-icon ${st.cls}" title="${st.title}">${icon(st.name, 13)}</div>
+            ${isLoading
+              ? `<div class="settings-status-icon cq-skeleton-circle"></div>`
+              : `<div class="settings-status-icon ${st.cls}" title="${st.title}">${icon(st.name, 13)}</div>`}
           </div>
         </div>
         <div class="settings-source-progress"><div class="settings-source-progress-fill"></div></div>
