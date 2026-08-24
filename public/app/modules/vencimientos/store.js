@@ -20,6 +20,12 @@ export async function list() {
 // fotoBase64 (data URL) es obligatoria cuando motivo === 'faltante' —
 // el servidor la exige igual, esto solo evita un viaje de red al pedo
 // si por algún motivo se llama sin ella.
+//
+// saldo/pedprov/unidadmedida viajan tal cual estaban en `item` al
+// momento de validar — el servidor los CONGELA ahí (ver validateItem
+// en vencimientos.store.js): si después el producto se mueve de caja
+// o Referencia cambia, esta validación ya hecha sigue mostrando los
+// datos reales de este momento, nunca en blanco ni perdida.
 export async function validate(item, motivo, motivoDetalle, fotoBase64) {
   await apiFetch('/api/vencimientos/validate', {
     method: 'POST',
@@ -31,6 +37,9 @@ export async function validate(item, motivo, motivoDetalle, fotoBase64) {
       ubicacion: item.ubicacion,
       descripcion: item.descripcion,
       fv: item.fv,
+      saldo: item.saldo,
+      pedprov: item.pedprov,
+      unidadmedida: item.unidadmedida,
       motivo,
       motivoDetalle,
       fotoBase64,

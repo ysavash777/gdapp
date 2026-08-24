@@ -91,21 +91,11 @@ async function updateSettings(excludedLocations, actor) {
 
 // ---- Validaciones ----
 
-async function getValidationsMap() {
+async function fetchValidationRows() {
   const supabase = requireClient();
   const { data, error } = await supabase.from('vencimiento_validaciones').select('*');
   if (error) throw error;
-  const map = new Map();
-  for (const row of data) {
-    map.set(itemKey(row.bodega, row.caja, row.ean), {
-      motivo: row.motivo,
-      motivoDetalle: row.motivo_detalle,
-      fotoUrl: row.foto_url,
-      validatedBy: row.validated_by,
-      validatedAt: row.validated_at,
-    });
-  }
-  return map;
+  return data;
 }
 
 // Sube la foto obligatoria de un ítem "faltante" (data URL base64,
@@ -126,7 +116,14 @@ async function uploadPhoto(fotoBase64, key) {
   return supabase.storage.from('vencimiento-fotos').getPublicUrl(path).data.publicUrl;
 }
 
-async function validateItem({ bodega, caja, ean, referencia, ubicacion, descripcion, fv, motivo, motivoDetalle, fotoBase64, actor }) {
+// saldo/pedprov/unidadmedida se CONGELAN acá, tal como estaban en el
+// momento de validar — nunca más se vuelven a leer de Referencia para
+// este ítem (ver buildCombinedItems): si después se corre
+// "Actualizar DB" y el producto cambió de caja/ubicación, o
+// directamente ya no aparece en esa fuente, la validación ya hecha
+// sigue mostrando los datos reales de cuando se hizo, en vez de
+// perderlos o quedar en blanco.
+async function validateItem({ bodega, caja, ean, referencia, ubicacion, descripcion, fv, saldo, pedprov, unidadmedida, motivo, motivoDetalle, fotoBase64, actor }) {
   if (!bodega || !caja || !ean) throw new Error('MISSING_KEY');
   if (!['ok', 'faltante', 'otro'].includes(motivo)) throw new Error('INVALID_MOTIVO');
   // Un ítem "faltante" exige evidencia — sin esto, "faltante" sería tan
@@ -142,6 +139,9 @@ async function validateItem({ bodega, caja, ean, referencia, ubicacion, descripc
     ubicacion: ubicacion || null,
     descripcion: descripcion || null,
     fv: fv || null,
+    saldo: saldo != null && saldo !== '' ? Number(saldo) : null,
+    pedprov: pedprov || null,
+    unidadmedida: unidadmedida || null,
     motivo,
     motivo_detalle: (motivoDetalle || '').trim() || null,
     foto_url: fotoUrl,
@@ -175,98 +175,34 @@ async function updateMotivoDetalle(bodega, caja, ean, motivoDetalle) {
 
 // ---- Listado combinado ----
 
-// Siempre ordenado por ubicación (A-Z, para el recorrido físico del
-// depósito) con los días como criterio secundario — un solo orden
-// posible ahora que la app separa "Pendiente"/"Validado" por FILTRO
-// (ver app/modules/vencimientos/list-view.js), no por otro criterio de
-// orden.
-async function list() {
-  const [settings, validations] = await Promise.all([getSettings(), getValidationsMap()]);
-  const today = new Date();
-  const rows = inventoryStore.getRowsForExport();
-
-  const items = [];
-  for (const r of rows) {
-    const days = daysUntil(r.fv, today);
-    if (days === null || days > WINDOW_DAYS) continue;
-    if (isExcludedLocation(r.ubicacion, settings.excludedLocations)) continue;
-    if (!r.caja || !r.ean) continue;
-
-    const key = itemKey(r.bodega, r.caja, r.ean);
-    const validation = validations.get(key) || null;
-    items.push({
-      key,
-      bodega: r.bodega,
-      caja: r.caja,
-      ean: r.ean,
-      referencia: r.referencia || r.barcode || null,
-      ubicacion: r.ubicacion || null,
-      descripcion: r.descripcion || null,
-      // Copernico manda el saldo como número o como string con ceros de
-      // relleno ("144.0000") — Number() lo deja limpio (144, o 144.25 si
-      // de verdad hay fracción) para que el front nunca tenga que
-      // recortar ceros a mano.
-      saldo: r.saldo != null && r.saldo !== '' ? Number(r.saldo) : null,
-      unidadmedida: String(r.unidadmedida || '').trim() || null,
-      fv: r.fv || null,
-      // Campos extra SOLO para poder buscar/filtrar por ellos (ver
-      // app/modules/vencimientos/list-view.js) — Copernico los manda
-      // con espacios de relleno en varios de estos campos de texto.
-      sector: String(r.subgrupo || '').trim() || null,
-      pedprov: String(r.pedprov || '').trim() || null,
-      factura: String(r.factura || '').trim() || null,
-      days,
-      severity: severityOf(days),
-      isRetirar: days <= RETIRAR_DAYS,
-      validated: !!validation,
-      motivo: validation?.motivo || null,
-      motivoDetalle: validation?.motivoDetalle || null,
-      fotoUrl: validation?.fotoUrl || null,
-      validatedBy: validation?.validatedBy || null,
-      validatedAt: validation?.validatedAt || null,
-    });
-  }
-
-  items.sort((a, b) => {
-    const cmp = String(a.ubicacion || '').localeCompare(String(b.ubicacion || ''), 'es');
-    return cmp !== 0 ? cmp : a.days - b.days;
-  });
-
-  return { items, excludedLocations: settings.excludedLocations, windowDays: WINDOW_DAYS, retirarDays: RETIRAR_DAYS };
-}
-
-// ---- Exportación (services/vencimiento-export.js) ----
-
-// A diferencia de list() (que solo muestra lo que sigue vigente contra
-// la foto ACTUAL de Referencia — ventana de días, ubicaciones
-// excluidas, la fila todavía existiendo), el detalle exportado nunca
-// debe perder un registro ya validado solo porque Referencia cambió
-// después (se corrió "Actualizar DB", el producto se movió de caja, la
-// ubicación pasó a estar excluida, etc.) — pedido explícito: el export
-// "debe usar todo lo validado", sin re-chequear nada contra Referencia.
-// Los ítems VALIDADOS salen enteros de vencimiento_validaciones (esa
-// fila ya tiene todo lo necesario, se guardó ahí al validar); Saldo y
-// PedProv se enriquecen mejor-esfuerzo contra la foto actual de
-// Referencia si el producto/caja siguen existiendo, pero su ausencia
-// nunca saca la fila del reporte. Los PENDIENTES no tienen otra fuente
-// que Referencia — siguen el mismo criterio de ventana/exclusión que
-// list() (si no, cualquier producto de la base entera aparecería como
-// "pendiente" en el reporte, ventana o no).
-async function listForExport() {
-  const supabase = requireClient();
-  const [{ data: validationRows, error: valError }, settings] = await Promise.all([
-    supabase.from('vencimiento_validaciones').select('*'),
-    getSettings(),
-  ]);
-  if (valError) throw valError;
-
+// Única fuente de verdad para Pendiente/Sugerido/Validado (app) Y para
+// el detalle exportado (services/vencimiento-export.js) — antes cada
+// uno armaba su propia lista por separado (y de hecho, ANTES de eso,
+// list() ni siquiera consideraba lo ya validado si su fila de
+// Referencia dejaba de existir: la app "perdía" la validación
+// directamente).
+//
+// Los ítems VALIDADOS salen ENTEROS de vencimiento_validaciones —
+// ubicación, descripción, saldo, pedprov, unidadmedida, fv, todo se
+// congela ahí en el momento de validar (ver validateItem) — sin volver
+// a chequear NADA contra la foto actual de Referencia. Así, si después
+// se corre "Actualizar DB" y el producto se movió de caja, cambió de
+// ubicación, o la ubicación pasó a estar excluida, o directamente ya
+// no aparece en esa fuente, la validación ya hecha sigue mostrando los
+// datos reales de cuando se hizo — nunca desaparece ni queda con
+// campos en blanco.
+//
+// Los PENDIENTES no tienen otra fuente que Referencia (todavía no se
+// validó nada que congelar) — siguen el mismo criterio de siempre:
+// ventana de días y ubicaciones excluidas, si no cualquier producto de
+// la base entera aparecería como pendiente sin límite.
+//
+// Siempre ordenado por ubicación (A-Z, recorrido físico del depósito)
+// con los días como criterio secundario.
+async function buildCombinedItems() {
+  const [validationRows, settings] = await Promise.all([fetchValidationRows(), getSettings()]);
   const today = new Date();
   const referenciaRows = inventoryStore.getRowsForExport();
-  const referenciaByKey = new Map();
-  for (const r of referenciaRows) {
-    if (!r.caja || !r.ean) continue;
-    referenciaByKey.set(itemKey(r.bodega, r.caja, r.ean), r);
-  }
 
   const validatedKeys = new Set();
   const items = [];
@@ -275,7 +211,6 @@ async function listForExport() {
     const key = itemKey(row.bodega, row.caja, row.ean);
     validatedKeys.add(key);
     const days = daysUntil(row.fv, today);
-    const ref = referenciaByKey.get(key);
     items.push({
       key,
       bodega: row.bodega,
@@ -284,9 +219,14 @@ async function listForExport() {
       referencia: row.referencia || null,
       ubicacion: row.ubicacion || null,
       descripcion: row.descripcion || null,
-      saldo: ref && ref.saldo != null && ref.saldo !== '' ? Number(ref.saldo) : null,
-      pedprov: ref ? (String(ref.pedprov || '').trim() || null) : null,
+      saldo: row.saldo != null ? Number(row.saldo) : null,
+      unidadmedida: row.unidadmedida || null,
+      pedprov: row.pedprov || null,
       fv: row.fv || null,
+      // Sin sector/factura congelados (no se guardan al validar) — son
+      // solo para buscar/filtrar pendientes, no una pérdida real.
+      sector: null,
+      factura: null,
       days,
       severity: days != null ? severityOf(days) : null,
       isRetirar: days != null ? days <= RETIRAR_DAYS : false,
@@ -314,9 +254,19 @@ async function listForExport() {
       referencia: r.referencia || r.barcode || null,
       ubicacion: r.ubicacion || null,
       descripcion: r.descripcion || null,
+      // Copernico manda el saldo como número o como string con ceros de
+      // relleno ("144.0000") — Number() lo deja limpio (144, o 144.25 si
+      // de verdad hay fracción) para que el front nunca tenga que
+      // recortar ceros a mano.
       saldo: r.saldo != null && r.saldo !== '' ? Number(r.saldo) : null,
+      unidadmedida: String(r.unidadmedida || '').trim() || null,
       pedprov: String(r.pedprov || '').trim() || null,
       fv: r.fv || null,
+      // Campos extra SOLO para poder buscar/filtrar por ellos (ver
+      // app/modules/vencimientos/list-view.js) — Copernico los manda
+      // con espacios de relleno en varios de estos campos de texto.
+      sector: String(r.subgrupo || '').trim() || null,
+      factura: String(r.factura || '').trim() || null,
       days,
       severity: severityOf(days),
       isRetirar: days <= RETIRAR_DAYS,
@@ -334,6 +284,16 @@ async function listForExport() {
     return cmp !== 0 ? cmp : (a.days ?? 0) - (b.days ?? 0);
   });
 
+  return { items, excludedLocations: settings.excludedLocations };
+}
+
+async function list() {
+  const { items, excludedLocations } = await buildCombinedItems();
+  return { items, excludedLocations, windowDays: WINDOW_DAYS, retirarDays: RETIRAR_DAYS };
+}
+
+async function listForExport() {
+  const { items } = await buildCombinedItems();
   return items;
 }
 
