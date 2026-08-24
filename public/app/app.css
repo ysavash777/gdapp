@@ -1727,6 +1727,7 @@ html, body {
   transition: background var(--t-fast), color var(--t-fast);
 }
 .venc-sort-toggle button.is-active { background: var(--surface); color: var(--ink); }
+.venc-toggle-count { opacity: 0.7; }
 /* Buscar/Configurar/Descargar agrupados en un único botón (antes 3
    sueltos, que en pantallas angostas -sobre todo al sumar el de
    buscar- deformaban el toggle de al lado) — mismo menú desplegable
@@ -2014,9 +2015,7 @@ html, body {
 .venc-suggest-inline .venc-acc-panel .scan-camera-stage { flex: none; min-height: 0; }
 .venc-suggest-inline .venc-acc-comment-input { min-height: 56px; }
 .venc-suggest-inline .venc-val-skip { padding: 8px 14px; }
-.venc-suggest-inline .venc-photo-view { flex: none; }
-.venc-suggest-inline .venc-acc-panel .scan-camera,
-.venc-suggest-inline .venc-photo-frame {
+.venc-suggest-inline .venc-acc-panel .scan-camera {
   flex: none;
   height: 30vh;
   min-height: 150px;
@@ -2067,14 +2066,9 @@ html, body {
    manual (cerrarlo es el botón de "volver" que vive integrado en el
    propio input, ver .venc-camera-manual-back más abajo). Sin esto,
    quedaban flotando encima del input achicado — se veía superpuesto y
-   amateur. Mismo criterio para la foto de faltante (sacarla no es
-   "escanear"). */
+   amateur. */
 .scan-camera-stage.is-manual .venc-camera-torch,
-.scan-camera-stage.is-manual .venc-camera-keyboard,
-.scan-camera-stage.is-photo-mode .scan-line,
-.scan-camera-stage.is-photo-mode .venc-camera-torch,
-.scan-camera-stage.is-photo-mode .venc-camera-keyboard,
-.scan-camera-stage.is-photo-mode .venc-camera-manual { display: none; }
+.scan-camera-stage.is-manual .venc-camera-keyboard { display: none; }
 
 /* Ya no flota encima de la cámara (esa cámara ahora está oculta) —
    ocupa el ancho entero del stage, con solo el alto que necesita un
@@ -2374,48 +2368,55 @@ html, body {
 .venc-val-skip svg { flex-shrink: 0; }
 .venc-val-skip:active { background: var(--n-100); }
 
-/* Vista dedicada de "reportar faltante" — reemplaza por completo al
-   acordeón (.venc-acc-body) mientras está activa, en vez de vivir
-   apretada adentro del contenedor de Producto: la cámara necesita
-   todo el espacio para encuadrar y sacar la foto, y meterla dentro
-   del acordeón (con su header/avatar/otros contenedores alrededor)
-   era lo que "deformaba todo". Mismo tratamiento (scan-sheet) que el
-   acordeón para que el fondo/padding no salte al alternar entre las
-   dos. */
-.venc-photo-view { display: flex; flex-direction: column; gap: var(--sp-3); flex: 1; min-height: 0; }
-.venc-photo-view[hidden] { display: none; }
-
-.venc-photo-frame {
-  position: relative;
+/* "Reportar faltante": mismo .venc-acc-item que Caja/Producto (avatar
+   + título/sub arriba, panel abajo) — reemplaza SOLO al contenedor de
+   Producto mientras está activo (Caja queda arriba, ya "Ubicación
+   confirmada", como contexto — ver enterFotoMode() en
+   validation-view.js). Sin cámara propia: dos accesos nativos del
+   dispositivo (cámara / galería, cada uno un <input type="file">
+   disparado por su label) en vez de una vista previa en vivo — pedido
+   explícito ("es incómodo tomar la foto desde ahí"). Compacto a
+   propósito, sin ningún elemento de alto variable, para no generar
+   scroll.  */
+.venc-photo-source-row { display: flex; gap: var(--sp-2); }
+.venc-photo-source-btn {
   flex: 1;
-  min-height: 160px;
-  border-radius: var(--r-lg);
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: 12px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+.venc-photo-source-btn:active { background: var(--n-100); }
+
+/* Miniatura de la foto ya elegida (de cualquiera de las dos fuentes) —
+   confirma que hay algo cargado sin ocupar el espacio de una vista
+   previa a pantalla completa. */
+.venc-photo-thumb-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+.venc-photo-thumb {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: var(--r-sm);
+  object-fit: cover;
   background: #000;
 }
-/* Mientras esta vista está activa, la cámara compartida (.scan-camera)
-   se monta acá adentro sin su línea de escaneo — sacar una foto no es
-   "escanear", mostrarla confundía el paso. */
-.venc-photo-frame .scan-camera.is-photo-mode .scan-line { display: none; }
-.venc-photo-img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: none;
-}
-/* Al confirmar la toma, la foto tapa la cámara en vez de sumarse abajo
-   (eso era lo que "deformaba" el contenedor) — mismo tamaño exacto,
-   adaptada con object-fit:cover. */
-.venc-photo-frame.is-previewing .scan-camera { visibility: hidden; }
-.venc-photo-frame.is-previewing .venc-photo-img { display: block; }
+.venc-photo-thumb-label { flex: 1; min-width: 0; font-size: var(--text-sm); font-weight: 600; color: var(--ok); }
 
-.venc-photo-hint { flex-shrink: 0; font-size: var(--text-sm); color: var(--ink-2); }
-.venc-photo-capture-row { flex-shrink: 0; display: flex; gap: var(--sp-2); }
-.venc-photo-capture-row .btn-block { flex: 1; }
-.venc-photo-actions { flex-shrink: 0; display: flex; gap: var(--sp-2); }
-.venc-photo-actions .btn { flex: 1; }
+.venc-photo-actions-row { display: flex; gap: var(--sp-2); }
+.venc-photo-actions-row .btn { flex: 1; }
 
 /* ============================================================
    Configuración (app/modules/settings.js) — "Actualizar bases de

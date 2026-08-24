@@ -33,8 +33,10 @@
         eso Producto arranca BLOQUEADO hasta que este se valida).
      2) Producto — descripción + referencia/EAN. Acá SÍ se puede
         reportar "faltante" sin escanear (si el producto de verdad no
-        está, insistir en escanearlo no tiene sentido), pero exige una
-        foto de la posición vacía como evidencia.
+        está, insistir en escanearlo no tiene sentido): reemplaza a
+        Producto por un módulo compacto que exige una foto de la
+        posición vacía como evidencia (cámara nativa o galería del
+        dispositivo, no la cámara compartida — ver enterFotoMode()).
      3) Observación — contenedor de cierre, oculto por completo hasta
         validar 1 y 2. Repite la info del producto (descripción,
         saldo, pedprov, vencimiento) para la última revisión y pide
@@ -50,9 +52,12 @@
    "pendiente" a "éxito".
 
    Un solo <video> de cámara (envuelto en .scan-camera-stage junto con
-   linterna/teclado/input manual) se reutiliza en los 3 lugares donde
-   hace falta (Caja, Producto, foto de faltante) — se mueve entero con
-   .prepend, nunca se recrea ni se vuelve a pedir permiso. moveCameraTo
+   linterna/teclado/input manual) se reutiliza entre Caja y Producto —
+   se mueve entero con .prepend, nunca se recrea ni se vuelve a pedir
+   permiso. La foto de faltante NO la usa (ver más abajo): mientras esa
+   vista está activa, la cámara compartida solo se pausa donde esté
+   parqueada (siempre en el panel de Producto), nunca se mueve.
+   moveCameraTo
    evita mover el stage si ya está en el contenedor destino: aunque no
    relanza nada (ni cámara ni permisos), un .prepend "de más" corta y
    reinicia la animación de la línea de escaneo — se nota feo cada vez
@@ -79,6 +84,7 @@ import { escapeHtml } from '/shared/js/format.js';
 import { showToast } from '/shared/js/toast.js';
 import { createCameraScanner } from '../../scanner/camera.js';
 import * as store from './store.js';
+import { currentUser } from '/shared/js/session.js';
 
 function norm(v) {
   return String(v ?? '').trim().toLowerCase();
@@ -146,14 +152,19 @@ function urgencyBannerHTML(it) {
 // dentro de `overlay` (que puede ser un <div class="scan-overlay">
 // fixed o un <div> cualquiera ya insertado en el flujo normal, da
 // igual: acá adentro nunca se asume posición fixed).
-//   - onValidated(): se llama después de guardar OK un ítem. Si
-//     devuelve un array, se usa como cola nueva (refreshQueue) — el
-//     modal devuelve null (ya se está cerrando); la ficha embebida
-//     devuelve la cola pendiente recién releída, para avanzar sola.
+//   - onValidated(item): se llama YA, antes de que el guardado real
+//     termine (ver finishValidation — optimista, nunca espera al
+//     servidor). Si devuelve un array, se usa como cola nueva
+//     (refreshQueue) — el modal devuelve null (ya se está cerrando);
+//     la ficha embebida quita el ítem de su copia local y devuelve la
+//     cola pendiente, para avanzar sola sin pedirle nada al servidor.
+//   - onValidateError(item): el guardado real falló en segundo plano
+//     — quien llama debe reincorporar el ítem a su lista local (nunca
+//     quedó guardado, aunque la UI ya haya avanzado).
 //   - onIndexChange(idx)/onEmpty(): opcionales, solo los usa la ficha
 //     embebida (persistir la posición, mostrar el estado "todo
 //     validado" cuando la cola queda vacía).
-function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValidated, onIndexChange, onEmpty }) {
+function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValidated, onValidateError, onIndexChange, onEmpty }) {
   let item = initialItem;
   let slides = pendingItems.length ? pendingItems : [initialItem];
 
@@ -194,6 +205,33 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
         </div>
       </div>
 
+      <div class="venc-acc-item venc-photo-view" id="vencPhotoView" hidden>
+        <div class="venc-acc-head">
+          <span class="venc-acc-avatar">${icon('camera', 18)}</span>
+          <span class="venc-acc-head-text">
+            <strong class="venc-acc-head-title">Reportar faltante</strong>
+            <span class="venc-acc-head-sub">Foto de la posición vacía</span>
+          </span>
+        </div>
+        <div class="venc-acc-panel">
+          <div class="venc-photo-source-row" id="vencPhotoSourceRow">
+            <label class="venc-photo-source-btn" for="vencPhotoCameraInput">${icon('camera', 18)}<span>Cámara</span></label>
+            <label class="venc-photo-source-btn" for="vencPhotoGalleryInput">${icon('image', 18)}<span>Galería</span></label>
+          </div>
+          <input type="file" accept="image/*" capture="environment" id="vencPhotoCameraInput" hidden />
+          <input type="file" accept="image/*" id="vencPhotoGalleryInput" hidden />
+          <div class="venc-photo-thumb-row" id="vencPhotoThumbRow" hidden>
+            <img class="venc-photo-thumb" id="vencPhotoThumb" alt="Foto elegida" />
+            <span class="venc-photo-thumb-label">Foto lista</span>
+            <button type="button" class="btn-icon" id="vencPhotoRemove" title="Quitar foto">${icon('x', 15)}</button>
+          </div>
+          <div class="venc-photo-actions-row">
+            <button type="button" class="venc-val-skip" id="vencPhotoCancel">${icon('chevronLeft', 15)} Cancelar</button>
+            <button type="button" class="btn btn-danger btn-block" id="vencPhotoConfirm" disabled>Confirmar faltante</button>
+          </div>
+        </div>
+      </div>
+
       <div class="venc-acc-item" id="itemComment" hidden>
         <div class="venc-acc-panel" id="panelComment">
           <div class="venc-review-box" id="vencReviewBox"></div>
@@ -202,20 +240,6 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
             <button type="button" class="btn btn-primary btn-block" id="vencConfirm" disabled>Confirmar</button>
           </div>
         </div>
-      </div>
-    </div>
-    <div class="scan-sheet cq-sheet venc-photo-view" id="vencPhotoView" hidden>
-      <div class="venc-photo-frame" id="vencPhotoFrame">
-        <img class="venc-photo-img" id="vencPhotoImg" alt="Foto de la posición" />
-      </div>
-      <p class="venc-photo-hint">Encuadrá la posición vacía y tomá la foto — es obligatoria para reportar un faltante.</p>
-      <div class="venc-photo-capture-row" id="vencPhotoCaptureRow">
-        <button type="button" class="venc-val-skip" id="vencPhotoCancel">${icon('chevronLeft', 15)} Cancelar</button>
-        <button type="button" class="btn btn-primary btn-block" id="vencPhotoCapture">${icon('camera', 18)} Tomar foto</button>
-      </div>
-      <div class="venc-photo-actions" id="vencPhotoConfirmActions" hidden>
-        <button type="button" class="btn btn-ghost" id="vencPhotoRetake">Repetir foto</button>
-        <button type="button" class="btn btn-danger" id="vencPhotoConfirm">Confirmar faltante</button>
       </div>
     </div>
   `;
@@ -247,12 +271,13 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
   const comentarioInput = overlay.querySelector('#vencComentario');
   const confirmBtn = overlay.querySelector('#vencConfirm');
 
-  const vencAccBody = overlay.querySelector('#vencAccBody');
   const photoView = overlay.querySelector('#vencPhotoView');
-  const photoFrame = overlay.querySelector('#vencPhotoFrame');
-  const photoImgEl = overlay.querySelector('#vencPhotoImg');
-  const photoCaptureRow = overlay.querySelector('#vencPhotoCaptureRow');
-  const photoConfirmActions = overlay.querySelector('#vencPhotoConfirmActions');
+  const photoCameraInput = overlay.querySelector('#vencPhotoCameraInput');
+  const photoGalleryInput = overlay.querySelector('#vencPhotoGalleryInput');
+  const photoThumbRow = overlay.querySelector('#vencPhotoThumbRow');
+  const photoThumbEl = overlay.querySelector('#vencPhotoThumb');
+  const photoRemoveBtn = overlay.querySelector('#vencPhotoRemove');
+  const photoConfirmBtn = overlay.querySelector('#vencPhotoConfirm');
 
   // --- Nav de ubicación (flechas) ---
   let currentIndex = Math.max(0, slides.findIndex((i) => i.key === initialItem.key));
@@ -491,64 +516,90 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
   });
 
   // Reportar faltante exige una foto de la posición vacía — reemplaza
-  // por completo al acordeón mientras dura (ver .venc-photo-view en
-  // app.css): meterla adentro del contenedor de Producto lo deformaba,
-  // porque tiene que competir por espacio con el resto de la pantalla.
-  // Usa la misma cámara YA activa (nunca pide permiso de nuevo), sin
-  // la línea de escaneo (sacar una foto no es "escanear"). Confirmar
-  // acá termina la validación entera, sin pasar por el contenedor de
-  // comentario — el motivo queda registrado como "Faltante" directo.
+  // solo al contenedor de Producto (nunca a Caja, que ya quedó
+  // "Ubicación confirmada" arriba y sirve de contexto) ni al de
+  // Observación (sigue oculto, no se llega a él por acá — el motivo
+  // queda registrado como "Faltante" directo). Nada de cámara propia:
+  // dos accesos nativos (cámara del dispositivo o galería, vía <input
+  // type="file">) en vez de la vista previa en vivo de antes — "es
+  // incómodo tomar la foto desde ahí" fue el pedido explícito. La
+  // cámara COMPARTIDA (Caja/Producto) solo se pausa mientras tanto,
+  // nunca se mueve: sigue exactamente donde estaba (en panelProd) para
+  // cuando se cancele.
   function enterFotoMode() {
     fotoViewOpen = true;
     photoDataUrl = null;
     closeManualInput();
-    cameraStage.classList.add('is-photo-mode');
-    photoFrame.classList.remove('is-previewing');
-    photoImgEl.removeAttribute('src');
-    photoFrame.prepend(cameraStage);
-    photoCaptureRow.hidden = false;
-    photoConfirmActions.hidden = true;
-    vencAccBody.hidden = true;
+    photoCameraInput.value = '';
+    photoGalleryInput.value = '';
+    photoThumbRow.hidden = true;
+    photoConfirmBtn.disabled = true;
+    itemProd.hidden = true;
     photoView.hidden = false;
-    scanner.setPaused(true); // sin pauseView(): el video sigue en vivo para encuadrar la foto
+    scanner.setPaused(true);
   }
 
   function exitFotoMode() {
     fotoViewOpen = false;
     photoDataUrl = null;
-    cameraStage.classList.remove('is-photo-mode');
     photoView.hidden = true;
-    vencAccBody.hidden = false;
-    moveCameraTo(panelProd);
+    itemProd.hidden = false;
     scanner.setPaused(false);
   }
 
   overlay.querySelector('#vencPhotoCancel').addEventListener('click', exitFotoMode);
 
-  overlay.querySelector('#vencPhotoCapture').addEventListener('click', () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = videoEl.videoWidth || 640;
-    canvas.height = videoEl.videoHeight || 480;
-    canvas.getContext('2d').drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-    photoDataUrl = canvas.toDataURL('image/jpeg', 0.6);
-    photoImgEl.src = photoDataUrl;
-    photoFrame.classList.add('is-previewing');
-    photoCaptureRow.hidden = true;
-    photoConfirmActions.hidden = false;
-    if (navigator.vibrate) navigator.vibrate(35);
-  });
+  // Achica cualquier foto (de cámara o de galería, puede pesar varios
+  // MB tal cual la entrega el dispositivo) a un tamaño manejable antes
+  // de convertirla a data URL — el body JSON tiene un límite de 4mb
+  // (ver server/index.js) y de todas formas no tiene sentido mandar
+  // una foto de evidencia a resolución completa.
+  const PHOTO_MAX_DIM = 1280;
+  const PHOTO_QUALITY = 0.6;
+  function resizeImageFile(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        const scale = Math.min(1, PHOTO_MAX_DIM / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(objectUrl);
+        resolve(canvas.toDataURL('image/jpeg', PHOTO_QUALITY));
+      };
+      img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('IMAGE_LOAD_FAILED')); };
+      img.src = objectUrl;
+    });
+  }
 
-  overlay.querySelector('#vencPhotoRetake').addEventListener('click', () => {
+  async function handlePhotoFile(file) {
+    if (!file) return;
+    try {
+      photoDataUrl = await resizeImageFile(file);
+      photoThumbEl.src = photoDataUrl;
+      photoThumbRow.hidden = false;
+      photoConfirmBtn.disabled = false;
+      if (navigator.vibrate) navigator.vibrate(35);
+    } catch {
+      showToast('No se pudo procesar la foto. Probá de nuevo.', { variant: 'warn' });
+    }
+  }
+  photoCameraInput.addEventListener('change', () => handlePhotoFile(photoCameraInput.files[0]));
+  photoGalleryInput.addEventListener('change', () => handlePhotoFile(photoGalleryInput.files[0]));
+
+  photoRemoveBtn.addEventListener('click', () => {
     photoDataUrl = null;
-    photoFrame.classList.remove('is-previewing');
-    photoCaptureRow.hidden = false;
-    photoConfirmActions.hidden = true;
+    photoCameraInput.value = '';
+    photoGalleryInput.value = '';
+    photoThumbRow.hidden = true;
+    photoConfirmBtn.disabled = true;
   });
 
-  const photoConfirmBtn = overlay.querySelector('#vencPhotoConfirm');
   photoConfirmBtn.addEventListener('click', () => {
     if (!photoDataUrl) return;
-    finishValidation('faltante', 'Faltante', photoDataUrl, photoConfirmBtn);
+    finishValidation('faltante', 'Faltante', photoDataUrl);
   });
 
   // Detalle del producto (descripción + saldo/pedprov/vencimiento +
@@ -646,30 +697,49 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
   confirmBtn.addEventListener('click', () => {
     const texto = comentarioInput.value.trim();
     if (!texto) return;
-    finishValidation('otro', texto, null, confirmBtn);
+    finishValidation('otro', texto, null);
   });
 
   // Único punto de guardado, usado tanto por "Confirmar" (Observación)
-  // como por "Confirmar faltante" (foto). Al terminar OK, onValidated
-  // decide qué sigue: el modal cierra y listo (devuelve null); la
-  // ficha embebida relee la cola pendiente y, si onValidated devuelve
-  // un array, refreshQueue() avanza sola al siguiente ítem (o muestra
-  // el estado vacío si ya no queda nada).
-  async function finishValidation(motivo, texto, photoUrl, busyBtn) {
+  // como por "Confirmar faltante" (foto). Optimista: el avance a la
+  // próxima posición (onValidated) es INMEDIATO, ya con la lista local
+  // — nunca espera al servidor. El guardado real (store.validate)
+  // corre en paralelo, en silencio; si falla, onValidateError le avisa
+  // a quien llama para que reincorpore el ítem a la cola en vez de
+  // darlo por guardado sin estarlo. onValidated puede devolver un
+  // array (la ficha embebida avanza sola con refreshQueue) o null (el
+  // modal ya se está cerrando, no hay nada más que mover acá).
+  function finishValidation(motivo, texto, photoUrl) {
     if (submitting) return;
     submitting = true;
-    busyBtn.disabled = true;
-    try {
-      await store.validate(item, motivo, texto, photoUrl);
-      if (navigator.vibrate) navigator.vibrate(35);
-      submitting = false;
-      const freshQueue = await onValidated();
-      if (Array.isArray(freshQueue)) refreshQueue(freshQueue);
-    } catch {
-      showToast('No se pudo guardar. Probá de nuevo.', { variant: 'warn' });
-      submitting = false;
-      busyBtn.disabled = false;
-    }
+    if (navigator.vibrate) navigator.vibrate(35);
+    const validatedItem = item;
+    // `item` es la MISMA referencia que vive en state.items del lado
+    // de list-view.js (pendingItems nunca clona) — completar estos
+    // campos acá ya los deja bien en los dos lados, sin pasar nada
+    // extra por onValidated. Sin esto, abrir el detalle en "Validado"
+    // justo en la ventana optimista (antes de que el guardado real
+    // confirme) mostraba motivo/fecha vacíos. fotoUrl usa el propio
+    // data URL local — se ve igual que la real, no hace falta esperar
+    // a que el servidor la aloje para poder mostrarla.
+    validatedItem.motivo = motivo;
+    validatedItem.motivoDetalle = texto;
+    validatedItem.validatedAt = new Date().toISOString();
+    validatedItem.validatedBy = currentUser()?.username || null;
+    if (photoUrl) validatedItem.fotoUrl = photoUrl;
+    const freshQueue = onValidated(validatedItem);
+    submitting = false;
+    if (Array.isArray(freshQueue)) refreshQueue(freshQueue);
+
+    store.validate(validatedItem, motivo, texto, photoUrl).catch(() => {
+      validatedItem.motivo = null;
+      validatedItem.motivoDetalle = null;
+      validatedItem.validatedAt = null;
+      validatedItem.validatedBy = null;
+      if (photoUrl) validatedItem.fotoUrl = null;
+      showToast('No se pudo guardar la validación. Volvé a intentarlo.', { variant: 'warn' });
+      onValidateError?.(validatedItem);
+    });
   }
 
   // Tras validar un ítem (o si la cola cambia por otro motivo, p. ej.
@@ -777,11 +847,17 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
 
   const flow = renderValidationFlow(overlay, initialItem, {
     pendingItems,
-    onValidated: async () => {
+    onValidated: () => {
       teardown();
       onDone();
       return null;
     },
+    // El guardado real corre en segundo plano y el modal ya se cerró
+    // para cuando podría fallar — onDone() (load() de list-view.js) ya
+    // pide la lista real, así que llamarlo de nuevo alcanza para que
+    // el ítem reaparezca como pendiente si el guardado de verdad no
+    // se hizo.
+    onValidateError: () => onDone(),
   });
 
   function teardown() {
@@ -799,13 +875,13 @@ export function openValidation(initialItem, { onDone, pendingItems = [] }) {
 // pestaña está a la vista — validar un ítem no cierra nada, onValidated
 // releé la cola pendiente y la propia ficha avanza sola a la siguiente
 // posición (o dispara onEmpty si ya no queda ninguna).
-export function mountSuggestedFlow(container, initialItem, { pendingItems, onValidated, onIndexChange, onEmpty }) {
+export function mountSuggestedFlow(container, initialItem, { pendingItems, onValidated, onValidateError, onIndexChange, onEmpty }) {
   const root = document.createElement('div');
   root.className = 'venc-suggest-inline cq-fade-in';
   container.appendChild(root);
 
   const flow = renderValidationFlow(root, initialItem, {
-    pendingItems, onValidated, onIndexChange, onEmpty,
+    pendingItems, onValidated, onValidateError, onIndexChange, onEmpty,
   });
 
   return {

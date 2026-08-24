@@ -27,6 +27,7 @@ import { icon, iconSolid } from '/shared/js/icons.js';
 import { escapeHtml, formatDateTime, capitalize } from '/shared/js/format.js';
 import * as store from './store.js';
 import { openValidation, mountSuggestedFlow } from './validation-view.js';
+import { showToast } from '/shared/js/toast.js';
 
 const MOTIVO_LABEL = { ok: 'OK', faltante: 'Faltante', otro: 'Otro' };
 
@@ -164,7 +165,7 @@ export async function renderList(outlet) {
         <div class="venc-toolbar">
           <div class="venc-sort-toggle" id="vencViewToggle">
             <button type="button" class="is-active" data-view="sugerido">Sugerido</button>
-            <button type="button" data-view="pendiente">Pendiente</button>
+            <button type="button" data-view="pendiente">Pendiente<span class="venc-toggle-count" id="vencPendienteCount"></span></button>
             <button type="button" data-view="validado">Validado</button>
           </div>
           <div class="venc-more-wrap">
@@ -317,7 +318,15 @@ export async function renderList(outlet) {
       .filter(matchesQuery);
   }
 
+  // Cuenta al lado del toggle "Pendiente" — se recalcula sola en cada
+  // draw(), nunca pide nada aparte: ya tiene state.items en memoria.
+  function updatePendienteCount() {
+    const el = outlet.querySelector('#vencPendienteCount');
+    if (el) el.textContent = state.loading ? '' : ` (${pendingQueue().length})`;
+  }
+
   function draw() {
+    updatePendienteCount();
     const wrap = outlet.querySelector('#vencListWrap');
     if (!wrap) return;
 
@@ -416,9 +425,23 @@ export async function renderList(outlet) {
     suggestedFlow = mountSuggestedFlow(wrap, queue[state.suggestedIndex], {
       pendingItems: queue,
       onIndexChange: (idx) => { state.suggestedIndex = idx; },
-      onValidated: async () => {
-        await fetchItems();
+      // Optimista: el ítem ya se sabe validado ACÁ, sin pedirle nada
+      // al servidor — evita el refetch completo de la lista por cada
+      // validación (era el cuello de botella real: dos viajes de red
+      // seguidos antes de poder avanzar). El guardado real sigue
+      // corriendo en segundo plano (ver finishValidation); si falla,
+      // onValidateError reincorpora el ítem acá mismo.
+      onValidated: (validatedItem) => {
+        const target = state.items.find((i) => i.key === validatedItem.key);
+        if (target) target.validated = true;
+        updatePendienteCount();
         return pendingQueue();
+      },
+      onValidateError: (failedItem) => {
+        const target = state.items.find((i) => i.key === failedItem.key);
+        if (target) target.validated = false;
+        updatePendienteCount();
+        suggestedFlow?.refresh(pendingQueue());
       },
       onEmpty: () => {
         suggestedFlow = null;
@@ -452,10 +475,22 @@ export async function renderList(outlet) {
     const close = () => overlay.remove();
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
     overlay.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
-    overlay.querySelector('#vencRevertBtn').addEventListener('click', async () => {
-      await store.clearValidation(item);
+    // Optimista: cierra y actualiza la lista YA (nada más queda por
+    // esperar del lado del cliente, ya sabemos que revirtió) — el
+    // DELETE real corre en segundo plano. Si de verdad falla, se
+    // vuelve a marcar validado y se avisa, en vez de dejar la UI
+    // mintiendo que revirtió cuando el servidor no lo confirmó.
+    overlay.querySelector('#vencRevertBtn').addEventListener('click', () => {
       close();
-      load();
+      const target = state.items.find((i) => i.key === item.key);
+      if (target) target.validated = false;
+      draw();
+      store.clearValidation(item).catch(() => {
+        const t = state.items.find((i) => i.key === item.key);
+        if (t) t.validated = true;
+        draw();
+        showToast('No se pudo revertir. Probá de nuevo.', { variant: 'warn' });
+      });
     });
   }
 
