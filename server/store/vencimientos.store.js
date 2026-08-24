@@ -235,8 +235,111 @@ async function list() {
   return { items, excludedLocations: settings.excludedLocations, windowDays: WINDOW_DAYS, retirarDays: RETIRAR_DAYS };
 }
 
+// ---- Exportación (services/vencimiento-export.js) ----
+
+// A diferencia de list() (que solo muestra lo que sigue vigente contra
+// la foto ACTUAL de Referencia — ventana de días, ubicaciones
+// excluidas, la fila todavía existiendo), el detalle exportado nunca
+// debe perder un registro ya validado solo porque Referencia cambió
+// después (se corrió "Actualizar DB", el producto se movió de caja, la
+// ubicación pasó a estar excluida, etc.) — pedido explícito: el export
+// "debe usar todo lo validado", sin re-chequear nada contra Referencia.
+// Los ítems VALIDADOS salen enteros de vencimiento_validaciones (esa
+// fila ya tiene todo lo necesario, se guardó ahí al validar); Saldo y
+// PedProv se enriquecen mejor-esfuerzo contra la foto actual de
+// Referencia si el producto/caja siguen existiendo, pero su ausencia
+// nunca saca la fila del reporte. Los PENDIENTES no tienen otra fuente
+// que Referencia — siguen el mismo criterio de ventana/exclusión que
+// list() (si no, cualquier producto de la base entera aparecería como
+// "pendiente" en el reporte, ventana o no).
+async function listForExport() {
+  const supabase = requireClient();
+  const [{ data: validationRows, error: valError }, settings] = await Promise.all([
+    supabase.from('vencimiento_validaciones').select('*'),
+    getSettings(),
+  ]);
+  if (valError) throw valError;
+
+  const today = new Date();
+  const referenciaRows = inventoryStore.getRowsForExport();
+  const referenciaByKey = new Map();
+  for (const r of referenciaRows) {
+    if (!r.caja || !r.ean) continue;
+    referenciaByKey.set(itemKey(r.bodega, r.caja, r.ean), r);
+  }
+
+  const validatedKeys = new Set();
+  const items = [];
+
+  for (const row of validationRows) {
+    const key = itemKey(row.bodega, row.caja, row.ean);
+    validatedKeys.add(key);
+    const days = daysUntil(row.fv, today);
+    const ref = referenciaByKey.get(key);
+    items.push({
+      key,
+      bodega: row.bodega,
+      caja: row.caja,
+      ean: row.ean,
+      referencia: row.referencia || null,
+      ubicacion: row.ubicacion || null,
+      descripcion: row.descripcion || null,
+      saldo: ref && ref.saldo != null && ref.saldo !== '' ? Number(ref.saldo) : null,
+      pedprov: ref ? (String(ref.pedprov || '').trim() || null) : null,
+      fv: row.fv || null,
+      days,
+      severity: days != null ? severityOf(days) : null,
+      isRetirar: days != null ? days <= RETIRAR_DAYS : false,
+      validated: true,
+      motivo: row.motivo,
+      motivoDetalle: row.motivo_detalle,
+      fotoUrl: row.foto_url,
+      validatedBy: row.validated_by,
+      validatedAt: row.validated_at,
+    });
+  }
+
+  for (const r of referenciaRows) {
+    if (!r.caja || !r.ean) continue;
+    const key = itemKey(r.bodega, r.caja, r.ean);
+    if (validatedKeys.has(key)) continue; // ya está arriba, como validado
+    const days = daysUntil(r.fv, today);
+    if (days === null || days > WINDOW_DAYS) continue;
+    if (isExcludedLocation(r.ubicacion, settings.excludedLocations)) continue;
+    items.push({
+      key,
+      bodega: r.bodega,
+      caja: r.caja,
+      ean: r.ean,
+      referencia: r.referencia || r.barcode || null,
+      ubicacion: r.ubicacion || null,
+      descripcion: r.descripcion || null,
+      saldo: r.saldo != null && r.saldo !== '' ? Number(r.saldo) : null,
+      pedprov: String(r.pedprov || '').trim() || null,
+      fv: r.fv || null,
+      days,
+      severity: severityOf(days),
+      isRetirar: days <= RETIRAR_DAYS,
+      validated: false,
+      motivo: null,
+      motivoDetalle: null,
+      fotoUrl: null,
+      validatedBy: null,
+      validatedAt: null,
+    });
+  }
+
+  items.sort((a, b) => {
+    const cmp = String(a.ubicacion || '').localeCompare(String(b.ubicacion || ''), 'es');
+    return cmp !== 0 ? cmp : (a.days ?? 0) - (b.days ?? 0);
+  });
+
+  return items;
+}
+
 module.exports = {
   list,
+  listForExport,
   validateItem,
   clearValidation,
   updateMotivoDetalle,

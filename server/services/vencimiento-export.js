@@ -8,6 +8,12 @@
    link). Mismo criterio visual que services/mapeo-export.js:
    encabezado en negrita con relleno azul, todas las celdas centradas
    y con borde en los cuatro lados.
+
+   `items` viene de store/vencimientos.store.js#listForExport() — los
+   ítems validados salen directo de vencimiento_validaciones, nunca se
+   re-chequean contra la foto actual de Referencia (ver el comentario
+   de esa función), así que un producto ya validado nunca desaparece
+   del reporte aunque Referencia haya cambiado después.
    ============================================================ */
 
 const ExcelJS = require('exceljs');
@@ -28,9 +34,11 @@ function observacionOf(item) {
 const COLUMNS = [
   { header: 'Ubicación', width: 16, value: (i) => i.ubicacion || '' },
   { header: 'Caja', width: 14, value: (i) => i.caja || '' },
-  { header: 'Código', width: 18, value: (i) => i.referencia || '' },
+  { header: 'Referencia', width: 18, value: (i) => i.referencia || '' },
+  { header: 'EAN', width: 14, value: (i) => i.ean || '' },
   { header: 'Descripción', width: 42, value: (i) => i.descripcion || 'Producto sin descripción' },
   { header: 'Saldo', width: 10, value: (i) => i.saldo ?? '' },
+  { header: 'PedProv', width: 14, value: (i) => i.pedprov || '' },
   { header: 'Vence', width: 12, value: (i) => i.fv || '' },
   { header: 'Días', width: 8, value: (i) => i.days },
   { header: 'Observación', width: 30, value: observacionOf },

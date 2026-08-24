@@ -116,10 +116,13 @@ router.delete('/validate', async (req, res) => {
   }
 });
 
-// GET /api/vencimientos/export — XLSX con todo el estado actual
+// GET /api/vencimientos/export — XLSX con todo el estado actual. Usa
+// listForExport() (no list()): lo validado sale directo de
+// vencimiento_validaciones, sin re-chequear contra la foto actual de
+// Referencia — ver el comentario de esa función en el store.
 router.get('/export', async (_req, res) => {
   try {
-    const { items } = await store.list();
+    const items = await store.listForExport();
     const workbook = buildWorkbook(items);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="vencimientos.xlsx"`);
