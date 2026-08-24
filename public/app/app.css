@@ -1854,7 +1854,46 @@ html, body {
 .venc-card-check { flex-shrink: 0; color: var(--ok); }
 .venc-card-arrow { flex-shrink: 0; color: var(--ink-3); }
 
-.venc-detail-photo { width: 100%; border-radius: var(--r-md); margin-bottom: var(--sp-3); display: block; }
+/* Última línea de una tarjeta ya validada (ver commentRowHTML) — una
+   sola línea, nunca 2 ni ajuste de fuente (a diferencia de la fila de
+   arriba): es un adelanto de la observación, se corta con elipsis sin
+   más drama. */
+.venc-card-comment { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 11px; color: var(--ink-3); }
+.venc-card-comment svg { flex-shrink: 0; }
+.venc-card-comment-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Miniatura 1:1 de la foto de evidencia (detalle de "Validado") — a
+   diferencia de antes (ancho completo, deformaba el modal según la
+   proporción real de la foto), un cuadrado chico y fijo que nunca
+   cambia el alto del contenedor. Ampliar (venc-photo-lightbox) es la
+   única forma de verla completa. */
+.venc-detail-photo-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--r-md);
+  object-fit: cover;
+  display: block;
+  margin-bottom: var(--sp-3);
+  cursor: pointer;
+  background: #000;
+}
+.venc-photo-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.92);
+}
+.venc-photo-lightbox img { max-width: 92vw; max-height: 88vh; object-fit: contain; border-radius: var(--r-md); }
+.venc-photo-lightbox-close {
+  position: absolute;
+  top: var(--sp-4);
+  right: var(--sp-4);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+}
 
 /* Modo "Sugerido": ya no es una tarjeta de resumen con botón "Validar"
    — la ficha de validación entera (ver .venc-suggest-inline más abajo,

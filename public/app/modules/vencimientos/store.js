@@ -45,6 +45,16 @@ export async function clearValidation(item) {
   });
 }
 
+// Edita solo la observación de un ítem ya validado (ver "Validado" en
+// list-view.js) — nunca rehace la validación (motivo/foto quedan tal
+// cual estaban).
+export async function updateObservacion(item, motivoDetalle) {
+  await apiFetch('/api/vencimientos/validate', {
+    method: 'PATCH',
+    body: { bodega: item.bodega, caja: item.caja, ean: item.ean, motivoDetalle },
+  });
+}
+
 export async function getSettings() {
   const { excludedLocations } = await apiFetch('/api/vencimientos/settings');
   return excludedLocations;

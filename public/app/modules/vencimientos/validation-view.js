@@ -2,21 +2,14 @@
    Módulo App · Vencimientos — validación de un ítem.
 
    El acordeón (nav de ubicación + Caja/Producto/Observación) se
-   arma en renderValidationFlow(), y se monta de DOS formas distintas
-   según quién llame:
-     - openValidation()     → modal a pantalla completa (.scan-overlay,
-       fixed/inset:0) con historial (back cierra), usado al tocar un
-       ítem en la lista "Pendiente" — ahí sí hace falta un cierre
-       explícito para volver a la lista.
-     - mountSuggestedFlow() → embebido en el flujo normal de la página,
-       DEBAJO del toggle Sugerido/Pendiente/Validado (ver list-view.js,
-       modo "Sugerido"): ya no hace falta tocar "Validar" para entrar,
-       esta ficha ES el modo Sugerido. No hay overlay ni historial —
-       "confirmar" no cierra nada, la propia ficha relee la cola
-       (onValidated) y pasa sola a la siguiente posición pendiente.
-   Las dos comparten toda la lógica interna (cámara, acordeón, modo
-   manual, foto de faltante) — lo único que cambia es qué pasa cuando
-   un ítem termina de validarse (ver onValidated en cada export).
+   arma en renderValidationFlow() y se monta con mountSuggestedFlow(),
+   embebido en el flujo normal de la página, DEBAJO del toggle
+   Sugerido/Pendiente/Validado (ver list-view.js, modo "Sugerido") —
+   único punto de entrada: tocar un ítem en "Pendiente" no abre nada
+   aparte, salta a esta misma ficha ya parada en ese ítem (ver
+   list-view.js). Sin overlay ni historial propio — "confirmar" no
+   cierra nada, la propia ficha relee la cola (onValidated) y pasa sola
+   a la siguiente posición pendiente.
 
    Arriba de todo, una barra solo con las flechas de navegación entre
    posiciones pendientes y el texto estático "Ubicación" en el medio
@@ -147,17 +140,14 @@ function urgencyBannerHTML(it) {
   return `<div class="venc-suggest-urgency is-${it.severity}">${icon('calendarAlert', 16)} Vence en ${it.days} día${it.days === 1 ? '' : 's'}</div>`;
 }
 
-// Núcleo compartido entre el modal (openValidation) y la ficha embebida
-// del modo Sugerido (mountSuggestedFlow) — arma todo el acordeón
-// dentro de `overlay` (que puede ser un <div class="scan-overlay">
-// fixed o un <div> cualquiera ya insertado en el flujo normal, da
-// igual: acá adentro nunca se asume posición fixed).
+// Arma todo el acordeón dentro de `overlay` (el <div> que
+// mountSuggestedFlow ya insertó en el flujo normal de la página —
+// nunca se asume posición fixed acá adentro).
 //   - onValidated(item): se llama YA, antes de que el guardado real
 //     termine (ver finishValidation — optimista, nunca espera al
-//     servidor). Si devuelve un array, se usa como cola nueva
-//     (refreshQueue) — el modal devuelve null (ya se está cerrando);
-//     la ficha embebida quita el ítem de su copia local y devuelve la
-//     cola pendiente, para avanzar sola sin pedirle nada al servidor.
+//     servidor). Devuelve la cola pendiente ya sin este ítem (quitado
+//     de la copia local, sin pedirle nada al servidor) — refreshQueue
+//     avanza sola con eso.
 //   - onValidateError(item): el guardado real falló en segundo plano
 //     — quien llama debe reincorporar el ítem a su lista local (nunca
 //     quedó guardado, aunque la UI ya haya avanzado).
@@ -857,50 +847,6 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     destroy() { scanner.destroy(); },
     refresh: refreshQueue,
   };
-}
-
-// Modal a pantalla completa (usado desde la lista "Pendiente"): validar
-// UN ítem siempre cierra la ficha entera y vuelve a la lista, aunque
-// pendingItems traiga más posiciones (esas solo sirven para navegar
-// con las flechas mientras el modal está abierto). Se cierra con el
-// gesto nativo de "atrás" del navegador/teléfono (popstate).
-export function openValidation(initialItem, { onDone, pendingItems = [] }) {
-  const overlay = document.createElement('div');
-  overlay.className = 'scan-overlay';
-  document.body.appendChild(overlay);
-
-  history.pushState({ vencValidation: true }, '', location.href);
-  let closedByPop = false;
-  let closed = false;
-  window.addEventListener('popstate', onPopState);
-  function onPopState() {
-    closedByPop = true;
-    teardown();
-  }
-
-  const flow = renderValidationFlow(overlay, initialItem, {
-    pendingItems,
-    onValidated: () => {
-      teardown();
-      onDone();
-      return null;
-    },
-    // El guardado real corre en segundo plano y el modal ya se cerró
-    // para cuando podría fallar — onDone() (load() de list-view.js) ya
-    // pide la lista real, así que llamarlo de nuevo alcanza para que
-    // el ítem reaparezca como pendiente si el guardado de verdad no
-    // se hizo.
-    onValidateError: () => onDone(),
-  });
-
-  function teardown() {
-    if (closed) return;
-    closed = true;
-    flow.destroy();
-    window.removeEventListener('popstate', onPopState);
-    overlay.remove();
-    if (!closedByPop) history.back();
-  }
 }
 
 // Ficha embebida del modo "Sugerido" (ver list-view.js/drawSuggested):

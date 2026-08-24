@@ -26,7 +26,7 @@
 import { icon, iconSolid } from '/shared/js/icons.js';
 import { escapeHtml, formatDateTime, capitalize } from '/shared/js/format.js';
 import * as store from './store.js';
-import { openValidation, mountSuggestedFlow } from './validation-view.js';
+import { mountSuggestedFlow } from './validation-view.js';
 import { showToast } from '/shared/js/toast.js';
 
 const MOTIVO_LABEL = { ok: 'OK', faltante: 'Faltante', otro: 'Otro' };
@@ -48,12 +48,63 @@ function formatQty(saldo) {
   return saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 });
 }
 
+// Mismo criterio que urgencyBannerHTML() en validation-view.js (el
+// contenedor de Observación) — el detalle de "Validado" repite ese
+// mismo aviso, pedido explícito ("debe contener lo mismo").
+function urgencyBannerHTML(it) {
+  if (it.isRetirar) {
+    return `<div class="venc-suggest-urgency is-${it.severity}">${icon('alertTriangle', 16)} Retirar de ubicación</div>`;
+  }
+  return `<div class="venc-suggest-urgency is-${it.severity}">${icon('calendarAlert', 16)} Vence en ${it.days} día${it.days === 1 ? '' : 's'}</div>`;
+}
+
+// Ídem fitProdDescription() en validation-view.js — el detalle de
+// "Validado" usa el mismo texto de 2 líneas + achique adaptativo.
+const DETAIL_DESC_MIN_FONT_PX = 11;
+function fitDetailDescription(el) {
+  el.style.fontSize = '';
+  let size = parseFloat(getComputedStyle(el).fontSize);
+  while (el.scrollHeight > el.clientHeight + 1 && size > DETAIL_DESC_MIN_FONT_PX) {
+    size -= 1;
+    el.style.fontSize = `${size}px`;
+  }
+}
+
+// Foto de evidencia a pantalla completa (ver .venc-detail-photo-thumb)
+// — un único overlay creado al vuelo y descartado al cerrar, nunca
+// vive de antemano en el DOM.
+function openPhotoLightbox(url) {
+  const box = document.createElement('div');
+  box.className = 'venc-photo-lightbox';
+  box.innerHTML = `
+    <button type="button" class="btn-icon venc-photo-lightbox-close" title="Cerrar">${icon('x', 22)}</button>
+    <img src="${escapeHtml(url)}" alt="Foto de la posición" />
+  `;
+  document.body.appendChild(box);
+  const close = () => box.remove();
+  box.addEventListener('click', (e) => { if (e.target === box) close(); });
+  box.querySelector('.venc-photo-lightbox-close').addEventListener('click', close);
+}
+
 function subChipsHTML(item) {
   const um = item.unidadmedida ? ` ${item.unidadmedida}` : '';
   return `
     <span class="venc-card-sub-item">${iconSolid('caja', 13)} ${escapeHtml(item.caja || '-')}</span>
     <span class="venc-card-sub-item">${iconSolid('archivo', 13)} ${formatQty(item.saldo)}${escapeHtml(um)}</span>
     <span class="venc-card-sub-item">${iconSolid('calendario', 13)} ${escapeHtml(item.fv || '-')}</span>
+  `;
+}
+
+// Última línea de una tarjeta ya validada: caja/saldo/vencimiento ya
+// no aportan nada nuevo acá (son del PRODUCTO, no de la validación en
+// sí) — lo que sí importa revisar de un vistazo es la observación que
+// se dejó. Cortada con elipsis, nunca en 2 líneas (a diferencia de la
+// fila de arriba): es solo un adelanto, el detalle completo se ve al
+// tocar la tarjeta.
+function commentRowHTML(item) {
+  const text = item.motivoDetalle || MOTIVO_LABEL[item.motivo] || '-';
+  return `
+    <span class="venc-card-comment">${iconSolid('commentSolid', 13)}<span class="venc-card-comment-text">${escapeHtml(text)}</span></span>
   `;
 }
 
@@ -100,7 +151,7 @@ function itemCardHTML(item) {
       <div class="venc-card-main">
         <span class="venc-card-ubicacion">${escapeHtml(item.ubicacion || '-')}</span>
         <span class="venc-card-desc">${escapeHtml(desc)}</span>
-        <span class="venc-card-sub">${subChipsHTML(item)}</span>
+        <span class="venc-card-sub">${item.validated ? commentRowHTML(item) : subChipsHTML(item)}</span>
       </div>
       ${item.validated
         ? `<div class="venc-card-check" title="Validado">${icon('check', 16)}</div>`
@@ -166,7 +217,7 @@ export async function renderList(outlet) {
           <div class="venc-sort-toggle" id="vencViewToggle">
             <button type="button" class="is-active" data-view="sugerido">Sugerido</button>
             <button type="button" data-view="pendiente">Pendiente<span class="venc-toggle-count" id="vencPendienteCount"></span></button>
-            <button type="button" data-view="validado">Validado</button>
+            <button type="button" data-view="validado">Validado<span class="venc-toggle-count" id="vencValidadoCount"></span></button>
           </div>
           <div class="venc-more-wrap">
             <button type="button" class="btn-icon" id="vencMoreBtn" title="Más opciones">${iconSolid('lista', 18)}</button>
@@ -278,6 +329,24 @@ export async function renderList(outlet) {
     });
   });
 
+  // Tocar un ítem en "Pendiente" ya no abre nada aparte — salta a
+  // Sugerido parado justo en esa posición (mismo criterio que elegir
+  // "Sugerido" a mano, ver arriba). suggestedFlow ya está destruida a
+  // esta altura (se sale de Sugerido apenas se cambia de pestaña), así
+  // que drawSuggested() la monta de nuevo desde cero en el índice que
+  // se fija acá — pero se destruye explícito antes por las dudas, para
+  // no depender de en qué pestaña se estaba antes de llegar a Pendiente.
+  function goToSugerido(item) {
+    if (suggestedFlow) { suggestedFlow.destroy(); suggestedFlow = null; }
+    const queue = pendingQueue();
+    const idx = queue.findIndex((i) => i.key === item.key);
+    state.suggestedIndex = idx === -1 ? 0 : idx;
+    state.view = 'sugerido';
+    outlet.querySelectorAll('#vencViewToggle button').forEach((b) => b.classList.toggle('is-active', b.dataset.view === 'sugerido'));
+    searchBar.hidden = true;
+    draw();
+  }
+
   // Separado de load(): la ficha de Sugerido necesita releer el
   // listado después de validar un ítem SIN pasar por draw() (eso
   // remontaría toda la pestaña y reiniciaría la cámara) — ver
@@ -318,15 +387,17 @@ export async function renderList(outlet) {
       .filter(matchesQuery);
   }
 
-  // Cuenta al lado del toggle "Pendiente" — se recalcula sola en cada
-  // draw(), nunca pide nada aparte: ya tiene state.items en memoria.
-  function updatePendienteCount() {
-    const el = outlet.querySelector('#vencPendienteCount');
-    if (el) el.textContent = state.loading ? '' : ` (${pendingQueue().length})`;
+  // Cuenta al lado de cada toggle — se recalcula sola en cada draw(),
+  // nunca pide nada aparte: ya tiene state.items en memoria.
+  function updateCounts() {
+    const pendEl = outlet.querySelector('#vencPendienteCount');
+    const validEl = outlet.querySelector('#vencValidadoCount');
+    if (pendEl) pendEl.textContent = state.loading ? '' : ` (${pendingQueue().length})`;
+    if (validEl) validEl.textContent = state.loading ? '' : ` (${state.items.filter((i) => i.validated).length})`;
   }
 
   function draw() {
-    updatePendienteCount();
+    updateCounts();
     const wrap = outlet.querySelector('#vencListWrap');
     if (!wrap) return;
 
@@ -379,7 +450,7 @@ export async function renderList(outlet) {
       if (!item) return;
       card.addEventListener('click', () => {
         if (item.validated) openValidatedDetail(item);
-        else openValidation(item, { onDone: load, pendingItems: pendingQueue() });
+        else goToSugerido(item);
       });
     });
   }
@@ -434,13 +505,13 @@ export async function renderList(outlet) {
       onValidated: (validatedItem) => {
         const target = state.items.find((i) => i.key === validatedItem.key);
         if (target) target.validated = true;
-        updatePendienteCount();
+        updateCounts();
         return pendingQueue();
       },
       onValidateError: (failedItem) => {
         const target = state.items.find((i) => i.key === failedItem.key);
         if (target) target.validated = false;
-        updatePendienteCount();
+        updateCounts();
         suggestedFlow?.refresh(pendingQueue());
       },
       onEmpty: () => {
@@ -450,31 +521,65 @@ export async function renderList(outlet) {
     });
   }
 
+  // Mismo contenido que el contenedor de Observación (validation-view.js
+  // #renderCommentInfo): avatar + descripción, grilla Saldo/Pedprov/
+  // Vencimiento, aviso de acción, foto (si hay) y la observación en sí
+  // — con la diferencia de que acá el texto ya llega completo (lo que
+  // se haya escrito, o "Faltante" si ese fue el motivo) y se puede
+  // editar sin rehacer nada: "Guardar" solo pisa la observación
+  // (PATCH /api/vencimientos/validate, ver store.js#updateObservacion),
+  // nunca vuelve a tocar motivo/foto/Caja/Producto.
   function openValidatedDetail(item) {
+    const um = item.unidadmedida ? ` ${item.unidadmedida}` : '';
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="modal compact-modal">
         <div class="modal-head">
-          <h3>${MOTIVO_LABEL[item.motivo] || item.motivo}</h3>
+          <h3>Detalle</h3>
           <button class="btn-icon" data-close>${icon('x', 18)}</button>
         </div>
         <div class="modal-body">
-          <p style="margin-bottom:var(--sp-2);">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
-          ${item.motivoDetalle ? `<p class="muted small" style="margin-bottom:var(--sp-2);">${escapeHtml(item.motivoDetalle)}</p>` : ''}
-          ${item.fotoUrl ? `<img src="${escapeHtml(item.fotoUrl)}" alt="Foto de la posición" class="venc-detail-photo" />` : ''}
-          <p class="muted small">Validado por <strong>${escapeHtml(capitalize(item.validatedBy || '-'))}</strong> · ${escapeHtml(formatDateTime(item.validatedAt))}</p>
+          <div class="venc-comment-head" style="margin-bottom:var(--sp-3);">
+            <span class="venc-acc-avatar" style="background:var(--ok); color:#fff;">${icon('check', 18)}</span>
+            <p class="venc-comment-desc" id="vencDetailDesc">${escapeHtml(item.descripcion || 'Producto sin descripción')}</p>
+          </div>
+          <div class="reg-info-grid venc-review-grid" style="margin-bottom:var(--sp-3);">
+            <div class="reg-info-cell">
+              <span class="reg-info-label">Saldo</span>
+              <span class="reg-info-value">${escapeHtml(formatQty(item.saldo))}${escapeHtml(um)}</span>
+            </div>
+            <div class="reg-info-cell">
+              <span class="reg-info-label">Pedprov</span>
+              <span class="reg-info-value">${escapeHtml(item.pedprov || '-')}</span>
+            </div>
+            <div class="reg-info-cell">
+              <span class="reg-info-label">Vencimiento</span>
+              <span class="reg-info-value">${escapeHtml(item.fv || '-')}</span>
+            </div>
+          </div>
+          <div style="margin-bottom:var(--sp-3);">${urgencyBannerHTML(item)}</div>
+          ${item.fotoUrl ? `<img src="${escapeHtml(item.fotoUrl)}" alt="Foto de la posición" class="venc-detail-photo-thumb" id="vencDetailPhoto" />` : ''}
+          <textarea class="venc-acc-comment-input" id="vencDetailObs" rows="3" maxlength="200" placeholder="Añadir observación">${escapeHtml(item.motivoDetalle || '')}</textarea>
+          <p class="muted small" style="margin-top:var(--sp-2);">Validado por <strong>${escapeHtml(capitalize(item.validatedBy || '-'))}</strong> · ${escapeHtml(formatDateTime(item.validatedAt))}</p>
         </div>
         <div class="modal-foot">
           <button type="button" class="btn btn-ghost" data-close>Cerrar</button>
           <button type="button" class="btn btn-danger" id="vencRevertBtn">Revertir</button>
+          <button type="button" class="btn btn-primary" id="vencSaveObsBtn" disabled>Guardar</button>
         </div>
       </div>
     `;
     document.body.appendChild(overlay);
+    fitDetailDescription(overlay.querySelector('#vencDetailDesc'));
+
     const close = () => overlay.remove();
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
     overlay.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
+
+    const photoEl = overlay.querySelector('#vencDetailPhoto');
+    if (photoEl) photoEl.addEventListener('click', () => openPhotoLightbox(item.fotoUrl));
+
     // Optimista: cierra y actualiza la lista YA (nada más queda por
     // esperar del lado del cliente, ya sabemos que revirtió) — el
     // DELETE real corre en segundo plano. Si de verdad falla, se
@@ -490,6 +595,32 @@ export async function renderList(outlet) {
         if (t) t.validated = true;
         draw();
         showToast('No se pudo revertir. Probá de nuevo.', { variant: 'warn' });
+      });
+    });
+
+    // La observación sigue siendo obligatoria (mismo criterio que al
+    // validar) — "Guardar" queda deshabilitado con el campo vacío o
+    // sin cambios reales.
+    const obsInput = overlay.querySelector('#vencDetailObs');
+    const saveBtn = overlay.querySelector('#vencSaveObsBtn');
+    const original = item.motivoDetalle || '';
+    obsInput.addEventListener('input', () => {
+      const texto = obsInput.value.trim();
+      saveBtn.disabled = !texto || texto === original;
+    });
+    saveBtn.addEventListener('click', () => {
+      const texto = obsInput.value.trim();
+      if (!texto || texto === original) return;
+      close();
+      const target = state.items.find((i) => i.key === item.key);
+      const previous = target?.motivoDetalle;
+      if (target) target.motivoDetalle = texto;
+      draw();
+      store.updateObservacion(item, texto).catch(() => {
+        const t = state.items.find((i) => i.key === item.key);
+        if (t) t.motivoDetalle = previous;
+        draw();
+        showToast('No se pudo guardar la observación. Probá de nuevo.', { variant: 'warn' });
       });
     });
   }

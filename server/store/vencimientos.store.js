@@ -143,7 +143,7 @@ async function validateItem({ bodega, caja, ean, referencia, ubicacion, descripc
     descripcion: descripcion || null,
     fv: fv || null,
     motivo,
-    motivo_detalle: motivo === 'otro' ? (motivoDetalle || '').trim() || null : null,
+    motivo_detalle: (motivoDetalle || '').trim() || null,
     foto_url: fotoUrl,
     validated_by: actor || null,
     validated_at: new Date().toISOString(),
@@ -156,6 +156,20 @@ async function clearValidation(bodega, caja, ean) {
   const supabase = requireClient();
   const { error } = await supabase.from('vencimiento_validaciones')
     .delete().eq('bodega', bodega).eq('caja', caja).eq('ean', ean);
+  if (error) throw error;
+}
+
+// Edita SOLO la observación de un ítem ya validado (ver "Validado" en
+// list-view.js) — a diferencia de validateItem(), no toca motivo, foto
+// ni ningún otro dato: reescribir el motivo real (rehacer Caja/
+// Producto) no tiene sentido solo para corregir el texto. Si el ítem
+// no está validado (la fila no existe), no hace nada — no tiene
+// sentido crear una validación a medias desde acá.
+async function updateMotivoDetalle(bodega, caja, ean, motivoDetalle) {
+  const supabase = requireClient();
+  const { error } = await supabase.from('vencimiento_validaciones')
+    .update({ motivo_detalle: (motivoDetalle || '').trim() || null })
+    .eq('bodega', bodega).eq('caja', caja).eq('ean', ean);
   if (error) throw error;
 }
 
@@ -225,6 +239,7 @@ module.exports = {
   list,
   validateItem,
   clearValidation,
+  updateMotivoDetalle,
   getSettings,
   updateSettings,
   itemKey,

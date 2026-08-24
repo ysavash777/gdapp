@@ -74,6 +74,21 @@ router.post('/validate', async (req, res) => {
   }
 });
 
+// PATCH /api/vencimientos/validate  { bodega, caja, ean, motivoDetalle }
+// — edita SOLO la observación de un ítem ya validado (ver "Validado"
+// en list-view.js), sin tocar motivo/foto/nada más.
+router.patch('/validate', async (req, res) => {
+  try {
+    const { bodega, caja, ean, motivoDetalle } = req.body || {};
+    if (!bodega || !caja || !ean) return res.status(400).json({ ok: false, error: 'MISSING_KEY' });
+    await store.updateMotivoDetalle(bodega, caja, ean, motivoDetalle);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[routes/vencimientos] updateMotivoDetalle falló:', e.message);
+    res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
+  }
+});
+
 // DELETE /api/vencimientos/validate  { bodega, caja, ean } — revertir
 router.delete('/validate', async (req, res) => {
   try {
