@@ -6,7 +6,7 @@
 
 import { icon } from '/shared/js/icons.js';
 import * as store from './store.js';
-import { formatDateTime, formatDateHeading, escapeHtml, capitalize, getIncludeUbicacion } from './format.js';
+import { formatDateTime, formatDateHeading, escapeHtml, capitalize } from './format.js';
 import { openEditor } from './editor-view.js';
 import { currentUser } from '/shared/js/session.js';
 
@@ -64,38 +64,16 @@ function mapeoListHTML(mapeos) {
   return parts.join('');
 }
 
-// Tarjeta "hueso" — misma forma que mapeoCardHTML pero con barras que
-// titilan en vez de texto, para no dejar la pantalla en blanco
-// mientras store.list() contesta (que puede tardar, sobre todo si
-// tiene que ir a la red).
-function mapeoCardSkeletonHTML() {
+// Loader mientras store.list() contesta (puede tardar, sobre todo si
+// tiene que ir a la red) — nunca se sabe de antemano cuántos mapeos ni
+// cuántos grupos por fecha va a haber, así que un esqueleto que imita
+// la forma real siempre queda "inventando" un número. Una animación
+// genérica evita esa promesa falsa.
+function mapeoLoaderHTML() {
   return `
-    <div class="mapeo-card">
-      <div class="mapeo-open" style="cursor: default;">
-        <div class="cq-skeleton" style="width: 36px; height: 36px; border-radius: var(--r-full); flex-shrink: 0;"></div>
-        <div class="mapeo-info">
-          <span class="cq-skeleton" style="width: 65%; height: 15px; margin-bottom: 6px;"></span>
-          <span class="cq-skeleton" style="width: 40%; height: 12px;"></span>
-        </div>
-      </div>
+    <div class="gd-bars-loader">
+      <span></span><span></span><span></span><span></span>
     </div>
-  `;
-}
-
-// Encabezado "hueso" de un grupo por fecha (mapeoListHTML sí los
-// intercala de verdad) — sin esto, el esqueleto se veía como una
-// lista plana de 3 tarjetas sueltas, nada parecido a la lista real
-// (varios grupos, cada uno con más de un mapeo). No hace falta saber
-// el número real de grupos/mapeos de antemano (eso es justo lo que
-// se está esperando) — dos grupos alcanza para transmitir la forma
-// real sin pedirle un dato extra al servidor solo para adivinar
-// cuántos esqueletos dibujar.
-function mapeoListSkeletonHTML() {
-  return `
-    <div class="mapeo-date-heading"><span class="cq-skeleton" style="width:90px; height:11px;"></span></div>
-    ${[1, 2, 3].map(mapeoCardSkeletonHTML).join('')}
-    <div class="mapeo-date-heading"><span class="cq-skeleton" style="width:70px; height:11px;"></span></div>
-    ${[1, 2].map(mapeoCardSkeletonHTML).join('')}
   `;
 }
 
@@ -110,9 +88,7 @@ export async function renderList(outlet, { onNew }) {
         <input type="search" id="mapeoSearchInput" placeholder="Buscar mapeo..." autocomplete="off" disabled />
         <button type="button" class="searchbar-clear" id="mapeoSearchClear" title="Limpiar búsqueda" aria-label="Limpiar búsqueda" hidden>${icon('x', 14)}</button>
       </div>
-      <div id="mapeoListWrap">
-        <div class="mapeo-list">${mapeoListSkeletonHTML()}</div>
-      </div>
+      <div id="mapeoListWrap">${mapeoLoaderHTML()}</div>
     </div>
   `;
 
@@ -303,7 +279,7 @@ document.addEventListener('click', (e) => {
 // nunca se agrega visible ni se navega con location.href).
 function downloadMapeo(id) {
   const a = document.createElement('a');
-  a.href = `/api/mapeos/${id}/export${getIncludeUbicacion() ? '?ubicacion=1' : ''}`;
+  a.href = `/api/mapeos/${id}/export`;
   a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();

@@ -18,10 +18,8 @@
    Unidades, responsable en Rotura/Vencido): comportamiento permanente
    pedido explícitamente, no algo puntual de una corrida.
 
-   Columna "Ubicación" (UBICACION_COLUMN): opcional, solo se agrega si
-   quien pide la descarga prendió "Incluir ubicación" (gear de
-   editor-view.js, ver routes/mapeos.js#export → includeUbicacion). No
-   es un dato del mapeo — se resuelve acá mismo contra Referencia (ver
+   Columna "Ubicación" (UBICACION_COLUMN): siempre presente. No es un
+   dato del mapeo — se resuelve acá mismo contra Referencia (ver
    ubicacion-picker.js), nunca se guarda en Supabase.
    ============================================================ */
 
@@ -56,9 +54,8 @@ const BASE_COLUMNS = [
   { header: 'Cantidad', width: 10, value: (c) => c.quantity },
 ];
 
-// Solo se agrega cuando "Incluir ubicación" está prendido (gear de
-// editor-view.js) — no es un dato del mapeo en sí, se resuelve recién
-// acá buscando el código contra Referencia (ver ubicacion-picker.js).
+// No es un dato del mapeo en sí — se resuelve recién acá buscando el
+// código contra Referencia (ver ubicacion-picker.js).
 const UBICACION_COLUMN = {
   header: 'Ubicación',
   width: 16,
@@ -105,12 +102,12 @@ function styleDataRow(row) {
   });
 }
 
-function buildWorkbook(mapeo, { includeUbicacion = false } = {}) {
+function buildWorkbook(mapeo) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'GStock';
   wb.created = new Date();
 
-  const baseColumns = includeUbicacion ? [...BASE_COLUMNS, UBICACION_COLUMN] : BASE_COLUMNS;
+  const baseColumns = [...BASE_COLUMNS, UBICACION_COLUMN];
 
   for (const sheetDef of SHEETS) {
     const codes = mapeo.codes.filter((c) => (c.condition || null) === sheetDef.value);

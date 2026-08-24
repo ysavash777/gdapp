@@ -95,7 +95,7 @@ function fitSubRows(container) {
 function itemCardHTML(item) {
   const desc = item.descripcion || 'Producto sin descripción';
   return `
-    <button class="venc-card ${item.validated ? 'is-validated' : ''}" data-key="${escapeHtml(item.key)}">
+    <button class="venc-card" data-key="${escapeHtml(item.key)}">
       <div class="venc-card-days is-${item.severity}">${daysLabel(item.days)}</div>
       <div class="venc-card-main">
         <span class="venc-card-ubicacion">${escapeHtml(item.ubicacion || '-')}</span>

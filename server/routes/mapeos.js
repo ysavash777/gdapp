@@ -106,8 +106,7 @@ router.get('/:id/export', async (req, res) => {
     const mapeo = await store.get(Number(req.params.id));
     if (!mapeo) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
 
-    const includeUbicacion = req.query.ubicacion === '1';
-    const workbook = buildWorkbook(mapeo, { includeUbicacion });
+    const workbook = buildWorkbook(mapeo);
     // Nombre de archivo: solo caracteres seguros para Content-Disposition
     // y para el sistema de archivos del que lo descarga (sin comillas,
     // barras, etc. que vengan del título libre del mapeo).

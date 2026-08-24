@@ -712,6 +712,36 @@ html, body {
   padding: 0 2px;
 }
 .mapeo-date-heading:not(:first-child) { margin-top: var(--sp-1); }
+
+/* Loader mientras carga el listado — 4 barras planas que laten desde
+   el centro (no un spinner circular ni el esqueleto de siempre): no
+   se sabe de antemano cuántos mapeos/grupos por fecha va a haber, así
+   que en vez de "inventar" una forma que raramente coincide con la
+   real, esto no pretende parecerse a nada puntual. */
+.gd-bars-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: var(--sp-7) 0;
+}
+.gd-bars-loader span {
+  width: 6px;
+  height: 28px;
+  border-radius: var(--r-full);
+  background: var(--accent-500);
+  transform-origin: center;
+  animation: gd-bars-wave 1s ease-in-out infinite;
+}
+.gd-bars-loader span:nth-child(1) { animation-delay: -0.36s; }
+.gd-bars-loader span:nth-child(2) { animation-delay: -0.24s; }
+.gd-bars-loader span:nth-child(3) { animation-delay: -0.12s; }
+.gd-bars-loader span:nth-child(4) { animation-delay: 0s; }
+@keyframes gd-bars-wave {
+  0%, 40%, 100% { transform: scaleY(0.35); }
+  20% { transform: scaleY(1); }
+}
+
 .mapeo-card {
   display: flex;
   align-items: center;
@@ -969,12 +999,6 @@ html, body {
 .scan-sheet-tools .btn-icon { padding: 7px; }
 .sheet-tool-wrap { position: relative; }
 .filter-menu { top: calc(100% + 6px); left: auto; right: 0; min-width: 160px; }
-.settings-menu { top: calc(100% + 6px); left: auto; right: 0; min-width: 200px; }
-/* Único ítem de .settings-menu hoy ("Incluir ubicación"): el check a
-   la izquierda queda invisible pero ocupando su lugar cuando está
-   apagado, para que el texto no salte de posición al prenderlo. */
-.settings-item-check { display: flex; flex-shrink: 0; opacity: 0; color: var(--icon-mapear); }
-.user-menu-item.is-checked .settings-item-check { opacity: 1; }
 /* Estado activo genérico para íconos chicos del header/toolbar
    (linterna, filtro, búsqueda) — mismo tratamiento en los tres. */
 .btn-icon.is-active { color: var(--icon-mapear); background: var(--icon-mapear-light); }
@@ -1746,7 +1770,6 @@ html, body {
   text-align: left;
   cursor: pointer;
 }
-.venc-card.is-validated { opacity: 0.55; }
 
 /* "Vida útil" — círculo PERFECTO (ancho = alto fijo, centrado en las
    dos direcciones vía flex), siempre a la izquierda del contenedor y
@@ -2393,6 +2416,10 @@ html, body {
   font-weight: 650;
 }
 .venc-photo-source-btn:active { background: var(--n-100); }
+/* Mientras se procesa la foto elegida (achicarla puede tardar un
+   instante en fotos de cámara grandes) — feedback inmediato al tocar,
+   para que nunca se sienta "colgado" ni invite a tocar de nuevo. */
+.venc-photo-source-row.is-busy { opacity: 0.5; pointer-events: none; }
 
 /* Miniatura de la foto ya elegida (de cualquiera de las dos fuentes) —
    confirma que hay algo cargado sin ocupar el espacio de una vista

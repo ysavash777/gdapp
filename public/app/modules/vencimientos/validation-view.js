@@ -272,6 +272,7 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
   const confirmBtn = overlay.querySelector('#vencConfirm');
 
   const photoView = overlay.querySelector('#vencPhotoView');
+  const photoSourceRow = overlay.querySelector('#vencPhotoSourceRow');
   const photoCameraInput = overlay.querySelector('#vencPhotoCameraInput');
   const photoGalleryInput = overlay.querySelector('#vencPhotoGalleryInput');
   const photoThumbRow = overlay.querySelector('#vencPhotoThumbRow');
@@ -534,6 +535,7 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     photoGalleryInput.value = '';
     photoThumbRow.hidden = true;
     photoConfirmBtn.disabled = true;
+    photoSourceRow.classList.remove('is-busy');
     itemProd.hidden = true;
     photoView.hidden = false;
     scanner.setPaused(true);
@@ -553,18 +555,34 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
   // MB tal cual la entrega el dispositivo) a un tamaño manejable antes
   // de convertirla a data URL — el body JSON tiene un límite de 4mb
   // (ver server/index.js) y de todas formas no tiene sentido mandar
-  // una foto de evidencia a resolución completa.
+  // una foto de evidencia a resolución completa. createImageBitmap()
+  // decodifica bastante más rápido que un <img> (evita todo el
+  // pipeline de carga de imagen HTML) — con fotos de cámara modernas
+  // (10+ MP) esa diferencia se sentía como la app "trabada" un par de
+  // segundos; con fallback a Image+canvas para navegadores que no lo
+  // soporten.
   const PHOTO_MAX_DIM = 1280;
   const PHOTO_QUALITY = 0.6;
-  function resizeImageFile(file) {
+  async function resizeImageFile(file) {
+    const scaleFor = (w, h) => Math.min(1, PHOTO_MAX_DIM / Math.max(w, h));
+    if (window.createImageBitmap) {
+      const bitmap = await createImageBitmap(file);
+      const s = scaleFor(bitmap.width, bitmap.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bitmap.width * s);
+      canvas.height = Math.round(bitmap.height * s);
+      canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+      return canvas.toDataURL('image/jpeg', PHOTO_QUALITY);
+    }
     return new Promise((resolve, reject) => {
       const img = new Image();
       const objectUrl = URL.createObjectURL(file);
       img.onload = () => {
-        const scale = Math.min(1, PHOTO_MAX_DIM / Math.max(img.width, img.height));
+        const s = scaleFor(img.width, img.height);
         const canvas = document.createElement('canvas');
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
+        canvas.width = Math.round(img.width * s);
+        canvas.height = Math.round(img.height * s);
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
         URL.revokeObjectURL(objectUrl);
         resolve(canvas.toDataURL('image/jpeg', PHOTO_QUALITY));
@@ -574,16 +592,31 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     });
   }
 
+  // `photoRequestId` descarta cualquier procesamiento que llegue tarde
+  // (dos toques seguidos en Cámara/Galería, o cancelar y elegir de
+  // nuevo mientras el anterior todavía procesa) — sin esto, un
+  // resultado viejo podía pisar al más nuevo, o peor, aplicarse
+  // aunque el usuario ya haya salido del modo foto. `file.size` en 0
+  // (algunos navegadores móviles disparan `change` con un archivo
+  // vacío si se cancela la cámara sin tomar nada) se descarta directo,
+  // nunca debe mostrar "Foto lista" sin una foto real.
+  let photoRequestId = 0;
   async function handlePhotoFile(file) {
-    if (!file) return;
+    if (!file || !file.size) return;
+    const requestId = ++photoRequestId;
+    photoSourceRow.classList.add('is-busy');
     try {
-      photoDataUrl = await resizeImageFile(file);
+      const dataUrl = await resizeImageFile(file);
+      if (requestId !== photoRequestId) return;
+      photoDataUrl = dataUrl;
       photoThumbEl.src = photoDataUrl;
       photoThumbRow.hidden = false;
       photoConfirmBtn.disabled = false;
       if (navigator.vibrate) navigator.vibrate(35);
     } catch {
-      showToast('No se pudo procesar la foto. Probá de nuevo.', { variant: 'warn' });
+      if (requestId === photoRequestId) showToast('No se pudo procesar la foto. Probá de nuevo.', { variant: 'warn' });
+    } finally {
+      if (requestId === photoRequestId) photoSourceRow.classList.remove('is-busy');
     }
   }
   photoCameraInput.addEventListener('change', () => handlePhotoFile(photoCameraInput.files[0]));
