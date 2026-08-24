@@ -8,6 +8,14 @@
    una única vez a los 15 minutos, sin tocar ni retrasar la próxima
    corrida en punto (son dos temporizadores independientes).
 
+   Solo Referencia se refresca en la corrida automática (2026-08-24,
+   para bajar el egress hacia Supabase — cada corrida sube TODAS las
+   filas de la fuente, y Referencia es la única que de verdad necesita
+   estar al minuto). Coordenadas y Variables cambian con mucha menos
+   frecuencia y siguen disponibles para refrescar a mano desde el desk
+   ("Actualizar DB" por fuente) cuando haga falta — solo dejan de
+   dispararse solas cada hora.
+
    Se usa America/Argentina/Buenos_Aires vía Intl en vez de la zona
    horaria del proceso (en Render normalmente corre en UTC) para que
    el horario 6-22 sea siempre hora Argentina sin depender de cómo
@@ -47,9 +55,11 @@ function isScheduledHour({ weekday, hour, minute }) {
 let lastRunKey = null; // "Mon-6" etc. — evita disparar dos veces el mismo minuto en punto
 let retryTimer = null;
 
+const AUTO_SOURCE_KEYS = ['referencia'];
+
 function runRefresh(label) {
   console.log(`[refresh-scheduler] Disparando actualización automática (${label})...`);
-  engine.refresh()
+  engine.refresh(AUTO_SOURCE_KEYS)
     .then((result) => {
       if (result.ok) {
         console.log(`[refresh-scheduler] (${label}) completada.`);
@@ -89,7 +99,7 @@ function tick() {
 
 function start() {
   setInterval(tick, TICK_MS);
-  console.log(`[refresh-scheduler] Activo: lun-sáb ${START_HOUR}:00-${END_HOUR}:00 (${TIMEZONE}), cada 1 hora, reintento a los 15 min si falla.`);
+  console.log(`[refresh-scheduler] Activo: lun-sáb ${START_HOUR}:00-${END_HOUR}:00 (${TIMEZONE}), cada 1 hora (solo ${AUTO_SOURCE_KEYS.join(', ')}), reintento a los 15 min si falla.`);
 }
 
 module.exports = { start };
