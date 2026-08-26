@@ -1,9 +1,5 @@
-/* ============================================================
-   GDapp · Desk — shell + router hash
-   Cada módulo vive en /desk/modules/*.js y exporta { title, render }.
-   El sidebar solo muestra los módulos que el usuario tiene entre sus
-   permisos (mismo array que la app usa para sus herramientas).
-   ============================================================ */
+// Desk: shell + router hash. Cada módulo vive en /desk/modules/*.js y exporta { title, render }.
+// El sidebar solo muestra los módulos que el usuario tiene entre sus permisos.
 
 import { icon } from '/shared/js/icons.js';
 import { avatar } from '/shared/js/avatars.js';
@@ -114,9 +110,8 @@ async function boot() {
   }
   renderShell();
 
-  // Pintamos con el caché al instante y refrescamos en segundo plano:
-  // así un cambio de permisos hecho por un admin se ve al recargar,
-  // sin depender de que el usuario vuelva a loguearse.
+  // Pinta con el caché al instante y refresca en segundo plano: un cambio de
+  // permisos se ve al recargar, sin depender de un nuevo login.
   const fresh = await refreshUser();
   if (!fresh) { logout(); user = null; boot(); return; }
   if (JSON.stringify(fresh) !== JSON.stringify(user)) {

@@ -1,9 +1,5 @@
-/* ============================================================
-   GDapp · Cliente API mínimo compartido.
-   Centraliza fetch + parseo JSON + manejo de error para que los
-   módulos no repitan boilerplate. Uso:
-     await apiFetch('/api/users', { method: 'POST', body: {...} })
-   ============================================================ */
+// Cliente API compartido: fetch + parseo JSON + manejo de error.
+// Uso: await apiFetch('/api/users', { method: 'POST', body: {...} })
 
 export async function apiFetch(path, options = {}) {
   const { body, headers, ...rest } = options;

@@ -1,48 +1,21 @@
 /* ============================================================
    Motor de actualización de la base de datos (Copernico WMS).
+   refresh(sourceKeys?) trae una o todas las fuentes (SOURCES); un
+   login/logout por corrida (nunca uno por fuente, Copernico lo exige
+   así). Cada fuente exitosa también se espeja en Supabase (best-effort,
+   ver services/supabase-sync.js).
 
-   refresh(sourceKeys?) — sin argumento, corren TODAS las fuentes
-   configuradas (ver SOURCES más abajo, "Actualizar DB" masivo); con
-   un array (ej. ['referencia'], el botón puntual de cada tarjeta),
-   solo esas. En ambos casos: un login, una consulta por fuente en
-   secuencia, un solo logout — nunca un login por fuente, ni siquiera
-   para una corrida puntual (Copernico exige login sin importar
-   cuántas fuentes se pidan). Si una fuente falla, las demás igual se
-   intentan (ya se pagó el costo de la licencia con el login); el
-   resultado final trae el detalle de cada una por separado para que
-   cada tarjeta del desk muestre su propio estado.
-
-   Cada fuente que trae datos con éxito también se espeja en Supabase
-   (proyecto "bodega-47-inventario", ver services/supabase-sync.js) —
-   reemplaza toda la tabla real por la corrida actual. Es best-effort:
-   si Supabase falla, se loguea (consola + tabla sync_log) pero no
-   cambia el status local de esa fuente — ese status refleja si
-   Copernico contestó bien, no si además se pudo espejar.
-
-   Reglas duras de este archivo:
-   1. Este archivo nunca se auto-invoca (no hay setInterval/setTimeout
-      recurrente ni cron acá): los únicos disparadores son la ruta
-      POST /api/database/refresh (botón "Actualizar DB" del desk) y
-      services/refresh-scheduler.js (corrida automática lun-sáb
-      6-22hs, decisión de producto explícita, ver ese archivo) — ambos
-      llaman a este refresh() de afuera, nunca al revés.
-   2. Nunca corren dos refresh en simultáneo (lock en memoria +
-      persistido en disco): si refresh() se llama mientras ya hay uno
-      en curso, se devuelve ALREADY_RUNNING de inmediato, sin encolar
-      ni reintentar — evita gastar una licencia de más o pisar datos
-      a medio escribir. El lock persistido detecta además el caso de
-      que el proceso se haya reiniciado con un refresh a medio hacer
-      (el motor habría quedado "trabado" del lado de Copernico con la
-      licencia tomada) — en ese caso, el primer paso es forzar un
-      logout con el último uid conocido antes de reintentar el login.
-   3. El "logout forzado" no necesita un token vigente: la API de
-      Copernico solo pide el id numérico de usuario (ver el botón
-      "Cerrar sesión en Copernico" del prototipo original). Ese id es
-      el mismo siempre para esta cuenta, así que se guarda una vez y
-      para siempre en known-uid.json apenas se ve — permite recuperar
-      una sesión colgada incluso si quedó así antes de que este motor
-      existiera, sin depender de que el lock de una corrida puntual
-      todavía tenga el dato.
+   Reglas duras:
+   1. Este archivo nunca se auto-invoca: solo lo disparan la ruta
+      POST /api/database/refresh y services/refresh-scheduler.js.
+   2. Nunca dos refresh en simultáneo (lock en memoria + disco): si ya
+      hay uno en curso, devuelve ALREADY_RUNNING. El lock persistido
+      también detecta un refresh interrumpido por reinicio del proceso
+      (sesión quedó tomada del lado de Copernico) y fuerza logout con
+      el último uid conocido antes de reintentar login.
+   3. El logout forzado solo necesita el id numérico de usuario (no un
+      token vigente) — se guarda en known-uid.json para poder recuperar
+      una sesión colgada aunque se haya perdido el lock de esa corrida.
    ============================================================ */
 
 const fs = require('fs');
@@ -54,14 +27,10 @@ const coordenadasStore = require('../store/coordenadas.store');
 const variablesStore = require('../store/variables.store');
 const supabaseSync = require('./supabase-sync');
 
-// Cada fuente sabe cómo pedirse (fetch), dónde guardarse localmente
-// (store) y a qué tabla de Supabase espejarse (supabaseTable) —
-// agregar una nueva (Líneas picking...) es sumar una entrada acá + la
-// tabla en Supabase, nada más de este archivo cambia.
-// conflictKey: SOLO inventario_cajas tiene una unique constraint
-// natural (bodega, caja, ean) además del id — ver el comentario de
-// replaceTable() en supabase-sync.js para el bug real que esto
-// corrige (el espejo de Referencia fallaba en TODAS las corridas).
+// Cada fuente: fetch, store local, tabla de Supabase a espejar.
+// conflictKey: solo inventario_cajas tiene unique constraint natural
+// (bodega, caja, ean) — ver replaceTable() en supabase-sync.js, sin
+// esto el upsert-antes-de-borrar choca con esa constraint.
 const SOURCES = [
   { key: 'referencia', fetch: copernico.fetchReferencia, store: inventoryStore, supabaseTable: 'inventario_cajas', conflictKey: 'bodega,caja,ean' },
   { key: 'coordenadas', fetch: copernico.fetchCoordenadas, store: coordenadasStore, supabaseTable: 'layout_coordenadas' },
@@ -69,21 +38,15 @@ const SOURCES = [
 ];
 
 const LOCK_FILE = path.join(__dirname, '..', 'data', 'refresh.lock');
-// El id numérico de usuario que devuelve el JWT no es propio de una
-// sesión — es el mismo siempre para esta cuenta. Por eso se guarda
-// aparte del lock de corrida (que se limpia en cada finally) y nunca
-// se borra: es lo único que permite forzar un logout "desde afuera"
-// (POST /users/api/logout solo necesita ese id, no un token vigente)
-// cuando la sesión activa quedó colgada de antes de que este archivo
-// existiera o de una corrida cuyo lock ya se perdió.
+// El uid del JWT es fijo para esta cuenta — se guarda aparte del lock
+// (que sí se limpia en cada finally) y nunca se borra, para poder
+// forzar logout (solo necesita el id, no token) aunque el lock se
+// haya perdido.
 const UID_FILE = path.join(__dirname, '..', 'data', 'known-uid.json');
 
 let runningInMemory = false;
-// Qué fuentes está trayendo la corrida en curso — null si no hay
-// ninguna. Con una corrida puntual (refresh(['referencia'])) es un
-// array de un solo elemento; con la masiva, todas. Lo consulta GET
-// /status para que la tarjeta correcta (no todas) muestre su propio
-// progreso, incluso si quien lo pidió fue otra pestaña/dispositivo.
+// Fuentes de la corrida en curso (null si no hay ninguna) — lo lee
+// GET /status para que cada tarjeta muestre su propio progreso.
 let runningKeysInMemory = null;
 
 function readLock() {
@@ -130,22 +93,15 @@ function getRunningKeys() {
   return runningKeysInMemory;
 }
 
-// Se llama una sola vez al arrancar el proceso (server/index.js, antes
-// de escuchar) — no es un refresh: no toca Copernico ni consume una
-// licencia, solo trae de Supabase la última corrida buena de cada
-// fuente para que el desk no se muestre vacío hasta que alguien
-// aprieta "Actualizar DB" a mano.
+// Al arrancar el proceso: no toca Copernico, solo hidrata desde
+// Supabase la última corrida buena de cada fuente.
 async function hydrate() {
   await Promise.all(SOURCES.map((src) => src.store.hydrateFromSupabase()));
 }
 
-// Login con un único reintento acotado: si Copernico dice que ya hay
-// una sesión activa, se fuerza su cierre con el id de usuario más
-// confiable que tengamos a mano (primero el del lock de la corrida
-// interrumpida más reciente, si existe; si no, el último uid conocido
-// de cualquier login exitoso anterior) y se prueba login una sola vez
-// más. Nunca más de un reintento — si vuelve a fallar, se informa el
-// error tal cual, sin insistir de nuevo.
+// Un único reintento: si Copernico dice sesión ya activa, se fuerza su
+// cierre (uid del lock interrumpido, o el último conocido) y se prueba
+// login una vez más. Si vuelve a fallar, se propaga tal cual.
 async function loginWithRecovery() {
   try {
     const session = await copernico.login(config.COPERNICO_EMAIL, config.COPERNICO_PASSWORD);
@@ -155,10 +111,7 @@ async function loginWithRecovery() {
     if (err.code !== 'ALREADY_LOGGED_IN') throw err;
 
     const stale = readLock();
-    // ?? en vez de || : un uid real de 0 es improbable pero sería un
-    // valor válido, y || lo descartaría por "falsy" como si no hubiera
-    // ninguno guardado.
-    const recoveryUid = stale?.uid ?? readKnownUid();
+    const recoveryUid = stale?.uid ?? readKnownUid(); // ?? no ||: uid 0 sería válido
     if (recoveryUid != null) {
       await copernico.logout(stale?.token, recoveryUid);
     }
@@ -168,12 +121,9 @@ async function loginWithRecovery() {
   }
 }
 
-// sourceKeys: opcional — si se pasa (ej. ['referencia']), solo esa(s)
-// fuente(s) se consultan y espejan, pero el login/logout sigue siendo
-// uno solo igual que con la corrida masiva (Copernico exige login sin
-// importar cuántas fuentes se pidan, así que un refresh puntual paga
-// el mismo costo de licencia que uno completo). Sin el parámetro,
-// corren TODAS (mismo comportamiento de siempre — "Actualizar DB").
+// sourceKeys: opcional, ej. ['referencia'] — el login/logout sigue
+// siendo uno solo igual que con la corrida masiva. Sin el parámetro,
+// corren TODAS.
 async function refresh(sourceKeys) {
   if (runningInMemory) {
     return { ok: false, error: 'ALREADY_RUNNING' };
@@ -202,27 +152,22 @@ async function refresh(sourceKeys) {
 
       if (session) {
         const loggedInAt = Date.now();
-        // A partir de acá ya consumimos una licencia — el lock queda
-        // escrito hasta el logout final, incluso si alguna consulta
-        // falla, para que una corrida futura pueda detectar y liberar
-        // esta sesión si el proceso se cae en el medio.
+        // Lock queda escrito hasta el logout final (incluso si alguna
+        // consulta falla) para que una corrida futura detecte y libere
+        // la sesión si el proceso se cae en el medio.
         writeLock({ token: session.token, uid: session.uid, startedAt });
 
-        // Una fuente que falla no frena a las demás — ya se pagó el
-        // costo de la licencia con este login, así que tiene sentido
-        // intentar todas antes de soltarla. Cada una registra su
-        // propio resultado en su propio store (por eso cada tarjeta
-        // del desk puede estar en un estado distinto a la vez).
-        // `sources` siempre guarda el meta "pelado" de cada store (el
-        // mismo objeto que devuelve GET /status) — nunca envuelto en
-        // {ok, meta}/{ok, error}. Como replaceAll() deja status:'ok' y
-        // recordError() deja status:'error', el propio meta ya dice
-        // si esa fuente salió bien, sin necesitar una forma distinta
-        // en la respuesta de refresh() vs. la de status().
+        // Una fuente que falla no frena a las demás. perSource guarda el
+        // meta "pelado" de cada store (mismo objeto que GET /status);
+        // replaceAll() deja status:'ok', recordError() deja 'error'.
         const perSource = {};
         for (const src of sources) {
           const sourceStartedAt = Date.now();
           try {
+            // Capturado ANTES de replaceAll() (que pisa la foto vieja en
+            // memoria) — es lo único contra lo que se puede diffear fila a
+            // fila para el espejo en Supabase (ver replaceTableDiff).
+            const previousRows = src.store.getRowsForExport();
             const rawRows = await src.fetch(session.token, config.COPERNICO_BODEGA);
             perSource[src.key] = src.store.replaceAll(rawRows, {
               bodega: config.COPERNICO_BODEGA,
@@ -230,37 +175,25 @@ async function refresh(sourceKeys) {
             });
             console.log(`[inventory-engine] ${src.key}: ${Date.now() - sourceStartedAt}ms · filas: ${rawRows.length}`);
 
-            // El espejo en Supabase es best-effort y no afecta el
-            // status de la tarjeta (eso refleja si Copernico respondió
-            // bien, no si Supabase también) — un problema acá se loguea
-            // y queda en sync_log, pero no tira abajo la corrida ni
-            // hace que la tarjeta se vea en error si Copernico sí
-            // contestó bien. Se mide aparte de durationMs (que es solo
-            // Copernico) porque el estimador de la barra de progreso
-            // (ver desk/modules/basesdatos.js y shared/js/db-refresh.js)
-            // necesita el tiempo REAL de punta a punta de cada fuente,
-            // no solo la mitad Copernico.
+            // Espejo en Supabase es best-effort: no afecta el status de
+            // la tarjeta (eso refleja solo si Copernico respondió bien).
+            // Se mide aparte de durationMs porque la barra de progreso
+            // del desk necesita el tiempo real de punta a punta.
             const supabaseStartedAt = Date.now();
             try {
-              const syncResult = await supabaseSync.replaceTable(src.supabaseTable, src.store.getRowsForExport(), { conflictKey: src.conflictKey });
+              const syncResult = await supabaseSync.replaceTableDiff(src.supabaseTable, previousRows, src.store.getRowsForExport(), { conflictKey: src.conflictKey });
               const mirrorDurationMs = Date.now() - supabaseStartedAt;
               if (syncResult.skipped) {
                 console.log(`[inventory-engine] ${src.key} → Supabase: omitido (sin configurar).`);
               } else {
                 await supabaseSync.logSync(src.key, { status: 'ok', rowCount: rawRows.length, durationMs: mirrorDurationMs });
-                console.log(`[inventory-engine] ${src.key} → Supabase (${src.supabaseTable}): ${mirrorDurationMs}ms`);
+                console.log(`[inventory-engine] ${src.key} → Supabase (${src.supabaseTable}): ${mirrorDurationMs}ms · cambiadas: ${syncResult.upserted ?? rawRows.length} · borradas: ${syncResult.deleted ?? 0}`);
                 src.store.recordMirror(true, null, mirrorDurationMs);
               }
             } catch (supaErr) {
               const mirrorDurationMs = Date.now() - supabaseStartedAt;
               await supabaseSync.logSync(src.key, { status: 'error', errorMessage: supaErr.message, durationMs: mirrorDurationMs });
               console.error(`[inventory-engine] ${src.key} → Supabase falló:`, supaErr.message);
-              // Esto es lo único que distingue, en la tarjeta del desk,
-              // "Copernico contestó bien pero el respaldo en Supabase está
-              // fallando" (que antes pasaba en silencio) de un éxito real
-              // — sin esto, un desperfecto como el de inventario_cajas
-              // (ver supabase-sync.js) solo se nota recién en el próximo
-              // restart, cuando ya es tarde.
               src.store.recordMirror(false, supaErr.message, mirrorDurationMs);
             }
           } catch (err) {
@@ -275,24 +208,18 @@ async function refresh(sourceKeys) {
       }
     }
   } finally {
-    // El logout corre siempre, pase lo que pase arriba — es lo que
-    // libera la licencia. Un logout fallido no debe ocultar el
-    // resultado real de la corrida (ok o el error que ya se detectó).
-    //
-    // Si el logout falla, a propósito NO se borra el lock: sin él, la
-    // próxima corrida no tendría con qué uid/token forzar el cierre de
-    // esta sesión colgada en loginWithRecovery(), y quedaría reintentando
-    // login a ciegas para siempre contra una licencia que nunca se libera.
+    // Logout corre siempre (libera la licencia) y no oculta el resultado
+    // real de la corrida. Si falla, a propósito NO se borra el lock:
+    // sin él, loginWithRecovery() no tendría con qué uid forzar el
+    // cierre de esta sesión colgada en la próxima corrida.
     const loggedOut = session ? await copernico.logout(session.token, session.uid) : true;
     if (loggedOut) writeLock(null);
     runningInMemory = false;
     runningKeysInMemory = null;
   }
 
-  // Falla a nivel login (nunca se llegó a intentar ninguna fuente): se
-  // refleja en las fuentes que se habían pedido (todas, o solo la
-  // puntual), para que ninguna tarjeta relevante quede mostrando "sin
-  // datos" cuando en realidad la corrida sí se intentó y falló.
+  // Falla a nivel login: se refleja en las fuentes pedidas para que
+  // ninguna tarjeta quede mostrando "sin datos" en vez del error real.
   if (!result.sources) {
     for (const src of sources) src.store.recordError({ code: result.error, message: result.message });
   }

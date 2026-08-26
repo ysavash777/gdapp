@@ -1,7 +1,5 @@
-// Carga server/.env a mano (sin dependencia nueva: Node no lee .env
-// solo salvo con --env-file, y no queremos atar el arranque a un flag
-// de CLI). Nunca sobreescribe una variable ya presente en el entorno
-// real (Docker/CI/producción siempre gana sobre el archivo).
+// Carga server/.env a mano (sin dependencia nueva). Nunca sobreescribe
+// una variable ya presente en el entorno real (prod siempre gana).
 const fs = require('fs');
 const path = require('path');
 
@@ -24,18 +22,15 @@ module.exports = {
   PORT: process.env.PORT || 3000,
   NODE_ENV: process.env.NODE_ENV || 'development',
 
-  // Credenciales del usuario "consultor" contra la API de Copernico
-  // WMS — solo viven en el servidor (server/.env, gitignored): el
-  // motor de actualización de la base de datos las usa para
-  // login/consultar/logout, nunca se envían al navegador.
+  // Credenciales contra la API de Copernico WMS — solo en el servidor
+  // (server/.env, gitignored), nunca se envían al navegador.
   COPERNICO_EMAIL: process.env.COPERNICO_EMAIL || '',
   COPERNICO_PASSWORD: process.env.COPERNICO_PASSWORD || '',
   COPERNICO_BODEGA: process.env.COPERNICO_BODEGA || '47',
 
-  // Proyecto Supabase donde el motor espeja cada corrida (server/services/
-  // supabase-sync.js). SUPABASE_SERVICE_ROLE_KEY nunca se envía al
-  // navegador — es la única forma de escribir, porque las tablas tienen
-  // RLS activo sin políticas (nadie más puede leer/escribir todavía).
+  // Proyecto Supabase (server/services/supabase-sync.js). La service
+  // role key nunca se envía al navegador: las tablas tienen RLS
+  // activo sin políticas, es la única forma de escribir.
   SUPABASE_URL: process.env.SUPABASE_URL || '',
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
 };

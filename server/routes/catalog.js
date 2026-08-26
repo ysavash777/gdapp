@@ -1,36 +1,19 @@
-/* ============================================================
-   API de catálogo liviano — existencia de producto (referencia,
-   descripcion, ean) para que Mapear y Consultar grupo puedan validar
-   un código escaneado ANTES de abrir cualquier ventana, sin ir a la
-   red por cada escaneo. Fuente: Variables (mismo catálogo que ya usa
-   Mapear en /api/mapeos/lookup-catalog, pero sin "grupo": ese dato
-   solo lo necesita el autocompletado de Mapear, no la validación de
-   existencia). Cualquier usuario autenticado puede pedirlo — no es
-   dato sensible ni exclusivo de una herramienta puntual, así que no
-   exige un permiso de módulo específico (a diferencia de /api/mapeos
-   y /api/consultas).
-   Sin requireAuth a propósito: lo consume también Consultar grupo
-   (app/modules/consultas), que es de acceso libre sin cuenta (ver
-   PUBLIC_TOOLS en app/app.js y el mismo criterio en routes/consultas.js)
-   — si esta ruta exigiera sesión, un usuario sin cuenta escaneando en
-   Consultar grupo se hubiera quedado sin poder validar existencia
-   contra nada (mapear/lookup-catalog.js, que sí exige sesión, sigue
-   aparte porque solo lo usa Mapear, que nunca es de acceso libre).
-   ============================================================ */
+// API de catálogo liviano: existencia de producto (referencia,
+// descripcion, ean) para que Mapear y Consultar grupo validen un
+// código escaneado sin ir a la red por cada escaneo. Fuente:
+// Variables, sin "grupo" (eso solo lo usa el autocompletado de
+// Mapear, ver /api/mapeos/lookup-catalog).
+// Sin requireAuth a propósito: Consultar grupo es de acceso libre sin
+// cuenta (PUBLIC_TOOLS en app/app.js) y también consume esta ruta.
 
 const express = require('express');
 const router = express.Router();
 const variablesStore = require('../store/variables.store');
 
-// GET /api/catalog/lookup — arrays en vez de objetos: con 14000+
-// filas, no repetir las claves por fila ahorra buena parte del
-// payload (mismo criterio que /api/mapeos/lookup-catalog). Una fila
-// por referencia Y una fila más por cada código de bulto en su "dun"
-// (ver parseDunCodes() en variables.store.js) — así existsLocal(code)
-// del lado del cliente (shared/js/product-catalog.js) reconoce
-// también un código de caja/pallet escaneado, no solo la unidad. El
-// DUN en sí nunca se expone: cada fila extra repite la MISMA
-// descripcion/ean del producto, solo cambia la clave (el código).
+// GET /api/catalog/lookup — arrays en vez de objetos para ahorrar
+// payload (14000+ filas). Una fila por referencia y una más por cada
+// código "dun" (parseDunCodes en variables.store.js), así
+// existsLocal(code) del cliente reconoce también códigos de bulto.
 router.get('/lookup', (_req, res) => {
   try {
     const items = [];
@@ -42,14 +25,8 @@ router.get('/lookup', (_req, res) => {
         if (dunCode && dunCode !== r.referencia) items.push([dunCode, row[1], row[2]]);
       }
     }
-    // 'no-cache' (a pesar del nombre) NO significa "no cachear" — significa
-    // "podés servir la copia guardada, pero primero preguntame si sigue
-    // vigente". Express ya pone un ETag automático en cada respuesta
-    // (hash del cuerpo); con este header, el navegador manda ese ETag de
-    // vuelta la próxima vez (If-None-Match) y, si el catálogo no cambió
-    // desde el último "Actualizar DB" de Variables, el servidor contesta
-    // 304 sin cuerpo — el celular no vuelve a bajar el ~1MB completo en
-    // cada apertura de la app, solo cuando de verdad cambió algo.
+    // 'no-cache' fuerza revalidar por ETag (no "no cachear"): 304 sin
+    // cuerpo si el catálogo no cambió desde la última descarga.
     res.set('Cache-Control', 'no-cache');
     res.json({ ok: true, items });
   } catch (e) {

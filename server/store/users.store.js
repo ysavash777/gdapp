@@ -1,10 +1,5 @@
-/* ============================================================
-   Repositorio de usuarios — Supabase (tabla `users`, proyecto
-   "bodega-47-inventario"). Antes vivía en memoria (Map) y se perdía
-   en cada restart del servidor; misma forma de API que antes
-   (list/findById/findByUsername/create/update/updatePassword/remove),
-   solo que ahora todas son async — routes/ ya las llama con await.
-   ============================================================ */
+// Repositorio de usuarios — Supabase (tabla `users`, proyecto
+// "bodega-47-inventario"). Todas las funciones son async.
 
 const crypto = require('crypto');
 const { requireClient } = require('../services/supabase-client');

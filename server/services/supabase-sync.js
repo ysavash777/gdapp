@@ -1,36 +1,18 @@
 /* ============================================================
-   Espejo en Supabase de cada fuente de Copernico (proyecto
-   "bodega-47-inventario"). Corre server-side, con la service_role
-   key — nunca se envía al navegador. Las tablas tienen RLS activo
-   sin políticas: hoy solo este proceso puede leer/escribir en ellas;
-   el día que haga falta lectura pública (para el módulo de la app
-   móvil, por ejemplo) se agrega una policy explícita, no se abre RLS
-   por completo.
+   Espejo en Supabase de cada fuente de Copernico. Server-side, con
+   service_role key; RLS activo sin políticas.
 
-   replaceTable() reemplaza todo el contenido de la tabla — la API de
-   Copernico no da ninguna clave estable entre corridas que sirva como
-   clave de conflicto, así que un reemplazo completo es más simple y
-   evita filas viejas huérfanas que ya no existen en Copernico. A
-   diferencia de un borrar-y-luego-insertar clásico (lo que había
-   antes, y dejaba la tabla a medio llenar para siempre si una tanda
-   fallaba a mitad de camino — el bug real detrás de "6500 filas de
-   Referencia" cuando debían ser 11000+), este primero inserta TODO lo
-   nuevo (marcado con una misma "generación", el timestamp `synced_at`
-   compartido por toda la corrida) y solo borra lo viejo al final, ya
-   con lo nuevo confirmado adentro. Si la corrida se corta a mitad de
-   camino, la tabla NUNCA queda con menos filas que antes — en el peor
-   caso queda con lo viejo completo más un resto nuevo sin terminar
-   (de más, nunca de menos), que la corrida siguiente limpia sola al
-   volver a borrar todo lo anterior a su propia generación. Cada
-   escritura además reintenta unas pocas veces con backoff antes de
-   darse por vencida — la mayoría de estos cortes son transitorios
-   (una tanda de 500 filas que no llega a responder a tiempo), no
-   errores reales de datos.
+   replaceTable() reemplaza todo el contenido de la tabla (Copernico
+   no da clave estable entre corridas): inserta TODO lo nuevo primero,
+   marcado con una "generación" (synced_at compartido por la corrida),
+   y recién al final borra lo anterior a esa generación. Así, si la
+   corrida se corta a mitad de camino, la tabla nunca queda con menos
+   filas que antes (a lo sumo con un resto nuevo sin terminar, que la
+   corrida siguiente limpia sola). Cada escritura reintenta con
+   backoff — la mayoría de los cortes son transitorios.
 
-   Si SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY no están configuradas,
-   todo esto queda como no-op silencioso — el motor sigue funcionando
-   igual con el store local en disco, Supabase es un espejo adicional,
-   no una dependencia dura.
+   Sin SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY, todo queda como no-op
+   silencioso: Supabase es un espejo adicional, no una dependencia dura.
    ============================================================ */
 
 const { getClient, requireClient } = require('./supabase-client');
@@ -47,10 +29,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Reintenta una operación con backoff lineal (800ms, 1600ms, 2400ms)
-// antes de tirar el error real — mover 10+ MB en varias tandas contra
-// una red inestable es sensible a cortes puntuales que no tienen nada
-// que ver con los datos en sí.
+// Backoff lineal (800ms, 1600ms, 2400ms) antes de tirar el error real.
 async function withRetries(fn, label) {
   let lastErr;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -64,25 +43,15 @@ async function withRetries(fn, label) {
   throw new Error(`${label} (tras ${MAX_ATTEMPTS} intentos): ${lastErr.message}`);
 }
 
-// `conflictKey` (columnas separadas por coma, ej. "bodega,caja,ean")
-// es SOLO para tablas que tienen una unique constraint natural aparte
-// del id — insertar la generación nueva ANTES de borrar la vieja (ver
-// comentario de arriba) choca con esa constraint apenas la fila nueva
-// comparte esa clave con la vieja (que todavía no se borró), cosa que
-// pasa siempre que un mismo producto/caja se repite corrida a corrida
-// (el caso normal). Bug real ya corregido: `inventario_cajas` tiene
-// UNIQUE(bodega, caja, ean) y sin esto, CADA corrida fallaba en el
-// primer lote con "duplicate key value violates unique constraint
-// inventario_cajas_bodega_caja_ean_key" — silenciosamente (es
-// best-effort, no tira abajo la corrida ni se ve en la tarjeta del
-// desk, que solo refleja si Copernico contestó bien) — dejando
-// Supabase (lo único que sobrevive un restart/deploy en Render, ya
-// que server/data/*.json es efímero) clavado en la última corrida que
-// sí había tenido éxito, sin que nadie lo notara hasta el próximo
-// restart. Con conflictKey se usa upsert (actualiza la fila existente
-// con synced_at nuevo) en vez de insert — nunca colisiona, y el
-// borrado final de "todo lo anterior a esta generación" sigue
-// limpiando lo que de verdad ya no existe.
+// `conflictKey` (columnas separadas por coma, ej. "bodega,caja,ean") es
+// solo para tablas con unique constraint natural aparte del id: insertar
+// la generación nueva ANTES de borrar la vieja choca con esa constraint
+// en cuanto una fila nueva repite esa clave (el caso normal, corrida a
+// corrida). Bug real ya corregido: inventario_cajas tiene UNIQUE(bodega,
+// caja, ean) y sin esto cada corrida fallaba silenciosamente (best-effort,
+// no se ve en la tarjeta del desk), dejando Supabase clavado en la
+// última corrida buena hasta el próximo restart. Con conflictKey se usa
+// upsert en vez de insert — nunca colisiona.
 async function replaceTable(table, rows, { conflictKey } = {}) {
   const supabase = getClient();
   if (!supabase) return { skipped: true };
@@ -100,9 +69,7 @@ async function replaceTable(table, rows, { conflictKey } = {}) {
     }, `No se pudo ${conflictKey ? 'upsertear' : 'insertar'} en ${table} (filas ${i}-${i + chunk.length})`);
   }
 
-  // Recién acá se borra lo viejo — todo lo nuevo de esta corrida ya
-  // está confirmado adentro, así que esto nunca deja la tabla con
-  // menos filas de las que tenía antes de empezar.
+  // Recién acá se borra lo viejo, con lo nuevo ya confirmado adentro.
   await withRetries(async () => {
     const { error } = await supabase.from(table).delete().lt('synced_at', generation);
     if (error) throw new Error(error.message);
@@ -111,8 +78,84 @@ async function replaceTable(table, rows, { conflictKey } = {}) {
   return { skipped: false, rowCount: rows.length };
 }
 
-// Historial de corridas — una fila por fuente por corrida, éxito o
-// error. Nunca lanza: registrar el log no debe tirar abajo el motor.
+// Clave compuesta (ej. bodega+caja+ean) como string estable, para poder
+// usarla como key de Map — el separador es un carácter de control que
+// nunca aparece en datos reales de Copernico.
+function rowKey(row, keyCols) {
+  return keyCols.map((c) => String(row[c] ?? '')).join('');
+}
+
+// Representación canónica de una fila (claves ordenadas) para comparar
+// contenido exacto entre corridas — nunca aproximado: cualquier campo
+// distinto, aunque sea uno solo, cuenta como "cambió".
+function canonicalRow(row) {
+  const sorted = {};
+  for (const key of Object.keys(row).sort()) sorted[key] = row[key] ?? null;
+  return JSON.stringify(sorted);
+}
+
+// Espejo incremental: en vez de resubir la tabla entera en cada corrida
+// (lo que hacía replaceTable, cara en egress con fuentes de miles de
+// filas que cambian poco de una hora a la otra), compara `newRows`
+// contra `previousRows` (la foto en memoria de ANTES de esta corrida,
+// ver inventory-engine.js) y solo upsertea lo que de verdad cambió de
+// contenido, y borra lo que ya no está.
+//
+// Sin `conflictKey` no hay forma segura de identificar la MISMA fila
+// entre corridas (Copernico no da id estable) — en ese caso cae a
+// replaceTable() de siempre, nunca intenta diffear a ciegas.
+//
+// El borrado es fila por fila por clave exacta (nunca un filtro
+// armado a mano con las claves) — más lento si se dan de baja muchas
+// filas de golpe, pero sin riesgo de borrar de más por un error de
+// construcción de query.
+async function replaceTableDiff(table, previousRows, newRows, { conflictKey } = {}) {
+  const supabase = getClient();
+  if (!supabase) return { skipped: true };
+  if (!conflictKey) return replaceTable(table, newRows, { conflictKey });
+
+  const keyCols = conflictKey.split(',');
+  const prevByKey = new Map(previousRows.map((r) => [rowKey(r, keyCols), r]));
+  const newByKey = new Map(newRows.map((r) => [rowKey(r, keyCols), r]));
+
+  const toUpsert = [];
+  for (const [key, row] of newByKey) {
+    const prev = prevByKey.get(key);
+    if (!prev || canonicalRow(prev) !== canonicalRow(row)) toUpsert.push(row);
+  }
+  const toDelete = [...prevByKey.entries()].filter(([k]) => !newByKey.has(k)).map(([, row]) => row);
+
+  const generation = new Date().toISOString();
+  const stamped = toUpsert.map((r) => ({ ...r, synced_at: generation }));
+  for (let i = 0; i < stamped.length; i += BATCH_SIZE) {
+    const chunk = stamped.slice(i, i + BATCH_SIZE);
+    await withRetries(async () => {
+      const { error } = await supabase.from(table).upsert(chunk, { onConflict: conflictKey });
+      if (error) throw new Error(error.message);
+    }, `No se pudo upsertear en ${table} (filas ${i}-${i + chunk.length})`);
+  }
+
+  const DELETE_CONCURRENCY = 10;
+  let cursor = 0;
+  async function deleteWorker() {
+    while (cursor < toDelete.length) {
+      const row = toDelete[cursor++];
+      await withRetries(async () => {
+        let q = supabase.from(table).delete();
+        keyCols.forEach((col) => { q = q.eq(col, row[col]); });
+        const { error } = await q;
+        if (error) throw new Error(error.message);
+      }, `No se pudo borrar de ${table} la fila ${rowKey(row, keyCols)}`);
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(DELETE_CONCURRENCY, toDelete.length) }, deleteWorker)
+  );
+
+  return { skipped: false, rowCount: newRows.length, upserted: toUpsert.length, deleted: toDelete.length };
+}
+
+// Historial de corridas. Nunca lanza: el log no debe tirar abajo el motor.
 async function logSync(source, { status, rowCount, durationMs, errorCode, errorMessage }) {
   const supabase = getClient();
   if (!supabase) return;
@@ -130,23 +173,12 @@ async function logSync(source, { status, rowCount, durationMs, errorCode, errorM
   }
 }
 
-// Lee toda la tabla tal cual está en Supabase — lo usa cada store al
-// arrancar el proceso para recuperar la última corrida buena aunque
-// el caché en disco local se haya perdido (deploys nuevos en Render
-// no conservan `server/data/*.json` de una instancia a la siguiente).
-//
-// PostgREST (la API que usa Supabase) nunca devuelve más de PAGE_SIZE
-// filas en un solo select, sin importar cuántas haya en la tabla — sin
-// paginar acá, una tabla real de miles de filas (ej. Referencia) se
-// leía siempre truncada a las primeras PAGE_SIZE, como si esa fuera
-// toda la base. Se pagina con .range() hasta que una página vuelve
-// incompleta (esa es la señal de que ya no queda nada más) — con
-// .order('id') explícito, porque sin un orden fijo Postgres no
-// garantiza que dos páginas consecutivas no se salten o repitan filas,
-// y cada página se reintenta con backoff por el mismo motivo que
-// replaceTable(): un corte de red a mitad de la lectura no debe
-// hacer parecer que la base "solo tiene" las filas ya leídas hasta
-// ahí.
+// Lee toda la tabla — lo usa cada store al arrancar para recuperar la
+// última corrida buena si el caché local en disco se perdió.
+// PostgREST nunca devuelve más de PAGE_SIZE filas por select, así que
+// se pagina con .range() hasta que una página vuelve incompleta, con
+// .order('id') explícito (sin orden fijo, Postgres no garantiza que
+// páginas consecutivas no se salten o repitan filas).
 async function loadTable(table) {
   const supabase = getClient();
   if (!supabase) return { skipped: true, rows: [] };
@@ -168,4 +200,4 @@ async function loadTable(table) {
   return { skipped: false, rows };
 }
 
-module.exports = { replaceTable, logSync, loadTable, isConfigured };
+module.exports = { replaceTable, replaceTableDiff, logSync, loadTable, isConfigured };

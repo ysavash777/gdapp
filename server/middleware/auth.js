@@ -1,19 +1,10 @@
-/* ============================================================
-   Autorización — traduce la cookie de sesión en req.user.
-   requireAuth: exige sesión válida.
-   requireAdmin: exige sesión válida con role 'admin'.
-   requirePermission(...keys): exige sesión válida con AL MENOS UNO de
-   esos permisos en su lista — usado por rutas de herramientas
-   específicas (ej. 'basesdatos'). Acepta varias claves porque una
-   misma ruta puede tener que servir tanto a un permiso de scope 'app'
-   como a su equivalente de scope 'web' (ej. /api/mapeos: 'mapear' en
-   el celular, 'mapeos' en el desk — ver permissions.js).
-
-   sessions.store.js y users.store.js viven en Supabase, así que estas
-   consultas son async — un error de red/DB acá se traduce a 401 en
-   vez de tirar abajo el proceso (mejor pedir que se vuelva a loguear
-   que devolver un 500 críptico).
-   ============================================================ */
+// Autorización — traduce la cookie de sesión en req.user.
+// requireAuth: sesión válida. requireAdmin: sesión + role 'admin'.
+// requirePermission(...keys): sesión + al menos uno de esos permisos
+// (varias claves porque una ruta puede servir tanto al scope 'app'
+// como a su equivalente 'web', ej. mapear/mapeos — ver permissions.js).
+// sessions/users store viven en Supabase: un error de red/DB acá se
+// traduce a 401, no a un 500.
 
 const sessions = require('../store/sessions.store');
 const usersStore = require('../store/users.store');

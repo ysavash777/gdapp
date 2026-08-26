@@ -1,38 +1,9 @@
-/* ============================================================
-   Módulo App · Mapear — editor de un mapeo (nuevo o ya existente).
-
-   Un solo overlay a pantalla completa cumple los dos casos: crear un
-   mapeo o reabrir uno ya hecho para seguir escaneando, corregir
-   cantidad/motivo/descripción de un código, o borrarlo — el mapeo
-   nunca queda "cerrado", siempre se puede volver a editar. La cámara
-   queda activa todo el tiempo que el editor está abierto (no hay
-   forma de apagarla a mitad de camino salvo el gesto de emergencia
-   sobre el propio recuadro de la cámara).
-
-   Apenas se detecta un código (cámara o Enter en el ingreso manual)
-   se abre una ventana flotante inferior pidiendo motivo y sus datos
-   propios — la detección de la cámara se pausa y se ve "apagada"
-   mientras esa ventana está abierta, para no acumular códigos ni
-   distraer mientras el usuario responde. Los saltos automáticos a
-   cantidad (Vencido, responsable ya recordado en rotura) solo pasan
-   al registrar un código nuevo — al reabrir uno existente para
-   editarlo, nunca se mueve el foco solo.
-
-   La cámara y la lectura del código (dos motores intercambiables:
-   BarcodeDetector nativo en Android/Chrome, o ZXing por software en
-   iOS Safari) corren sobre scanner/camera.js, compartido con
-   Consultar grupo — este archivo no sabe cuál motor está activo, ni
-   maneja el stream: solo escucha los códigos que le llegan por
-   onCode.
-
-   store.js ya guarda cada alta/edición/baja localmente y la manda a
-   la base en segundo plano (ver store.js/sync-engine.js) — por eso
-   addCode/updateCode/removeCode de acá nunca esperan la red: el
-   `codes = updated.codes` de cada uno ya refleja el estado optimista
-   local. store.subscribe() avisa cuando ese estado cambia por un
-   evento de sincronización (confirmado, sin conexión) para redibujar
-   solo el ícono de cada tarjeta, sin tocar nada más.
-   ============================================================ */
+// Módulo App · Mapear — editor de un mapeo (nuevo o existente), overlay a
+// pantalla completa: escanear, corregir o borrar códigos; nunca queda "cerrado".
+// Cámara/lectura corren sobre scanner/camera.js (compartido con Consultar grupo).
+// store.js guarda cada alta/edición/baja localmente y sincroniza en segundo
+// plano (sync-engine.js): addCode/updateCode/removeCode nunca esperan la red,
+// y store.subscribe() avisa cuando cambia el estado de sync para redibujar el ícono.
 
 import { icon, iconSolid } from '/shared/js/icons.js';
 import { apiFetch } from '/shared/js/api.js';
@@ -45,9 +16,8 @@ import { createCameraScanner } from '../../scanner/camera.js';
 
 const GENERIC_DESCRIPTION = 'Producto sin descripción';
 
-// Se recuerda entre registros (no entre sesiones) quién fue el último
-// responsable de rotura marcado, para preseleccionarlo y agilizar el
-// alta de la próxima rotura — ver motivo "rotura" en openRegisterSheet.
+// Último responsable de rotura marcado (entre registros, no entre sesiones),
+// para preseleccionarlo en el próximo alta — ver openRegisterSheet.
 let lastRoturaResponsible = null;
 
 function actor() {
@@ -59,8 +29,7 @@ function formatStockQty(qty) {
   return Number(qty).toLocaleString('es-AR', { maximumFractionDigits: 2 });
 }
 
-// La caja de "Unidades" tiene ancho fijo (ver .record-qty en app.css):
-// de 1 a 5 cifras entran siempre achicando la fuente, nunca el ancho.
+// Ancho fijo (.record-qty); de 1 a 5 cifras entran achicando la fuente.
 function qtySizeClass(quantity) {
   const len = String(quantity).length;
   if (len <= 2) return '';
@@ -69,20 +38,15 @@ function qtySizeClass(quantity) {
   return 'is-xs';
 }
 
-// La descripción tiene una franja de alto fijo para 2 líneas (ver
-// .record-desc): si el texto es largo, se achica la fuente para que
-// esas 2 líneas le entren completo en vez de cortarlo.
+// Franja de 2 líneas de alto fijo (.record-desc); texto largo achica la fuente.
 function descSizeClass(text) {
   if (text.length <= 46) return '';
   if (text.length <= 80) return 'is-md';
   return 'is-sm';
 }
 
-// Mismo criterio de "dato extra" que usa el consolidado del XLSX
-// (server/services/mapeo-export.js): responsable en Rotura/Vencido,
-// vencimiento en Unidades, texto libre en Otro — dos registros del
-// mismo código+motivo con este mismo dato son, a todos los efectos,
-// el mismo registro repetido.
+// Mismo criterio de "dato extra" que el consolidado del XLSX
+// (server/services/mapeo-export.js): agrupa registros iguales código+motivo+dato.
 function extraKeyOf(c) {
   if (c.condition === 'rotura' || c.condition === 'vencido') return c.roturaResponsible || '';
   if (c.condition === 'unidades') return c.expiryDate || '';
@@ -90,10 +54,8 @@ function extraKeyOf(c) {
   return '';
 }
 
-// Rotura se colorea por responsable (IDL/Rappi) porque puede ser
-// cualquiera de los dos. Vencido siempre es IDL, así que no tiene
-// sentido colorearlo por responsable — queda con su propio color de
-// motivo (lila), igual que Unidades y Otro.
+// Rotura se colorea por responsable (IDL/Rappi); Vencido siempre es IDL,
+// así que usa su propio color de motivo, igual que Unidades y Otro.
 function motivoColorClass(c) {
   if (c.condition === 'rotura') {
     return c.roturaResponsible ? `resp-${c.roturaResponsible}` : 'is-empty';
@@ -101,10 +63,7 @@ function motivoColorClass(c) {
   return c.condition ? `cond-${c.condition}` : 'is-empty';
 }
 
-// Círculo girando = todavía local, camino a la base; tilde = ya
-// confirmado; reloj = sin conexión, esperando para reintentar (ver
-// store.js). Siempre en gris — es información de respaldo del
-// registro, no un dato propio del producto.
+// Círculo girando = local, camino a la base; tilde = confirmado; reloj = sin conexión.
 function syncIconHTML(status) {
   if (status === 'offline') {
     return `<span class="sync-status-icon" title="Sin conexión — pendiente de enviar">${icon('clock', 13)}</span>`;
@@ -199,9 +158,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
   `;
   document.body.appendChild(overlay);
 
-  // El primer "volver" del dispositivo cierra el editor (vuelve al
-  // listado), no sale de la herramienta — misma guarda de historial
-  // que el resto de los overlays de esta app.
+  // El primer "volver" del dispositivo cierra el editor, no la herramienta.
   history.pushState({ mapearEditor: true }, '', location.href);
   let closedByPop = false;
   window.addEventListener('popstate', onPopState);
@@ -229,19 +186,13 @@ export async function openEditor({ mapeoId, title, onClose }) {
   let activeFilter = '';
   let searchQuery = '';
   let flashId = null;
-  // Mientras se está creando un registro (desde que se dispara el
-  // escaneo hasta que su ventana termina de abrirse, o hasta que la
-  // cierran) ningún otro escaneo puede colarse — sin esto, dos lecturas
-  // casi simultáneas del mismo código (la cámara sigue detectando unos
-  // milisegundos más mientras arranca el alta, antes de que
-  // scanner.setPaused(true) surta efecto) terminaban creando dos
-  // registros y abriendo dos ventanas de registro encimadas.
+  // Sin este guard, dos lecturas casi simultáneas del mismo código (la cámara
+  // sigue detectando unos ms antes de que scanner.setPaused(true) surta efecto)
+  // creaban dos registros y dos ventanas encimadas.
   let registering = false;
 
-  // Un código puede pasar de "enviando" a "guardado" (o "sin
-  // conexión") mucho después de que se lo agregó, en segundo plano —
-  // esta suscripción es lo único que se entera de eso mientras el
-  // editor sigue abierto, para redibujar solo el ícono de estado.
+  // Se entera cuando un código pasa de "enviando" a "guardado"/"sin conexión"
+  // en segundo plano, para redibujar solo el ícono de estado.
   const unsubscribeSync = store.subscribe(mapeo.id, (freshCodes) => {
     codes = freshCodes;
     renderCodes();
@@ -281,40 +232,27 @@ export async function openEditor({ mapeoId, title, onClose }) {
     renderCodes();
   }
 
-  // El ingreso manual es una acción deliberada del usuario — siempre
-  // se registra, aunque sea el mismo código que el último (a
-  // diferencia de la cámara, que debounce internamente en
-  // scanner/camera.js mientras un código sigue en cuadro).
+  // El ingreso manual siempre registra, aunque repita el último código
+  // (la cámara sí debounce internamente en scanner/camera.js).
   async function registerCode(rawValue) {
-    // Reentrancia: si ya hay un registro en curso (o su ventana ya
-    // abierta), cualquier escaneo nuevo se ignora — ver `registering`
-    // más arriba.
-    if (registering || activeSheetBackdrop) return;
+    if (registering || activeSheetBackdrop) return; // reentrancia: registro/ventana en curso
     registering = true;
 
-    // Antes de agregar el código (y de abrir su ventana de registro),
-    // se valida contra el catálogo local (shared/js/product-catalog.js)
-    // si existe en Variables — si no, una alerta flotante basta: no
-    // tiene sentido abrir una ficha en blanco para algo que ya se sabe
-    // que no está en el catálogo. Solo se salta esta validación si el
-    // catálogo local todavía está vacío (sin red desde el primer uso),
-    // igual que en Consultar grupo (ver scanner-view.js).
+    // Igual que en Consultar grupo (scanner-view.js): valida contra el
+    // catálogo local antes de abrir la ventana; se salta si el catálogo
+    // local todavía está vacío (sin red desde el primer uso).
     if (hasData() && !existsLocal(rawValue)) {
       showToast(`Código no encontrado: ${rawValue}`, { variant: 'warn' });
       registering = false;
       return;
     }
-    // Si quedó una búsqueda abierta, no debe tapar ni confundirse con
-    // la ventana de registro que está por abrirse.
     closeSearch();
     const updated = await store.addCode(mapeo.id, rawValue, actor());
     codes = updated.codes;
     renderCodes();
     if (navigator.vibrate) navigator.vibrate(35);
     openRegisterSheet(codes.at(-1).clientId, { isNew: true });
-    // `registering` sigue en true hasta que esta ventana se cierre
-    // (cleanupSheet la resetea) — mientras esté abierta, ni la cámara
-    // ni el ingreso manual pueden disparar un segundo registro.
+    // `registering` vuelve a false recién cuando cleanupSheet cierra la ventana.
   }
 
   const scanner = createCameraScanner({
@@ -322,17 +260,12 @@ export async function openEditor({ mapeoId, title, onClose }) {
     onCode: (code) => registerCode(code),
   });
 
-  // La ventana flotante de registro vive fuera de `overlay` (en
-  // document.body, para poder tapar toda la pantalla) — si el editor
-  // se cierra mientras está abierta, hay que sacarla a mano o queda
-  // huérfana en el DOM.
+  // Vive en document.body (para tapar toda la pantalla); si el editor se
+  // cierra mientras está abierta, hay que sacarla a mano o queda huérfana.
   let activeSheetBackdrop = null;
   let activeSheetDiscard = null;
-  // Si el sheet de registro está abierto cuando el motor de sync
-  // termina de completar descripción y EAN (ver más abajo, la
-  // búsqueda contra Referencia recién resuelve del lado del servidor,
-  // no en el momento de escanear), esto redibuja solo esas dos líneas
-  // sin tocar nada más del sheet.
+  // Redibuja solo descripción/EAN si el sheet sigue abierto cuando el
+  // servidor resuelve la búsqueda contra Referencia.
   let activeSheetRefreshLookup = null;
 
   function onDocClick(e) {
@@ -360,8 +293,6 @@ export async function openEditor({ mapeoId, title, onClose }) {
 
   overlay.querySelector('#editorClose').addEventListener('click', close);
 
-  // Filtro por motivo: menú chico anclado al ícono, cierra al elegir
-  // una opción o al tocar fuera.
   filterToggle.addEventListener('click', (e) => {
     e.stopPropagation();
     filterMenu.hidden = !filterMenu.hidden;
@@ -375,9 +306,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
     });
   });
 
-  // Búsqueda en vivo por cualquier dato del registro. Igual que el
-  // ingreso manual, queda oculta por defecto para no ensuciar la
-  // pantalla — y ambas se excluyen entre sí para no amontonarse.
+  // Búsqueda y manual se excluyen entre sí (no amontonarse).
   searchToggle.addEventListener('click', () => {
     if (!searchForm.hidden) {
       closeSearch();
@@ -393,9 +322,6 @@ export async function openEditor({ mapeoId, title, onClose }) {
     renderCodes();
   });
 
-  // El ingreso manual queda oculto por defecto (se usa poco), pero a
-  // un solo tap de distancia junto al contador de códigos — nunca
-  // escondido del todo, porque a veces es la única vía posible.
   manualToggle.addEventListener('click', () => {
     closeSearch();
     manualForm.hidden = !manualForm.hidden;
@@ -412,28 +338,21 @@ export async function openEditor({ mapeoId, title, onClose }) {
     manualForm.hidden = true;
   });
 
-  // Tocar un registro reabre la misma ventana flotante para corregir
-  // su cantidad o motivo.
   codesEl.addEventListener('click', (e) => {
     const card = e.target.closest('.record-card');
     if (!card) return;
-    // El id puede ser numérico (ya confirmado en la base) o un id
-    // local temporal en forma de texto (recién escaneado, todavía sin
-    // enviar) — nunca forzar a Number(), un id local nunca lo es.
+    // clientId puede ser numérico (confirmado) o un id local temporal en
+    // texto (recién escaneado) — nunca forzar a Number().
     const entry = codes.find((c) => String(c.clientId) === card.dataset.codeId);
     if (entry) openRegisterSheet(entry.clientId, { isNew: false });
   });
 
   function openRegisterSheet(clientId, { isNew }) {
-    // `entry` es solo la foto inicial para armar el HTML del sheet —
-    // toda escritura de acá en más pasa por currentEntry(), que
-    // siempre relee el id real y vigente desde `codes`. El id de un
-    // código recién escaneado empieza siendo temporal y el motor de
-    // sincronización lo reemplaza por el real apenas confirma el alta
-    // (puede pasar en menos de un segundo con buena conexión) — si
-    // esta función siguiera usando el `entry` de este momento, un
-    // commit() posterior apuntaría a un id que ya no existe y la
-    // edición se perdería en silencio.
+    // `entry` es solo la foto inicial para el HTML; toda escritura pasa por
+    // currentEntry(), que relee el id vigente desde `codes`. El id de un
+    // código recién escaneado es temporal y el motor de sync lo reemplaza
+    // por el real al confirmar — si se siguiera usando `entry`, un commit()
+    // posterior apuntaría a un id inexistente y la edición se perdería.
     let entry = codes.find((c) => c.clientId === clientId);
     if (!entry) return;
     function currentEntry() {
@@ -444,12 +363,8 @@ export async function openEditor({ mapeoId, title, onClose }) {
     scanner.setTorch(false);
     scanner.pauseView();
 
-    // Todavía no sabemos si el código tiene datos o no (el motor de
-    // sync ni siquiera terminó de intentar el alta) — un "hueso" que
-    // titila es más honesto que declarar "sin descripción" antes de
-    // tiempo, que después no se corrige más que con un cambio brusco
-    // de texto. Una vez que hay syncStatus distinto de 'syncing', o ya
-    // hay descripción local (catálogo offline), no hay nada pendiente.
+    // Skeleton mientras el sync no terminó de intentar el alta, en vez de
+    // declarar "sin descripción" antes de tiempo.
     const pendingLookup = entry.syncStatus === 'syncing' && !entry.description;
 
     const backdrop = document.createElement('div');
@@ -509,11 +424,8 @@ export async function openEditor({ mapeoId, title, onClose }) {
     `;
     document.body.appendChild(backdrop);
 
-    // La descripción llega recién cuando el motor de sync confirma el
-    // alta (la búsqueda contra Referencia corre del lado del
-    // servidor, no en el momento de escanear) — si para entonces este
-    // sheet sigue abierto, hay que actualizar el texto ya puesto en
-    // vez de dejarlo en "Producto sin descripción" para siempre.
+    // La descripción llega cuando el sync confirma el alta (la búsqueda
+    // contra Referencia corre en el servidor); actualiza el texto si el sheet sigue abierto.
     activeSheetRefreshLookup = () => {
       const fresh = currentEntry();
       const descEl = backdrop.querySelector('.cq-desc-value');
@@ -540,12 +452,8 @@ export async function openEditor({ mapeoId, title, onClose }) {
     const qtyInput = backdrop.querySelector('#qtyInput');
     const doneBtn = backdrop.querySelector('#regDone');
 
-    // Aviso de stock "de paso" (Recupero/Diferencias) del código —
-    // se resuelve en vivo contra Referencia, nunca es parte del
-    // registro en sí. Silencioso ante error/sin conexión: es un dato
-    // secundario, no tiene sentido interrumpir el alta por esto. Si el
-    // sheet ya se cerró para cuando responde, backdrop quedó afuera
-    // del DOM — no hay nada que pintar.
+    // Aviso de stock (Recupero/Diferencias), dato secundario: silencioso ante
+    // error/sin conexión, y no pinta nada si el sheet ya se cerró.
     const stockAlertsEl = backdrop.querySelector('#regStockAlerts');
     apiFetch(`/api/mapeos/stock-alerts?code=${encodeURIComponent(entry.code)}`)
       .then((res) => {
@@ -556,21 +464,14 @@ export async function openEditor({ mapeoId, title, onClose }) {
       })
       .catch(() => {});
 
-    // "Listo" solo se habilita con el registro realmente completo:
-    // motivo elegido siempre, y si el motivo es Rotura, ADEMÁS el
-    // responsable (IDL/Rappi) — sin este segundo chequeo, tocar el
-    // motivo "Rotura" ya habilitaba "Listo" aunque todavía no se
-    // hubiera elegido responsable (el bug real: filas guardadas con
-    // motivo pero sin responsable). El vencimiento de Unidades sigue
-    // sin ser obligatorio a propósito — nunca entra en este chequeo.
+    // Rotura exige además el responsable — sin este chequeo, elegir "Rotura"
+    // ya habilitaba "Listo" antes de elegir responsable (bug real: filas sin responsable).
     function updateDoneState() {
       const ready = condition === 'rotura' ? !!roturaResponsible : !!condition;
       doneBtn.disabled = !ready;
     }
-    // Al editar un registro existente se precarga la cantidad que ya
-    // tenía (si no, "Listo" sin tocar el campo la pisaría con 1). Al
-    // registrar uno nuevo queda vacío a propósito: Enter sin escribir
-    // nada equivale a 1.
+    // Precarga la cantidad al editar (si no, "Listo" sin tocar el campo la
+    // pisaría con 1); vacío al registrar nuevo, Enter sin escribir equivale a 1.
     qtyInput.value = isNew ? '' : entry.quantity;
 
     async function commit(patch) {
@@ -578,22 +479,17 @@ export async function openEditor({ mapeoId, title, onClose }) {
       codes = updated.codes;
     }
 
-    // La cantidad se confirma recién al cerrar el flujo (botón "Listo"
-    // o Enter, que equivale a tocarlo) — nunca antes, así los dos
-    // caminos quedan idénticos y ninguno pisa lo que se escribió (ver
-    // confirmAndClose, que ahora hace esto y además la consolidación).
+    // La cantidad se confirma solo al cerrar (botón "Listo" o Enter,
+    // equivalente); ver confirmAndClose.
     qtyInput.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter') return;
       e.preventDefault();
       if (!doneBtn.disabled) doneBtn.click();
     });
 
-    // El campo de vencimiento vive fijo en el footer (junto a Cantidad,
-    // no dentro de #regExtra) — solo se muestra/oculta y se completa
-    // según el motivo, nunca se recrea, así no pierde los listeners.
-    // Son 3 inputs reales (DD, MM, AA) separados por "/", cada uno con
-    // su propio foco — visualmente comparten un mismo box negro (ver
-    // .reg-date-group en app.css) para verse como un campo continuo.
+    // Campo de vencimiento fijo en el footer, solo se muestra/oculta según el
+    // motivo (nunca se recrea, para no perder listeners). 3 inputs (DD/MM/AA)
+    // que visualmente comparten un box (.reg-date-group en app.css).
     const fieldsGrid = backdrop.querySelector('#regFieldsGrid');
     const vtoFieldCell = backdrop.querySelector('#vtoFieldCell');
     const ddInput = backdrop.querySelector('#dateDd');
@@ -604,8 +500,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
       const parts = [ddInput.value, mmInput.value, aaInput.value];
       commit({ expiryDate: parts.some(Boolean) ? parts.map((p) => p || '--').join('/') : null });
     }
-    // Nunca 00 ni fuera de rango: si se excede, se borra el campo en
-    // vez de forzarlo al tope (no autocompletar con 1 o 31).
+    // Fuera de rango borra el campo en vez de forzar al tope.
     function clampSegment(input, max) {
       input.value = input.value.replace(/\D/g, '').slice(0, 2);
       const num = Number(input.value);
@@ -630,12 +525,8 @@ export async function openEditor({ mapeoId, title, onClose }) {
     mmInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); aaInput.focus(); } });
     aaInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); qtyInput.focus(); } });
 
-    // Cada motivo pide datos distintos: fecha opcional (unidades, en
-    // el footer junto a Cantidad), responsable (rotura y vencido) o
-    // texto libre (otro) debajo de los botones. Los saltos automáticos
-    // de foco (sin que el usuario presione Enter) solo ocurren al
-    // registrar un código nuevo — al editar uno existente no se mueve
-    // el foco.
+    // Cada motivo pide datos distintos; los saltos automáticos de foco
+    // solo ocurren al registrar un código nuevo, nunca al editar uno existente.
     function renderExtra() {
       vtoFieldCell.hidden = condition !== 'unidades';
       fieldsGrid.classList.toggle('has-vto', condition === 'unidades');
@@ -668,9 +559,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
           });
         });
         if (roturaResponsible) {
-          // Ya había (o se recuerda) un responsable: no hace falta
-          // esperar el toque, se agiliza yendo directo a cantidad —
-          // pero solo al registrar, nunca al editar uno existente.
+          // Ya había/se recuerda responsable: salta directo a cantidad, solo al registrar.
           paint();
           commit({ roturaResponsible });
           if (isNew) qtyInput.focus();
@@ -701,10 +590,6 @@ export async function openEditor({ mapeoId, title, onClose }) {
       updateDoneState();
     }
 
-    // No se permite registrar sin motivo — y, si el motivo es Rotura,
-    // tampoco sin responsable (ver updateDoneState(), que renderExtra()
-    // llama al final): el botón "Listo" queda deshabilitado hasta que
-    // el registro esté realmente completo, nunca solo con el motivo.
     backdrop.querySelectorAll('.cond-pill').forEach((pill) => {
       pill.addEventListener('click', () => {
         condition = pill.dataset.condition;
@@ -715,10 +600,8 @@ export async function openEditor({ mapeoId, title, onClose }) {
     });
     renderExtra();
 
-    // El editor completo puede cerrarse (botón/gesto de volver)
-    // mientras esta ventana sigue abierta — se registra acá para que
-    // `close()` pueda sacarla del DOM y descartar el registro
-    // pendiente sin quedar huérfana.
+    // Registrado acá para que close() del editor pueda sacar esta ventana
+    // del DOM y descartar el registro pendiente si se cierra mientras está abierta.
     activeSheetBackdrop = backdrop;
     activeSheetDiscard = isNew ? discardEntry : null;
 
@@ -732,24 +615,16 @@ export async function openEditor({ mapeoId, title, onClose }) {
       registering = false;
     }
 
-    // El registro recién tocado (nuevo o editado) sube al tope de la
-    // lista y se resalta con una animación breve al reaparecer —
-    // los que no cambiaron quedan donde estaban. Si se consolidó con
-    // otro (ver confirmAndClose), se resalta ESE en vez del propio.
+    // Resalta el registro tocado al reaparecer; si se consolidó con otro
+    // (ver confirmAndClose), resalta ESE en vez del propio.
     function closeSheet(highlightClientId = clientId) {
       cleanupSheet();
       flashId = highlightClientId;
       renderCodes();
     }
 
-    // Busca, entre el resto de los códigos del mapeo, otro registro con
-    // el mismo código+motivo+dato extra que el que se está cerrando —
-    // si existe, son el mismo registro repetido y confirmarlo debe
-    // sumarse a ese en vez de quedar como una fila aparte. Nunca contra
-    // mapeos ya cerrados/exportados antes de este cambio: solo mira los
-    // códigos ya presentes en ESTE mapeo, así que un mapeo viejo con
-    // duplicados sin tocar sigue exactamente igual hasta que alguien
-    // vuelva a registrar sobre él.
+    // Busca otro registro del mismo mapeo con código+motivo+dato extra iguales
+    // (mismo registro repetido); si existe, confirmar debe sumarse a ese.
     function findConsolidationTarget() {
       const current = currentEntry();
       if (!current.condition) return null;
@@ -759,13 +634,9 @@ export async function openEditor({ mapeoId, title, onClose }) {
       )) || null;
     }
 
-    // "Listo" (o Enter, que lo dispara) es el único camino que confirma
-    // la cantidad escrita — cerrar con la cruz nunca la guarda. Si hay
-    // un duplicado consolidable, la cantidad se suma ahí y este registro
-    // (recién creado, o editado hasta coincidir con otro) se descarta —
-    // "elevar" el consolidado hacia arriba es efecto de updateCode()
-    // tocando su touchedAt, que visibleCodes() ordena de más a menos
-    // reciente, sin necesidad de ningún ordenamiento manual acá.
+    // Si hay un duplicado consolidable, la cantidad se suma ahí y este
+    // registro se descarta; subir el consolidado al tope es efecto de
+    // updateCode() tocando touchedAt (visibleCodes() ordena por eso).
     async function confirmAndClose() {
       quantity = Math.max(1, Number(qtyInput.value) || 1);
       qtyInput.value = quantity;
@@ -789,11 +660,8 @@ export async function openEditor({ mapeoId, title, onClose }) {
       renderCodes();
     }
 
-    // Un código recién detectado todavía no fue confirmado: cerrar con
-    // la cruz equivale a no registrarlo. Uno ya existente, en cambio,
-    // solo se está revisando — cerrar no borra nada (para eso está el
-    // tacho, que solo aparece en el modo de edición) ni confirma la
-    // cantidad (para eso está "Listo").
+    // Nuevo: cerrar con la cruz descarta. Existente: cerrar solo revisa,
+    // no borra (tacho) ni confirma cantidad (Listo).
     async function discardIfNew() {
       if (isNew) {
         await discardEntry();

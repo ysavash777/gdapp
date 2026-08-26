@@ -1,12 +1,5 @@
-/* ============================================================
-   GDapp · Vista de autenticación (solo login — sin registro).
-   Compartida por /desk y /app. Ventana partida en dos: arriba una
-   imagen con degradado hacia negro, abajo los campos.
-   Uso:  renderAuth(container, onSuccess, { showBack })
-   showBack solo tiene sentido en /app: ahí el login se llega desde
-   un inicio público, así que hay adónde volver. En /desk el login
-   es la puerta de entrada misma, sin nada detrás.
-   ============================================================ */
+// Vista de login (sin registro), compartida por /desk y /app.
+// showBack solo aplica en /app: en /desk el login es la puerta de entrada, sin nada a lo que volver.
 
 import { icon } from './icons.js';
 import { login } from './session.js';

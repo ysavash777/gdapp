@@ -1,9 +1,4 @@
-/* ============================================================
-   Módulo App · Consultar grupo
-   Punto de entrada: a diferencia de Mapear, esta herramienta no tiene
-   listado — es un escáner de cámara de solo lectura (ver
-   scanner-view.js). Entrar a la herramienta abre la cámara directo.
-   ============================================================ */
+// Módulo App · Consultar grupo. Sin listado: entra directo al escáner (scanner-view.js).
 
 import { openScanner } from './scanner-view.js';
 

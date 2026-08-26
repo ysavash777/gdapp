@@ -1,8 +1,5 @@
-/* ============================================================
-   Módulo App · Mapear — listado de mapeos.
-   Abrir un mapeo (nuevo o existente) delega en editor-view.js — ahí
-   vive tanto el escaneo como la edición de su contenido.
-   ============================================================ */
+// Módulo App · Mapear — listado de mapeos. Abrir uno (nuevo o existente)
+// delega en editor-view.js.
 
 import { icon } from '/shared/js/icons.js';
 import * as store from './store.js';
@@ -46,10 +43,8 @@ function dateKey(ts) {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
-// Agrupa por día de edición (updatedAt) — el listado ya llega
-// ordenado del más reciente al más viejo (ver store/mapeos.store.js),
-// así que alcanza con detectar el cambio de día e insertar un
-// sub-encabezado, nunca reordenar nada acá.
+// Agrupa por día de edición; el listado ya llega ordenado (store.js), solo
+// detecta el cambio de día e inserta un sub-encabezado.
 function mapeoListHTML(mapeos) {
   let lastKey = null;
   const parts = [];
@@ -64,11 +59,7 @@ function mapeoListHTML(mapeos) {
   return parts.join('');
 }
 
-// Loader mientras store.list() contesta (puede tardar, sobre todo si
-// tiene que ir a la red) — nunca se sabe de antemano cuántos mapeos ni
-// cuántos grupos por fecha va a haber, así que un esqueleto que imita
-// la forma real siempre queda "inventando" un número. Una animación
-// genérica evita esa promesa falsa.
+// Loader mientras store.list() contesta.
 function mapeoLoaderHTML() {
   return `
     <div class="gd-bars-loader">
@@ -92,11 +83,8 @@ export async function renderList(outlet, { onNew }) {
     </div>
   `;
 
-  // store.list() ya cae solo a la última foto buena en localStorage si
-  // no hay red (ver store.js) — esto solo pasa si NUNCA hubo una foto
-  // que guardar (primera vez que se abre Mapear en este dispositivo,
-  // sin conexión) o si el error es real (sesión vencida, servidor
-  // caído), no de conectividad.
+  // store.list() ya cae al último caché si no hay red; un error acá es real
+  // (nunca hubo caché, o falla de sesión/servidor).
   let mapeos, listError;
   try {
     mapeos = await store.list();
@@ -138,9 +126,6 @@ export async function renderList(outlet, { onNew }) {
     return;
   }
 
-  // Icono "+" en la fila del título (junto a "Mapear"): abre el menú
-  // para elegir cómo empezar un mapeo — crear uno nuevo escaneando, o
-  // (a futuro) importarlo ya armado.
   const titleActions = document.getElementById('subpageTitleActions');
   if (titleActions) {
     titleActions.innerHTML = `
@@ -183,9 +168,6 @@ export async function renderList(outlet, { onNew }) {
     });
   }
 
-  // Buscador de mapeos por cualquier dato visible en su tarjeta (título,
-  // fecha, cantidad de códigos, usuario que lo editó) — siempre abierto,
-  // sin toggle: filtra en vivo a medida que se escribe.
   const searchInput = outlet.querySelector('#mapeoSearchInput');
   const searchClear = outlet.querySelector('#mapeoSearchClear');
 
@@ -194,8 +176,7 @@ export async function renderList(outlet, { onNew }) {
     searchClear.hidden = !q;
     const list = outlet.querySelector('.mapeo-list');
     if (!list) return;
-    // Recorre en orden: un sub-encabezado de fecha se oculta si,
-    // después de filtrar, ninguna de sus tarjetas quedó visible.
+    // Oculta el sub-encabezado de fecha si ninguna tarjeta suya quedó visible.
     let currentHeading = null;
     let anyVisible = false;
     Array.from(list.children).forEach((el) => {
@@ -219,16 +200,10 @@ export async function renderList(outlet, { onNew }) {
     searchInput.focus();
   });
 
-  // En desuso (se va del campo sin haber escrito nada) se vuelve a
-  // ocultar solo, para no dejar el buscador ocupando lugar de forma
-  // permanente una vez que se lo probó — mismo criterio que el ícono
-  // de lupa que lo abre. Si el foco se va justo al propio botón de
-  // lupa (el usuario lo tocó para cerrar), no hay que hacer nada acá:
-  // ese click ya tiene su propia lógica de cierre, y si esta también
-  // actuara pisaría el "opening" que lee ese handler y reabriría el
-  // buscador en vez de cerrarlo.
   searchInput.addEventListener('blur', (e) => {
     if (searchInput.value.trim()) return;
+    // Si el foco va al botón de lupa, ese click ya cierra por su cuenta:
+    // actuar acá también pisaría su "opening" y reabriría el buscador.
     if (e.relatedTarget && e.relatedTarget.id === 'mapeoSearchToggle') return;
     const searchBar = outlet.querySelector('#mapeoSearchBar');
     const searchToggle = document.getElementById('mapeoSearchToggle');
@@ -272,11 +247,7 @@ document.addEventListener('click', (e) => {
   if (titleActions) titleActions.querySelectorAll('.mapeo-menu').forEach((m) => { m.hidden = true; });
 });
 
-// Descarga directa vía <a download> — GET normal del mismo origen, la
-// cookie de sesión va sola. El servidor arma el XLSX (una hoja por
-// motivo, ver server/services/mapeo-export.js); acá no se procesa
-// nada, solo se dispara la descarga sin salir de la SPA (el ancla
-// nunca se agrega visible ni se navega con location.href).
+// GET al mismo origen (la cookie de sesión va sola); el servidor arma el XLSX.
 function downloadMapeo(id) {
   const a = document.createElement('a');
   a.href = `/api/mapeos/${id}/export`;

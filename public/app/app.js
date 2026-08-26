@@ -1,30 +1,8 @@
-/* ============================================================
-   GDapp · App
-
-   "Consultar grupo" es de acceso libre (el equipo operativo la usa
-   sin cuenta); el resto exige sesión y el permiso correspondiente.
-
-   Sin sesión no hay cabecera: el inicio muestra la herramienta
-   pública en color arriba, el resto en blanco y negro (sin permiso)
-   debajo, y un botón de ancho completo al final para loguearse.
-
-   Con sesión aparece una cabecera de una sola fila: avatar + saludo,
-   ambos a la izquierda. Mismo formato de lista: habilitadas en
-   color arriba, sin permiso en BW debajo — todo alfabético.
-
-   Toda la pantalla de inicio se ajusta a la altura disponible sin
-   generar scroll vertical (ver home-layout en app.css).
-
-   Navegación: se usa history.pushState/replaceState en vez de asignar
-   location.hash directamente, porque en algunos navegadores asignar
-   el hash también dispara 'popstate' (no solo 'hashchange'), lo que
-   confundiría al botón/gesto de volver del dispositivo con un avance
-   normal. Con pushState, 'popstate' solo se dispara en retrocesos o
-   avances reales de historial — así el botón de volver siempre puede
-   distinguirse de un toque hacia adelante.
-
-   Cada módulo vive en /app/modules/*.js y exporta { title, description, render }.
-   ============================================================ */
+/* GDapp · App shell: home, routing entre módulos y login.
+   "Consultar grupo" es pública; el resto exige sesión + permiso.
+   Navegación con history.pushState/replaceState (no location.hash directo)
+   porque asignar el hash dispara 'popstate' en algunos navegadores,
+   confundiendo el botón de volver del dispositivo con una navegación normal. */
 
 import { icon } from '/shared/js/icons.js';
 import { avatar } from '/shared/js/avatars.js';
@@ -34,7 +12,7 @@ import { renderAuth } from '/shared/js/auth-view.js';
 
 import * as mapear from '/app/modules/mapear/index.js';
 import * as vencimientos from '/app/modules/vencimientos/index.js';
-import * as vacios from '/app/modules/vacios.js';
+import * as vacios from '/app/modules/vacios/index.js';
 import * as consultas from '/app/modules/consultas/index.js';
 import * as settings from '/app/modules/settings.js';
 import { checkVencidos, markAlertSeen, notifMessageHTML } from '/app/notifications.js';
@@ -43,7 +21,7 @@ const TOOLS = {
   consultas: { ...consultas, icon: 'search' },
   mapear: { ...mapear, icon: 'scan' },
   vencimientos: { ...vencimientos, icon: 'calendarAlert' },
-  vacios: { ...vacios, icon: 'package' },
+  vacios: { ...vacios, icon: 'remoteSignal' },
 };
 
 const PUBLIC_TOOLS = ['consultas'];
@@ -51,10 +29,8 @@ const PUBLIC_TOOLS = ['consultas'];
 const root = document.getElementById('root');
 let user = null;
 
-// --- Historial: el botón/gesto de volver del dispositivo nunca debe
-// resurfacear el login, y desde el inicio debe pedir una segunda
-// pulsación antes de salir de la app. ---
-let lastRoute = 'home'; // 'home' | 'subpage', refleja la última vista renderizada
+// Doble pulsación de "volver" en el inicio para salir de la app.
+let lastRoute = 'home'; // 'home' | 'subpage'
 let exitArmed = false;
 let exitTimer = null;
 
@@ -62,15 +38,13 @@ function hashUrl(hash) {
   return location.pathname + location.search + (hash ? `#/${hash}` : '');
 }
 
-// Avanza a una vista nueva (tocar una tarjeta, "Iniciar sesión", "Volver").
-// pushState nunca dispara 'popstate', así que renderizamos a mano.
+// pushState no dispara 'popstate', así que renderizamos a mano.
 function pushRoute(hash) {
   history.pushState({ gdapp: true }, '', hashUrl(hash));
   renderRoute();
 }
 
-// Guarda de retorno: asegura que siempre haya una entrada propia para
-// interceptar el primer "volver" del dispositivo en el inicio.
+// Asegura una entrada propia para interceptar el primer "volver" en el inicio.
 function armGuard() {
   history.pushState({ gdapp: true }, '', location.href);
 }
@@ -86,8 +60,7 @@ function showExitToast() {
   setTimeout(() => toast.remove(), 2000);
 }
 
-// Solo dispara con un retroceso/avance real de historial (botón o
-// gesto del dispositivo) — nunca con nuestras propias navegaciones.
+// Solo dispara con retroceso/avance real de historial, no con pushRoute.
 window.addEventListener('popstate', () => {
   if (lastRoute !== 'home') return; // volver desde una herramienta/login es normal.
   if (exitArmed) return; // segunda pulsación: se deja salir de verdad.
@@ -97,14 +70,10 @@ window.addEventListener('popstate', () => {
   exitTimer = setTimeout(() => { exitArmed = false; }, 2000);
 });
 
-// El hash también puede cambiar por una navegación real hacia
-// atrás/adelante (no solo por pushRoute) — hay que re-renderizar.
 window.addEventListener('hashchange', renderRoute);
 
-// Cierra el menú del avatar al tocar fuera. Un solo listener a nivel
-// documento, consultando el DOM en vivo — el header se reconstruye
-// por completo en cada render, así que no conviene cerrar sobre
-// referencias que puedan quedar obsoletas.
+// Listener a nivel documento (el header se reconstruye en cada render,
+// así que no conviene guardar referencias que puedan quedar obsoletas).
 document.addEventListener('click', (e) => {
   const menu = document.getElementById('userMenu');
   if (menu && !menu.hidden) {
@@ -161,9 +130,7 @@ function renderShellStructure() {
 }
 
 function renderRoute() {
-  // El login se ve a pantalla completa, sin el padding que sí necesitan
-  // el inicio y las herramientas — se restablece por defecto en cada
-  // render y solo renderLogin() lo vuelve a activar.
+  // Solo renderLogin() reactiva outlet-fullbleed; se resetea en cada render.
   document.getElementById('outlet').classList.remove('outlet-fullbleed');
 
   const hash = location.hash.replace('#/', '');
@@ -190,13 +157,7 @@ function toolCardHTML(key, t) {
   `;
 }
 
-// Pantalla de bienvenida sin sesión — a propósito NO es una tarjeta de
-// herramienta agrandada: con una sola herramienta pública disponible,
-// una tarjeta ocupando toda la pantalla se leía como "relleno". Es su
-// propia composición (glifo con halo de color + titular + acción única
-// al pie) y el acceso a cuentas es un ícono chico y discreto arriba —
-// sin explicar "equipo de inventario" ni nada por el estilo, para no
-// contaminar la única acción real de esta pantalla.
+// Pantalla de bienvenida sin sesión (composición propia, no una tool-card agrandada).
 function welcomeScreenHTML(key, t) {
   return `
     <div class="hg-screen">
@@ -219,9 +180,7 @@ function welcomeScreenHTML(key, t) {
   `;
 }
 
-// "Bloqueada" nunca revela qué herramienta es (con o sin sesión): todo
-// icono y texto se reemplaza por un skeleton estático (sin animación,
-// es un estado permanente, no una carga en curso).
+// Skeleton estático (no animado: es un estado permanente, no una carga) que oculta la herramienta.
 function lockedCardHTML() {
   return `
     <div class="tool-card is-locked is-skeleton">
@@ -295,13 +254,8 @@ function renderHome() {
       pushRoute('vencimientos');
     });
 
-    // Solo para quien puede hacer algo al respecto — nunca gasta un
-    // pedido al servidor para quien no tiene el permiso. Sin toast ni
-    // polling: un chequeo por apertura de la pantalla de inicio
-    // alcanza para "avisar sin molestar". El badge (el "avisar") solo
-    // prende una vez por día — el mensaje en sí (notifMessageHTML)
-    // igual queda disponible si se abre la campana a mano, aunque ya
-    // se haya avisado hoy.
+    // Solo si tiene el permiso; el badge prende una vez por día pero
+    // el mensaje sigue disponible al abrir la campana a mano.
     if (user.permissions?.includes('vencimientos')) {
       checkVencidos().then(({ count, shouldAlert }) => {
         notifMenu.innerHTML = notifMessageHTML(count);
@@ -321,11 +275,7 @@ function renderHome() {
   const disabled = disabledTools();
   const outlet = document.getElementById('outlet');
 
-  // Sin sesión hoy existe una sola herramienta real (Consultar grupo,
-  // pública) — welcomeScreenHTML() es su propia pantalla dedicada
-  // (nunca una tarjeta agrandada, que con una sola opción se leía como
-  // relleno): toma la primera herramienta pública que haya, sin
-  // pretender diseñar para un catálogo de varias que hoy no existe.
+  // Sin sesión: usa la primera herramienta pública disponible.
   if (!user) {
     const [key, t] = enabled[0];
     outlet.innerHTML = welcomeScreenHTML(key, t);
@@ -347,11 +297,7 @@ function renderHome() {
   });
 }
 
-// Herramientas y login comparten esta plantilla: sin cabecera propia,
-// solo el gesto/botón físico del dispositivo para volver (ver el
-// manejo de popstate más arriba) — showBack agrega además la misma
-// flecha que usa el escáner de Consultar grupo, a la izquierda del
-// título, para quien prefiera tocarla en vez de usar el gesto.
+// Plantilla compartida por herramientas y login; showBack agrega flecha manual.
 function renderSubpage(title, fillContent, { showBack = false } = {}) {
   lastRoute = 'subpage';
   setHeader('');
@@ -377,15 +323,11 @@ function renderTool(key) {
   renderSubpage(tool.title, (body) => tool.render(body), { showBack: true });
 }
 
-// Solo con sesión (el gear que la abre solo existe en la cabecera con
-// sesión) — el propio módulo decide qué mostrar según el permiso
-// 'basesdatos' del usuario, ver app/modules/settings.js.
 function renderSettings() {
   renderSubpage('Configuración', (body) => settings.render(body, user), { showBack: true });
 }
 
-// El login va a pantalla completa (sin el padding de .subpage), así
-// que no reutiliza renderSubpage().
+// Pantalla completa, sin el padding de .subpage: no reutiliza renderSubpage().
 function renderLogin() {
   lastRoute = 'subpage';
   setHeader('');
@@ -394,18 +336,13 @@ function renderLogin() {
   outlet.innerHTML = '';
   renderAuth(outlet, (loggedInUser) => {
     user = loggedInUser;
-    // Reemplaza la entrada del login en vez de apilar una nueva: así,
-    // al volver atrás desde el inicio ya logueado, no se resurfacea
-    // el panel de login.
+    // replaceState, no pushState: evita resurfacear el login al volver atrás.
     history.replaceState(null, '', hashUrl(''));
     renderRoute();
   }, { showBack: true });
 }
 
-// app-intro (index.html/app.css) es solo una pantalla lisa del color
-// de fondo, sin ícono ni texto (ese lo pone el splash nativo de la
-// PWA) — se desvanece apenas la app ya pintó su primera vista, sin
-// necesitar ningún tiempo mínimo de espera.
+// Desvanece el splash apenas la app pintó su primera vista.
 function hideIntro() {
   const el = document.getElementById('appIntro');
   if (!el) return;
@@ -421,9 +358,7 @@ async function boot() {
 
   if (!user) return;
 
-  // Pintamos con el caché al instante y refrescamos en segundo plano:
-  // así un cambio de permisos hecho por un admin se ve al recargar,
-  // sin depender de que el usuario vuelva a loguearse.
+  // Refresca en segundo plano para reflejar cambios de permisos sin relogueo.
   const fresh = await refreshUser();
   if (!fresh) { logout(); user = null; renderHome(); return; }
   if (JSON.stringify(fresh) !== JSON.stringify(user)) {

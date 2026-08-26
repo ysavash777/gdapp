@@ -1,8 +1,6 @@
-/* ============================================================
-   API de gestión de usuarios.
-   Delega toda la persistencia en store/users.store (Supabase) — este
-   archivo solo valida entrada y traduce a códigos HTTP.
-   ============================================================ */
+// API de gestión de usuarios. Delega la persistencia en
+// store/users.store (Supabase); acá solo se valida entrada y se
+// traduce a códigos HTTP.
 
 const express = require('express');
 const router = express.Router();
@@ -10,10 +8,8 @@ const store = require('../store/users.store');
 const { CATALOG } = require('../permissions');
 const { requireAdmin } = require('../middleware/auth');
 
-// Gestión de usuarios es un módulo de administrador: toda esta API
-// exige una sesión con role 'admin'. Sin esto, cualquier cuenta
-// (incluida una recién registrada) podría editar roles, permisos
-// o eliminar a otros usuarios llamando directamente a la API.
+// Solo admin: evita que cualquier cuenta edite roles/permisos o
+// borre usuarios llamando directo a la API.
 router.use(requireAdmin);
 
 // GET /api/users?q=&page=&pageSize=

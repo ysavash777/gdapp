@@ -1,12 +1,7 @@
 /* ============================================================
    Cliente HTTP de bajo nivel contra la API de Copernico WMS.
-   Solo sabe hablar con la API (login/consultar referencia/logout) —
-   no sabe nada de reintentos, locks ni de cómo se guardan los datos;
-   eso vive en services/inventory-engine.js.
-
-   Corre en el servidor (Node), nunca en el navegador: así las
-   credenciales del usuario consultor no salen de acá, y no hay
-   problema de CORS al llamar a services.copernicowms.com.
+   Solo sabe hablar con la API (login/consultar/logout) — reintentos y
+   locks viven en services/inventory-engine.js.
    ============================================================ */
 
 const LOGIN_URL = 'https://services.copernicowms.com/users/api/login';
@@ -15,18 +10,14 @@ const REFERENCIA_URL = 'https://services.copernicowms.com/backweb25/inventario/o
 const COORDENADAS_URL = 'https://services.copernicowms.com/backweb25/layout/coordenadas';
 const VARIABLES_URL = 'https://services.copernicowms.com/backweb25/logisticsvars';
 
-// Sin esto, un fetch que Copernico deja "colgado" sin responder nunca
-// falla ni se resuelve — el motor quedaría marcado como "corriendo"
-// para siempre, bloqueando cualquier intento futuro (ALREADY_RUNNING)
-// hasta reiniciar el proceso a mano. Con el límite, como mucho se
-// espera esto y se libera la corrida para poder reintentar.
+// Sin timeout, un fetch que Copernico deja colgado nunca falla ni se
+// resuelve — el motor quedaría "corriendo" para siempre (ALREADY_RUNNING).
 const LOGIN_TIMEOUT_MS = 20_000;
-const FETCH_TIMEOUT_MS = 90_000; // la consulta de referencia mueve ~10 MB y a veces tarda más de lo esperado del lado de Copernico
+const FETCH_TIMEOUT_MS = 90_000; // referencia mueve ~10 MB, a veces tarda
 const LOGOUT_TIMEOUT_MS = 15_000;
 
-// Error "tipado": code es uno de LICENSE_LIMIT / ALREADY_LOGGED_IN /
-// INVALID_CREDENTIALS / LOGIN_FAILED / FETCH_FAILED / NETWORK — así
-// el motor y la API interna pueden reaccionar distinto a cada caso
+// code: LICENSE_LIMIT / ALREADY_LOGGED_IN / INVALID_CREDENTIALS /
+// LOGIN_FAILED / FETCH_FAILED / NETWORK — permite reaccionar distinto
 // sin parsear texto en más de un lugar.
 class CopernicoError extends Error {
   constructor(code, message) {
@@ -50,13 +41,9 @@ function extractToken(obj) {
   return null;
 }
 
-// undici (el fetch de Node) a veces envuelve el AbortError/TimeoutError
-// real dentro de `cause` en vez de lanzarlo directo — hay que mirar
-// ambos lugares para no dejarlo pasar como un error genérico sin
-// clasificar (ver el bug real que esto arregló: el .catch de abajo
-// solo envolvía el fetch(), no la lectura del cuerpo de la respuesta,
-// así que un timeout a mitad de la descarga de ~10 MB se escapaba
-// crudo, sin pasar por CopernicoError).
+// undici a veces envuelve el TimeoutError real dentro de `cause` en vez
+// de lanzarlo directo — hay que mirar ambos lugares para no dejarlo
+// pasar como error genérico sin clasificar.
 function isTimeoutError(e) {
   return e?.name === 'TimeoutError' || e?.cause?.name === 'TimeoutError' || e?.code === 23;
 }
@@ -70,10 +57,8 @@ function decodeUid(token) {
   }
 }
 
-// La API no documenta códigos de error propios — clasificamos por el
-// texto del mensaje (siempre en español) para poder distinguir "no
-// hay licencias" de "ya hay una sesión activa" y reaccionar distinto
-// a cada caso en el motor.
+// La API no documenta códigos de error propios — se clasifica por el
+// texto del mensaje (siempre en español).
 function classifyLoginError(message) {
   const m = (message || '').toLowerCase();
   if (/licenc/.test(m)) return 'LICENSE_LIMIT';
@@ -91,11 +76,8 @@ async function login(email, password) {
       body: JSON.stringify({ email, password, plataforma: 'Copernico WMS' }),
       signal: AbortSignal.timeout(LOGIN_TIMEOUT_MS),
     });
-    // Misma señal de abort cubre leer el cuerpo — por eso el .json()
-    // también vive dentro de este try, no solo el fetch(). Sin un
-    // .catch acá: si el cuerpo no es JSON válido o se corta a mitad
-    // de camino, es un error real que hay que clasificar, no algo
-    // para disimular con un objeto vacío.
+    // .json() vive dentro del mismo try: la señal de abort también
+    // debe cubrir la lectura del cuerpo, no solo el fetch().
     data = await resp.json();
   } catch (e) {
     throw new CopernicoError(isTimeoutError(e) ? 'TIMEOUT' : 'NETWORK', e.message);
@@ -112,13 +94,9 @@ async function login(email, password) {
   return { token, uid: decodeUid(token) };
 }
 
-// Lógica compartida por cualquier endpoint de "traer un dataset
-// completo" (referencia, coordenadas, y las que vengan) — mismo
-// timeout que cubre la descarga entera (no solo la conexión inicial,
-// ver el comentario de login() sobre por qué el .json() vive dentro
-// del try) y misma heurística para encontrar el array real dentro de
-// la respuesta, sea que la API lo devuelva pelado o envuelto en
-// {data:[...]} / {result:[...]} / etc.
+// Compartido por los endpoints de "dataset completo" — mismo timeout
+// cubriendo la descarga entera y heurística para hallar el array real
+// dentro de la respuesta, la envuelva o no en {data:[...]} etc.
 async function fetchDataset(label, url, token, bodega) {
   let resp, data;
   try {
@@ -153,11 +131,9 @@ function fetchVariables(token, bodega) {
   return fetchDataset('variables', VARIABLES_URL, token, bodega);
 }
 
-// Se llama siempre al terminar una corrida (haya salido bien o mal la
-// consulta) para no dejar la licencia ocupada — por eso nunca lanza:
-// un logout que falla no debe tirar abajo el resultado de la corrida.
+// Nunca lanza: un logout fallido no debe tirar abajo el resultado de la corrida.
 async function logout(token, uid) {
-  if (uid == null) return false; // != !uid: un uid de 0 sería válido y no debe tratarse como "sin uid"
+  if (uid == null) return false; // no !uid: un uid de 0 sería válido
   try {
     const resp = await fetch(LOGOUT_URL, {
       method: 'POST',

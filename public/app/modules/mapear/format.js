@@ -1,15 +1,9 @@
-/* ============================================================
-   Módulo App · Mapear — catálogo de condición, compartido entre
-   list-view.js y editor-view.js. El formato genérico (fecha/hora,
-   escape de HTML) vive en /shared/js/format.js y se reexporta acá
-   para no tener que tocar los imports existentes.
-   ============================================================ */
+// Catálogo de condición, compartido entre list-view.js y editor-view.js.
+// Formato genérico reexportado desde /shared/js/format.js.
 
 export { formatDateTime, formatDateHeading, formatTime, escapeHtml, capitalize } from '/shared/js/format.js';
 
-// Condición del producto encontrado al escanear (rotura, conteo de
-// unidades, vencimiento u otro motivo) — no es un estado del mapeo,
-// es un dato por código.
+// Condición del producto escaneado (dato por código, no estado del mapeo).
 export const CONDITIONS = [
   { value: 'rotura', label: 'Rotura' },
   { value: 'unidades', label: 'Unidades' },

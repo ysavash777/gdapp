@@ -8,19 +8,15 @@ const { PORT } = require('./config');
 const { deviceRedirect } = require('./middleware/device');
 const inventoryEngine = require('./services/inventory-engine');
 const refreshScheduler = require('./services/refresh-scheduler');
+const vencimientoResetScheduler = require('./services/vencimiento-reset-scheduler');
 
 const app = express();
-// Gzip para toda respuesta (JSON, HTML, JS, CSS) por encima del umbral
-// por defecto (~1KB) — el catálogo de productos (shared/js/
-// product-catalog.js) es el caso más pesado, ~1MB en JSON crudo, y
-// comprime muy bien (texto repetitivo) sin costo perceptible de CPU
-// para este volumen. Nunca afecta el contenido, solo cuánto viaja por
-// la red — el navegador lo descomprime solo, de forma transparente.
+// Gzip para toda respuesta por encima del umbral por defecto (~1KB) —
+// el catálogo de productos (shared/js/product-catalog.js) pesa ~1MB
+// en JSON crudo y comprime muy bien.
 app.use(compression());
-// Límite por defecto (100kb) alcanza para todo excepto la foto de un
-// ítem "faltante" en Vencimientos (snapshot del video, base64 en el
-// body JSON — ver routes/vencimientos.js) — 4mb da margen de sobra
-// para una imagen ya comprimida en el cliente (JPEG, unas decenas de KB).
+// 4mb (el default es 100kb) para la foto base64 de un ítem "faltante"
+// en Vencimientos (ver routes/vencimientos.js).
 app.use(express.json({ limit: '4mb' }));
 app.use(cookieParser());
 
@@ -35,17 +31,11 @@ app.use('/api/mapeos', require('./routes/mapeos'));
 app.use('/api/consultas', require('./routes/consultas'));
 app.use('/api/catalog', require('./routes/catalog'));
 app.use('/api/vencimientos', require('./routes/vencimientos'));
+app.use('/api/vacios', require('./routes/vacios'));
 
-// Estáticos — sin hash en el nombre de archivo (app.css es siempre
-// app.css, nunca app.abc123.css), así que un max-age largo en TODO
-// arriesgaría servir JS/CSS viejo desde el caché del navegador después
-// de un deploy hasta que venza. 1h es el equilibrio: en un turno con
-// varias reaperturas de la app, la mayoría ya no vuelve a pedirle nada
-// al servidor (hoy siempre revalida, aunque termine en un 304 barato)
-// — y ante un deploy, como mucho una hora de desfase, nunca días. Las
-// imágenes (fondos, ícono) sí son verdaderamente estáticas en la
-// práctica (cambian rarísima vez y un ícono viejo no rompe nada
-// mientras tanto), así que esas sí llevan una ventana bien larga.
+// Estáticos — sin hash en el nombre de archivo, así que max-age corto
+// (1h) para JS/CSS evita servir versiones viejas mucho tiempo tras un
+// deploy. Las imágenes cambian rarísima vez, así que llevan más margen.
 const PUBLIC = path.join(__dirname, '..', 'public');
 const STATIC_MAX_AGE_MS = 60 * 60 * 1000; // 1h
 const IMAGE_MAX_AGE_S = 7 * 24 * 60 * 60; // 7 días
@@ -65,15 +55,13 @@ app.get('/desk/*', (_req, res) => res.sendFile(path.join(PUBLIC, 'desk', 'index.
 app.get('/app/*', (_req, res) => res.sendFile(path.join(PUBLIC, 'app', 'index.html')));
 
 // Antes de aceptar tráfico: trae de Supabase la última corrida buena
-// de cada fuente (referencia/coordenadas), porque el caché en disco
-// (server/data/*.json) no sobrevive un deploy nuevo en Render — sin
-// esto, el desk se mostraba vacío hasta que alguien apretaba
-// "Actualizar DB" a mano después de cada deploy.
+// de cada fuente, porque el caché en disco no sobrevive un deploy.
 inventoryEngine.hydrate()
   .catch((e) => console.error('[index] Hidratación inicial desde Supabase falló:', e.message))
   .finally(() => {
     app.listen(PORT, () => {
       console.log(`GDapp escuchando en http://localhost:${PORT}`);
       refreshScheduler.start();
+      vencimientoResetScheduler.start();
     });
   });

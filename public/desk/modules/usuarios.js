@@ -1,9 +1,5 @@
-/* ============================================================
-   Módulo Desk · Gestión de usuarios
-   CRUD real contra /api/users: crear, editar, permisos, contraseña,
-   eliminar. Las mutaciones actualizan el estado local en vez de
-   refrescar toda la lista, para minimizar peticiones.
-   ============================================================ */
+// Módulo Desk · Gestión de usuarios. CRUD contra /api/users; las mutaciones
+// actualizan el estado local en vez de refrescar toda la lista.
 
 import { icon } from '/shared/js/icons.js';
 import { avatar } from '/shared/js/avatars.js';

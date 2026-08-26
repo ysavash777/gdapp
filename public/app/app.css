@@ -2267,6 +2267,16 @@ html, body {
    aunque markDone() la ocultara al validar Caja. */
 .venc-acc-head-sub[hidden] { display: none; }
 
+/* Referencia + cantidad del producto (prodReferenciaEl, validation-
+   view.js) — dos bloques ícono+texto dentro de la misma línea, en ese
+   orden. Cantidad es corta y fija (flex-shrink:0); referencia puede
+   ser larga, así que es la única que se corta con elipsis si no
+   entra (por clase, no por posición, para que el orden en el DOM se
+   pueda cambiar sin romper esto). */
+.venc-prod-ref-item { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.venc-prod-ref-referencia { min-width: 0; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; }
+.venc-prod-ref-item svg { flex-shrink: 0; }
+
 /* Descripción del producto: a diferencia del resto de .venc-acc-head-
    title (una sola línea, corta con elipsis), acá se pide ver el texto
    COMPLETO — nunca se sabe de antemano cuánto ocupa (es texto libre),
@@ -2471,6 +2481,11 @@ html, body {
   border-radius: var(--r-md);
   background: var(--surface-2);
 }
+/* display:flex de arriba le gana a [hidden] del navegador por ser
+   regla de autor — sin esto, "Foto lista" y la miniatura (sin src
+   todavía) se veían apenas se entraba al modo foto, antes de elegir
+   nada, y seguían viéndose después de tocar la cruz para quitarla. */
+.venc-photo-thumb-row[hidden] { display: none; }
 .venc-photo-thumb {
   width: 44px;
   height: 44px;
@@ -2583,4 +2598,49 @@ html, body {
   opacity: 0;
   pointer-events: none;
 }
+
+/* ============================================================
+   Programación remota (app/modules/vacios/list-view.js) — escanear ->
+   elegir ubicación -> lista de registros -> programar conteo a otro
+   usuario. Mismo lenguaje visual que Mapear/Vencimientos/Consultar
+   grupo: encabezado y herramientas del sheet (.scan-sheet-head,
+   .scan-sheet-tools, .manual-toggle) y tarjetas de registro
+   (.record-card y compañía) son las MISMAS clases que ya usa Mapear,
+   sin duplicar estilos — acá solo lo que no existía en ningún lado.
+   ============================================================ */
+
+/* .btn-primary de siempre (mismo look que el resto de la app) — sin
+   estilo propio, solo el layout que ya trae .btn. */
+.pr-fab { flex-shrink: 0; }
+
+/* Cabecera del producto dentro de la hoja "elegir ubicación". */
+.pr-prod-desc { font-size: var(--text-base); font-weight: 700; color: var(--ink); line-height: 1.35; }
+.pr-prod-codes { display: flex; align-items: center; gap: var(--sp-3); margin-top: 6px; font-size: 12.5px; color: var(--ink-2); }
+.pr-prod-codes svg { flex-shrink: 0; }
+.pr-prod-codes span { display: flex; align-items: center; gap: 4px; }
+
+/* Cada ubicación con stock de ese producto es su propia opción
+   seleccionable — una fila = una caja real, con su propio saldo/FV/
+   PedProv (el mismo producto puede repetirse en varias ubicaciones o
+   varias veces en la misma con distinto lote). */
+.pr-ubic-list { display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow-y: auto; margin: var(--sp-3) 0; }
+.pr-ubicbox { border-radius: var(--r-md); padding: 10px 12px; background: var(--surface-2); cursor: pointer; }
+.pr-ubicbox.selected { background: var(--accent-100); }
+.pr-ubicbox-top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.pr-ubicbox-code { font-size: var(--text-base); font-weight: 700; letter-spacing: 0.01em; color: var(--ink); }
+.pr-ubicbox-top svg { color: var(--accent-500); visibility: hidden; flex-shrink: 0; }
+.pr-ubicbox.selected .pr-ubicbox-top svg { visibility: visible; }
+.pr-ubicbox-meta { display: flex; gap: var(--sp-3); margin-top: 4px; font-size: 11.5px; color: var(--ink-3); }
+.pr-ubicbox-meta b { color: var(--ink-2); font-weight: 650; }
+
+/* Lista de empleados con la extensión activa, para elegir a quién
+   programarle el conteo — mismo patrón de fila seleccionable que
+   .pr-ubicbox, con un punto de estado en vez de datos de stock. */
+.pr-session-list { display: flex; flex-direction: column; gap: 6px; max-height: 44vh; overflow-y: auto; margin: var(--sp-3) 0; }
+.pr-session-row { display: flex; align-items: center; gap: var(--sp-3); padding: 12px; border-radius: var(--r-md); background: var(--surface-2); cursor: pointer; }
+.pr-session-row.selected { background: var(--accent-100); }
+.pr-session-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--ok); flex-shrink: 0; box-shadow: 0 0 0 3px rgba(58, 125, 68, 0.18); }
+.pr-session-name { flex: 1; min-width: 0; font-size: var(--text-sm); font-weight: 650; color: var(--ink); }
+.pr-session-row svg { color: var(--accent-500); visibility: hidden; flex-shrink: 0; }
+.pr-session-row.selected svg { visibility: visible; }
 .settings-source-progress-fill { height: 100%; width: 0%; background: var(--accent-500); }

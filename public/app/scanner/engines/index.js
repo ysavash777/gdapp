@@ -1,36 +1,18 @@
-/* ============================================================
-   App · Selector de motor de escaneo — compartido por cualquier
-   herramienta que escanee códigos con la cámara (Mapear, Consultar
-   grupo, y las que vengan), a través de scanner/camera.js.
-
-   Dos motores, cada uno en su propio archivo para poder debuguearlos
-   por separado sin pisarse:
-     android-engine.js   BarcodeDetector nativo (Chrome/Edge/Android)
-     ios-engine.js        ZXing por software (iOS Safari, que no tiene
-                          BarcodeDetector)
-
-   Quien lo use no sabe cuál de los dos está corriendo: solo pide
-   pickEngine() y usa el resultado a través del mismo contrato
-   (detectFrame(videoEl) → código o null). Así, si un motor falla, el
-   otro archivo ni se toca.
-
-   ios-engine.js carga una librería de ~470KB (ZXing) — por eso se
-   importa recién acá adentro, de forma dinámica, y solo cuando
-   realmente hace falta: un usuario de Android jamás la descarga.
-   ============================================================ */
+// Selector de motor de escaneo (vía scanner/camera.js): android-engine.js usa
+// BarcodeDetector nativo, ios-engine.js decodifica con ZXing por software.
+// ios-engine.js pesa ~470KB, por eso se importa dinámico y solo cuando hace falta
+// (un usuario de Android nunca lo descarga).
 
 import * as androidEngine from './android-engine.js';
 
 function isIOS() {
   const ua = navigator.userAgent || '';
-  // iPadOS 13+ se identifica como "Macintosh" pero tiene pantalla
-  // táctil — sin este chequeo, un iPad quedaría clasificado como
-  // desktop y probaría (mal) el motor de Android.
+  // iPadOS 13+ se identifica como "Macintosh" pero tiene pantalla táctil;
+  // sin este chequeo un iPad probaría (mal) el motor de Android.
   return /iPad|iPhone|iPod/.test(ua) || (ua.includes('Macintosh') && navigator.maxTouchPoints > 1);
 }
 
-// Se recuerda el último motor entregado para no reinicializarlo cada
-// vez que se abre el editor dentro de la misma sesión de la página.
+// Se recuerda el último motor entregado para no reinicializarlo en la misma sesión.
 let cached = null;
 
 export async function pickEngine() {
@@ -40,8 +22,7 @@ export async function pickEngine() {
   if (!isIOS() && androidEngine.isSupported()) {
     engine = androidEngine;
   } else {
-    // iOS, o cualquier navegador raro sin BarcodeDetector: se cae al
-    // motor por software, que no depende de ninguna API del navegador.
+    // iOS, o cualquier navegador sin BarcodeDetector: cae al motor por software.
     const iosEngine = await import('./ios-engine.js');
     engine = iosEngine;
   }

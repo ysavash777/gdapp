@@ -1,28 +1,14 @@
-/* ============================================================
-   Módulo Desk · Mapeos — consulta y administración de los mapeos
-   creados desde la herramienta Mapear de /app. Misma API real
-   (/api/mapeos, permiso 'mapear' o 'mapeos' — cualquiera de los dos
-   alcanza, ver server/middleware/auth.js) que usa el celular: lo que
-   se escanea ahí aparece acá tal cual, sin nada propio de este
-   módulo — Supabase es la única fuente.
-
-   Solo lectura + administración liviana (renombrar, borrar un código
-   suelto, borrar el mapeo entero) — escanear requiere cámara y sigue
-   siendo exclusivo de /app.
-   ============================================================ */
+// Módulo Desk · Mapeos: consulta y administración liviana (renombrar, borrar código/mapeo)
+// de los mapeos creados desde /app. Misma API (/api/mapeos) que usa el celular; escanear
+// sigue siendo exclusivo de /app.
 
 import { icon } from '/shared/js/icons.js';
 import { apiFetch } from '/shared/js/api.js';
 import { formatDateTime, escapeHtml, capitalize, conditionLabel } from '/app/modules/mapear/format.js';
 
-// Imprime un cartel simple (título del mapeo en mayúsculas, letras
-// grandes y centradas) — un iframe oculto en vez de una pestaña nueva:
-// no depende de que el navegador permita popups, y desaparece solo
-// tras el diálogo de impresión (o a los 60s si el navegador nunca
-// dispara 'afterprint', red de seguridad para no dejarlo huérfano en
-// el DOM). @page { size: landscape } pide horizontal por defecto —
-// el usuario puede cambiarlo a vertical desde el propio diálogo si
-// hace falta, pero el cartel siempre arranca apaisado.
+// Imprime un cartel simple usando un iframe oculto (no una pestaña nueva, no depende
+// de que el navegador permita popups). Se autolimpia tras 'afterprint' o a los 60s
+// como red de seguridad si el navegador nunca dispara ese evento.
 function printLabel(m) {
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
@@ -223,10 +209,8 @@ async function mount(root) {
     `;
   }
 
-  // Descarga directa vía <a download> — GET normal del mismo origen,
-  // la cookie de sesión va sola. El servidor arma el XLSX (una hoja
-  // por motivo, ver server/services/mapeo-export.js) — acá no se
-  // procesa nada, solo se dispara la descarga.
+  // GET normal del mismo origen, la cookie de sesión va sola. El XLSX lo arma el
+  // servidor (ver server/services/mapeo-export.js); acá solo se dispara la descarga.
   function downloadMapeo(id) {
     const a = document.createElement('a');
     a.href = `/api/mapeos/${id}/export`;
@@ -397,7 +381,7 @@ async function mount(root) {
       .catch((err) => alert(errorMessage(err)));
   }
 
-  // ---- Modal genérico (mismo patrón que desk/modules/usuarios.js) ----
+  // ---- Modal genérico ----
   function openModal({ headTitle, bodyHTML, footHTML, onMount, onSubmit }) {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';

@@ -1,26 +1,17 @@
 /* ============================================================
    Elige la mejor ubicación de un código dentro de Referencia (ver
-   store/inventory.store.js), para el detalle XLSX de Mapear cuando el
-   operario prende "Incluir ubicación" (ver editor-view.js).
+   store/inventory.store.js), para el detalle XLSX de Mapear.
 
-   Criterio pedido: preferir "almacenamiento" sobre "picking" — nunca
-   "aduana" (no es un lugar real donde ir a buscar el producto), ni
-   las ubicaciones "de paso"/no físicas (en_recibo, en_proceso,
-   recupero, diferencias) ni los BIN* o Z* (posiciones temporales o de
-   zonificación, no una ubicación real donde retirar mercadería). Si
-   después de filtrar no queda ninguna fila con stock, "Sin stock".
-
-   La columna de categoría en Referencia es "agrupacion" — sus valores
-   reales (ALMACENAMIENTO / PICKING / ADUANA / MERMA / RECIBO /
-   PROCESO) coinciden uno a uno con lo que acá se pide filtrar; es la
-   que el pedido original nombra como "área".
+   Preferir "almacenamiento" sobre "picking"; excluir "aduana", las
+   ubicaciones no físicas (en_recibo, en_proceso, recupero,
+   diferencias) y las que empiezan con BIN o Z (temporales o de zonificación). Sin
+   ninguna fila válida con stock: "Sin stock". Columna de categoría en
+   Referencia: "agrupacion".
    ============================================================ */
 
 const AREA_COLUMN = 'agrupacion';
 const EXCLUDED_AREA = 'aduana';
-// Substring, no igualdad exacta: los datos reales traen variantes
-// ("RECIBO_47" en vez de "en_recibo") — contains cubre ambas sin
-// depender de que el nombre exacto no cambie nunca.
+// Substring, no igualdad exacta: los datos reales traen variantes (ej. "RECIBO_47").
 const EXCLUDED_UBICACION_SUBSTR = ['en_recibo', 'recibo', 'en_proceso', 'proceso', 'recupero', 'diferencias'];
 const EXCLUDED_UBICACION_PREFIX = ['bin', 'z'];
 const SIN_STOCK = 'Sin stock';
@@ -61,14 +52,10 @@ function pickUbicacion(referenciaRows) {
   return SIN_STOCK;
 }
 
-// Aviso al registrar un código en Mapear (ver openRegisterSheet() en
-// editor-view.js): Recupero y Diferencias no son ubicaciones inválidas
-// como Aduana/BIN/Z (si hay stock ahí, hay que saberlo), pero tampoco
-// es lo esperado — es stock "descolocado" que vale la pena marcar
-// antes de seguir. Recupero primero, Diferencias después (siempre en
-// ese orden si ambas tienen stock). Distintas cajas del mismo código
-// en la misma ubicación se CONSOLIDAN sumando el saldo — pedido
-// explícito ("son recupero en fin"), el número de caja no importa acá.
+// Aviso al registrar un código en Mapear (ver editor-view.js): Recupero
+// y Diferencias no son inválidas como Aduana/BIN/Z, pero es stock
+// "descolocado" que vale la pena marcar. Orden fijo: Recupero primero.
+// Cajas del mismo código en la misma ubicación se consolidan sumando saldo.
 const ALERT_UBICACIONES = ['recupero', 'diferencias'];
 
 function stockAlerts(referenciaRows) {

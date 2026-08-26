@@ -1,21 +1,7 @@
-/* ============================================================
-   Módulo App · Consultar grupo — escáner de cámara de solo lectura.
-
-   A diferencia de Mapear, acá no se guarda nada: cada código
-   escaneado solo dispara una búsqueda (findProduct) y muestra el
-   resultado en una ficha — al cerrarla, se puede seguir escaneando.
-   findProduct (store.js) pide todo ya calculado a
-   /api/consultas/lookup: descripción/EAN/grupo (Variables) + un
-   rango por pasillo+nivel y hasta dos ubicaciones sugeridas, una para
-   Picking y otra para Altura (cruzando Coordenadas y Referencia) —
-   nunca la lista completa de ubicaciones de un grupo, que puede ser
-   de miles y repartirse en varios pasillos y niveles no contiguos.
-
-   Misma cámara y mismos motores de lectura que Mapear, vía
-   scanner/camera.js — acá no hay lista debajo ni ingreso masivo, así
-   que tampoco hace falta filtro/búsqueda sobre "registros": no
-   existen, cada consulta es independiente.
-   ============================================================ */
+// Módulo App · Consultar grupo — escáner de cámara de solo lectura.
+// Cada código escaneado dispara una búsqueda (findProduct) y muestra el
+// resultado en una ficha; no se guarda nada, no hay listado ni ingreso masivo.
+// Misma cámara/motores de lectura que Mapear (scanner/camera.js).
 
 import { icon } from '/shared/js/icons.js';
 import { escapeHtml } from '/shared/js/format.js';
@@ -26,10 +12,7 @@ import { findProduct } from './store.js';
 
 const LAST_SCANNED_KEY = 'gd.consultas.lastScanned.v1';
 
-// Solo el ÚLTIMO producto escaneado — nunca un historial. Cada
-// escaneo exitoso pisa el anterior por completo (nunca se acumula),
-// así que esto siempre pesa lo mismo en localStorage sin importar
-// cuánto se use la herramienta.
+// Solo el último producto escaneado — cada escaneo pisa el anterior, nunca se acumula.
 function saveLastScanned(product) {
   try {
     localStorage.setItem(LAST_SCANNED_KEY, JSON.stringify(product));
@@ -47,10 +30,6 @@ function loadLastScanned() {
   }
 }
 
-// Referencia (con ícono de barcode), EAN (ícono de etiqueta) y Grupo
-// (ícono de caja) — íconos premium reales (icons.js), nunca CSS
-// dibujado, para que cada dato se distinga de un vistazo sin tener
-// que leer una etiqueta de texto al lado.
 function lastScannedHTML(product) {
   if (!product) return '';
   return `
@@ -95,13 +74,8 @@ export function openScanner() {
 
   const lastScannedEl = overlay.querySelector('#lastScanned');
 
-  // Repinta el renglón Y le vuelve a conectar el toque — innerHTML
-  // tira cualquier listener anterior, así que esto se llama tanto al
-  // abrir el escáner como cada vez que hay un escaneo nuevo (ver
-  // showResult() más abajo), nunca una sola vez. Tocarlo reabre la
-  // ficha completa (ubicación sugerida, rango, etc.) con datos
-  // frescos — el mismo camino que un escaneo nuevo del mismo código,
-  // nunca una foto vieja guardada en el celular.
+  // Repinta y reconecta el listener (innerHTML tira el anterior); se llama
+  // al abrir y en cada escaneo nuevo. Tocarlo relanza lookupCode con datos frescos.
   function renderLastScanned(product) {
     lastScannedEl.innerHTML = lastScannedHTML(product);
     const card = lastScannedEl.querySelector('#lastScannedCard');
@@ -118,25 +92,13 @@ export function openScanner() {
   let closed = false;
   let activeSheetBackdrop = null;
 
-  // El sheet se abre YA, con placeholders en vez de esperar a que
-  // conteste el servidor — si no, el usuario ve la cámara congelada
-  // un par de segundos (el cruce con Coordenadas/Referencia no es
-  // instantáneo) y piensa que el escaneo no funcionó, así que aprieta
-  // "Buscar" de nuevo varias veces. La respuesta real solo reemplaza
-  // los placeholders por los datos reales, con un fundido.
-  // Antes de abrir la ficha (y de gastar una llamada al servidor), se
-  // valida contra el catálogo local (shared/js/product-catalog.js) si
-  // el código existe en Variables — si no, una alerta flotante basta:
-  // abrir una ficha entera para terminar mostrando "Sin datos" es una
-  // interacción de más (hay que cerrarla a mano) por algo que ya se
-  // sabía de antemano. Solo se salta esta validación si el catálogo
-  // local todavía está vacío (sin red desde el primer uso): ahí no hay
-  // forma de saber si existe o no, así que se deja pasar a la ficha,
-  // que igual maneja el caso "sin conexión" mostrando el error real.
+  // El sheet se abre ya con placeholders (evita que el usuario crea que el
+  // escaneo no funcionó mientras espera el cruce Coordenadas/Referencia).
+  // Antes de eso valida contra el catálogo local para evitar abrir una
+  // ficha entera si el código no existe; se salta la validación si el
+  // catálogo local está vacío (sin red desde el primer uso).
   async function lookupCode(rawValue) {
-    // Si ya hay una ficha abierta, se ignora cualquier escaneo nuevo
-    // (cámara o manual) — nunca dos fichas encimadas.
-    if (activeSheetBackdrop) return;
+    if (activeSheetBackdrop) return; // ya hay una ficha abierta, ignora escaneos nuevos
     if (navigator.vibrate) navigator.vibrate(35);
     if (hasData() && !existsLocal(rawValue)) {
       showToast(`Código no encontrado: ${rawValue}`, { variant: 'warn' });
@@ -176,27 +138,19 @@ export function openScanner() {
     input.value = '';
   });
 
-  // Placeholder angosto tipo "hueso" — se ve como texto a punto de
-  // aparecer, no como una barra de carga genérica. `width`/`height`
-  // son valores de CSS (ej. "70%", "18px").
+  // width/height son valores CSS (ej. "70%", "18px").
   function skeletonHTML(width, height = '14px') {
     return `<span class="cq-skeleton" style="width:${width};height:${height}"></span>`;
   }
 
-  // El título (la descripción) nunca puede empujar el sheet más allá
-  // de 2 líneas — se achica la fuente en escalones en vez de cortar el
-  // texto a la mitad de una palabra. El clamp de 2 líneas (CSS) es la
-  // red de seguridad final para descripciones igual demasiado largas.
+  // Achica la fuente en escalones en vez de cortar texto; el clamp de 2
+  // líneas (CSS) es la red de seguridad final.
   function titleSizeClass(text) {
     if (text.length <= 34) return '';
     if (text.length <= 60) return 'is-md';
     return 'is-sm';
   }
 
-  // Todos los chips de ubicación miden lo mismo sin importar cuántos
-  // caracteres tengan ("B4" vs "MFCA58") — se achica la fuente en vez
-  // de dejar que la caja crezca, para que la fila de rangos quede
-  // alineada y simétrica.
   function chipSizeClass(text) {
     if (text.length <= 3) return '';
     if (text.length <= 5) return 'is-md';
@@ -212,12 +166,8 @@ export function openScanner() {
     scanner.setTorch(false);
     scanner.pauseView();
 
-    // Descripción y EAN, si ya están en el catálogo local (ver
-    // /shared/js/product-catalog.js), se pintan de una — ese dato no
-    // cambia una vez que el producto existe en Variables, así que no
-    // hace falta esperar al servidor ni mostrar un "hueso" para estos
-    // dos campos. Grupo y ubicaciones SÍ necesitan el cruce real
-    // (Coordenadas/Referencia), eso sigue esperando a findProduct().
+    // Descripción/EAN, si ya están en el catálogo local, se pintan de una;
+    // grupo y ubicaciones necesitan el cruce real y esperan a findProduct().
     const local = findLocal(code);
 
     const backdrop = document.createElement('div');
@@ -279,9 +229,7 @@ export function openScanner() {
       if (e.target === backdrop) closeResult();
     });
 
-    // Reemplaza los placeholders por los datos reales, cada uno con un
-    // fundido — nunca un "parpadeo" de golpe. Se llama una sola vez,
-    // cuando /api/consultas/lookup contesta (bien o mal).
+    // Reemplaza los placeholders por los datos reales; se llama una sola vez.
     function showResult(product, lookupError) {
       if (!backdrop.isConnected) return; // el usuario ya cerró el sheet antes de que llegara la respuesta
 

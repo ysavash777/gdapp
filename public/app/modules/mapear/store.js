@@ -1,61 +1,19 @@
-/* ============================================================
-   Módulo App · Mapear — capa de datos.
-
-   Cliente de /api/mapeos (server/routes/mapeos.js + store/mapeos.store.js,
-   Supabase) — con una caché local offline-first para los CÓDIGOS de
-   un mapeo ya abierto: addCode/updateCode/removeCode escriben primero
-   en localStorage y devuelven al instante, sin esperar la red — el
-   envío real a la base ocurre después, en segundo plano, vía
-   sync-engine.js. Así un corte de conexión a mitad de un escaneo
-   nunca bloquea seguir escaneando.
-
-   list()/create()/rename()/remove() (a nivel mapeo, no código) siguen
-   siendo llamadas de red directas sin caché: crear o renombrar un
-   mapeo entero sí requiere conexión — lo que tiene que sobrevivir sin
-   red es seguir agregando códigos a uno que ya existe, que es el caso
-   real de un operario caminando el depósito.
-
-   Cada código de la caché lleva un `syncStatus`: 'syncing' (recién
-   local, todavía no confirmado), 'synced' (ya está en la base) u
-   'offline' (se intentó y no hay conexión — sigue en cola). Es un
-   campo puramente de UI, nunca se manda al servidor.
-
-   Misma forma de funciones que el store en memoria original
-   (incluido el parámetro `actor` en las mutaciones, que ya no se usa:
-   el servidor fija el autor desde la sesión) — list-view.js sigue
-   llamando exactamente igual. editor-view.js solo suma `subscribe()`
-   para enterarse cuando el estado de sincronización de un código
-   cambia en segundo plano (para redibujar su ícono).
-
-   Cada código también lleva un `clientId`: un identificador estable
-   que nunca cambia, a diferencia de `id` (que empieza siendo un id
-   temporal de texto y pasa a ser el id real numérico apenas el alta
-   se confirma). editor-view.js debe usar `clientId` para encontrar UN
-   código dado a lo largo de toda su edición (nunca guardar `id` en
-   una variable de larga vida) — si guarda `id` y el remapeo ocurre
-   mientras el usuario todavía está completando el registro (con
-   buena conexión puede pasar en menos de un segundo), un updateCode
-   contra el id viejo ya no encuentra nada y la edición se pierde en
-   silencio.
-
-   addCode también completa descripción, EAN y grupo al instante (antes
-   de cualquier red) contra lookup-catalog.js, un catálogo local
-   liviano de Variables — así se ven incluso sin conexión, no solo una
-   vez que el motor de sync confirma el alta (que sigue corrigiendo
-   estos mismos campos con el dato fresco del servidor apenas puede).
-
-   list() SÍ tiene una caché de respaldo (`gd.mapear.listCache.v1`):
-   sin ella, reabrir la app entera sin conexión (no solo seguir
-   escaneando dentro de un mapeo ya abierto) dejaba la pantalla de
-   Mapear sin nada para mostrar. Cada list() bueno actualiza esa
-   foto; si la llamada de red falla por falta de conexión, se usa la
-   última foto buena, pisando cada mapeo con su propia caché
-   individual si esta tiene algo más nuevo (ediciones locales que
-   todavía no llegaron a figurar en ningún listado exitoso). Un error
-   real del servidor (permisos, 500) NO cae a la caché — solo la
-   falta de red hace ese fallback, para no esconder un problema real
-   detrás de datos viejos.
-   ============================================================ */
+// Módulo App · Mapear — capa de datos. Cliente de /api/mapeos con caché local
+// offline-first para los códigos de un mapeo abierto: addCode/updateCode/removeCode
+// escriben primero en localStorage y devuelven al instante; el envío real ocurre
+// en segundo plano vía sync-engine.js. list/create/rename/remove (nivel mapeo)
+// son llamadas de red directas sin caché.
+//
+// Cada código lleva `syncStatus` ('syncing'/'synced'/'offline', solo UI) y un
+// `clientId` estable — a diferencia de `id`, que empieza como id temporal de
+// texto y pasa a numérico real al confirmar el alta. editor-view.js debe usar
+// `clientId` para trackear un código a lo largo de su edición: si guarda `id`
+// y el remapeo ocurre mientras edita, un updateCode contra el id viejo no
+// encuentra nada y la edición se pierde en silencio.
+//
+// list() tiene además una caché de respaldo (`gd.mapear.listCache.v1`) para
+// no dejar la pantalla vacía si se reabre la app sin conexión; un error real
+// del servidor (no de red) no cae a la caché.
 
 import { apiFetch } from '/shared/js/api.js';
 import * as syncEngine from './sync-engine.js';
@@ -127,10 +85,8 @@ function metaOf(mapeo) {
   return meta;
 }
 
-// Server (verdad) + lo que la caché local todavía no pudo mandar
-// (altas con id temporal, o ediciones/bajas con un trabajo pendiente)
-// — para no perder trabajo hecho offline al reabrir un mapeo ya
-// sincronizado antes en este dispositivo.
+// Server (verdad) + lo que la caché local todavía no mandó, para no perder
+// trabajo hecho offline al reabrir un mapeo ya sincronizado antes.
 function mergeAndCache(id, serverMapeo) {
   const cached = loadCache(id) || { codes: [] };
   const pendingLocalOnly = cached.codes.filter((c) => typeof c.id === 'string');
@@ -140,9 +96,6 @@ function mergeAndCache(id, serverMapeo) {
       if (local && local.syncStatus !== 'synced') {
         return { ...c, ...local, syncStatus: local.syncStatus };
       }
-      // Sin edición local pendiente: clientId es el del último local
-      // conocido si lo había, o el id real (ya estable para siempre)
-      // si esta es la primera vez que se ve este código.
       return { ...c, clientId: local?.clientId ?? c.id, syncStatus: 'synced' };
     })
     .concat(pendingLocalOnly);
@@ -176,8 +129,7 @@ syncEngine.onEvent((evt) => {
     const entry = cache.codes.find((c) => c.id === evt.codeId);
     if (entry && entry.syncStatus !== 'synced') entry.syncStatus = 'syncing';
   } else if (evt.type === 'add-success') {
-    // El servidor devuelve el mapeo completo — el código nuevo es el
-    // único id real que todavía no conocíamos localmente.
+    // El código nuevo es el único id real que todavía no conocíamos localmente.
     const knownIds = cache.codes.filter((c) => typeof c.id === 'number').map((c) => c.id);
     const newRow = evt.mapeo.codes.find((c) => !knownIds.includes(c.id));
     if (newRow) {

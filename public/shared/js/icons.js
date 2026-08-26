@@ -1,9 +1,5 @@
-/* ============================================================
-   GDapp · Iconos SVG (trazo 1.7, estilo premium tipo Lucide)
-   Uso:  import { icon } from '/shared/js/icons.js';
-         el.innerHTML = icon('users', 20);
-   Añadir iconos SOLO en este archivo.
-   ============================================================ */
+// Iconos SVG (trazo 1.7, estilo tipo Lucide). Añadir iconos solo en este archivo.
+// Uso: el.innerHTML = icon('users', 20);
 
 const PATHS = {
   // Navegación / módulos
@@ -54,6 +50,7 @@ const PATHS = {
   tag: '<path d="M11.5 3h-5A2 2 0 0 0 4.5 5v5c0 .5.2 1 .6 1.4l9 9a2 2 0 0 0 2.8 0l4-4a2 2 0 0 0 0-2.8l-9-9A2 2 0 0 0 11.5 3Z"/><circle cx="8.3" cy="8.3" r="1.3" fill="currentColor" stroke="none"/>',
   printer: '<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="1.5"/><path d="M6 17v4h12v-4"/><circle cx="17.5" cy="12.5" r="0.4" fill="currentColor" stroke="none"/>',
   image: '<rect x="3" y="3.5" width="18" height="17" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4.5 19 5.4-5.9a1.6 1.6 0 0 1 2.3-.1L20.5 20"/>',
+  remoteSignal: '<path d="M9.348 14.652a3.75 3.75 0 0 1 0-5.304m5.304 0a3.75 3.75 0 0 1 0 5.304m-7.425 2.121a6.75 6.75 0 0 1 0-9.546m9.546 0a6.75 6.75 0 0 1 0 9.546M5.106 18.894c-3.808-3.807-3.808-9.98 0-13.788m13.788 0c3.808 3.807 3.808 9.98 0 13.788M12 12h.008v.008H12V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>',
 };
 
 export function icon(name, size = 20, strokeWidth = 1.7) {
@@ -62,27 +59,22 @@ export function icon(name, size = 20, strokeWidth = 1.7) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 }
 
-// Set aparte, sólido (relleno, sin trazo) — estilo Heroicons, para los
-// casos puntuales donde ese peso visual entra mejor que el trazo fino
-// del set de arriba (Vencimientos: caja/cantidad/vencimiento). No
-// mezclar con PATHS: son dos lenguajes visuales distintos a propósito.
+// Set sólido (relleno, sin trazo) estilo Heroicons — no mezclar con PATHS, son estilos distintos.
 const SOLID_PATHS = {
   caja: '<path d="M12.378 1.602a.75.75 0 0 0-.756 0L3 6.632l9 5.25 9-5.25-8.622-5.03ZM21.75 7.93l-9 5.25v9l8.628-5.032a.75.75 0 0 0 .372-.648V7.93ZM11.25 22.18v-9l-9-5.25v8.57a.75.75 0 0 0 .372.648l8.628 5.033Z"/>',
-  // Reutilizado para "cantidad" (antes era el ícono de ubicación —
-  // pedido explícito: ubicación queda sin ícono, y este pasa a
-  // representar cantidad en su lugar).
+  // archivo = ícono de "cantidad" (ubicación no usa ícono).
   archivo: '<path d="M3.375 3C2.339 3 1.5 3.84 1.5 4.875v.75c0 1.036.84 1.875 1.875 1.875h17.25c1.035 0 1.875-.84 1.875-1.875v-.75C22.5 3.839 21.66 3 20.625 3H3.375Z"/><path fill-rule="evenodd" d="m3.087 9 .54 9.176A3 3 0 0 0 6.62 21h10.757a3 3 0 0 0 2.995-2.824L20.913 9H3.087Zm6.163 3.75A.75.75 0 0 1 10 12h4a.75.75 0 0 1 0 1.5h-4a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd"/>',
   calendario: '<path fill-rule="evenodd" d="M6.75 2.25A.75.75 0 0 1 7.5 3v1.5h9V3A.75.75 0 0 1 18 3v1.5h.75a3 3 0 0 1 3 3v11.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V7.5a3 3 0 0 1 3-3H6V3a.75.75 0 0 1 .75-.75Zm13.5 9a1.5 1.5 0 0 0-1.5-1.5H5.25a1.5 1.5 0 0 0-1.5 1.5v7.5a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5v-7.5Z" clip-rule="evenodd"/>',
-  // Botón único "más opciones" del header de Vencimientos (agrupa
-  // buscar/configurar/descargar) — mismo estilo sólido que caja/
-  // archivo/calendario de arriba.
+  // Botón "más opciones" del header de Vencimientos.
   lista: '<path fill-rule="evenodd" d="M3 6.75A.75.75 0 0 1 3.75 6h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 6.75ZM3 12a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 12Zm0 5.25a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd"/>',
-  // Aviso de stock en Recupero/Diferencias (editor-view.js) — Heroicons
-  // solid "exclamation-triangle" tal cual, sin adaptar.
+  // Heroicons solid "exclamation-triangle" — aviso de stock en Recupero/Diferencias.
   alertTriangleSolid: '<path fill-rule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.198 0l7.355 12.748c1.154 2.001-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.499-2.598-4.5L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd"/>',
-  // Tarjeta de "Validado" (list-view.js) — Heroicons solid
-  // "chat-bubble-oval-left", tal cual.
+  // Heroicons solid "chat-bubble-oval-left" — tarjeta de "Validado" (list-view.js).
   commentSolid: '<path fill-rule="evenodd" d="M4.804 21.644A6.707 6.707 0 0 0 6 21.75a6.721 6.721 0 0 0 3.583-1.029c.774.182 1.584.279 2.417.279 5.322 0 9.75-3.97 9.75-9 0-5.03-4.428-9-9.75-9s-9.75 3.97-9.75 9c0 2.409 1.025 4.587 2.674 6.192.232.226.277.428.254.543a3.73 3.73 0 0 1-.814 1.686.75.75 0 0 0 .44 1.223Z" clip-rule="evenodd"/>',
+  // No hay "barcode" en Heroicons: dibujado a mano en el mismo estilo sólido.
+  barcodeSolid: '<path d="M2.25 4.5a.75.75 0 0 1 .75-.75h.75a.75.75 0 0 1 .75.75v15a.75.75 0 0 1-.75.75H3a.75.75 0 0 1-.75-.75v-15Zm4.5 0a.75.75 0 0 1 .75-.75h.375a.75.75 0 0 1 .75.75v15a.75.75 0 0 1-.75.75H7.5a.75.75 0 0 1-.75-.75v-15Zm3 0a.75.75 0 0 1 .75-.75h1.125a.75.75 0 0 1 .75.75v15a.75.75 0 0 1-.75.75H10.5a.75.75 0 0 1-.75-.75v-15Zm3.75 0a.75.75 0 0 1 .75-.75h.375a.75.75 0 0 1 .75.75v15a.75.75 0 0 1-.75.75h-.375a.75.75 0 0 1-.75-.75v-15Zm3 0a.75.75 0 0 1 .75-.75h1.125a.75.75 0 0 1 .75.75v15a.75.75 0 0 1-.75.75h-1.125a.75.75 0 0 1-.75-.75v-15Zm3.75 0a.75.75 0 0 1 .75-.75h.75a.75.75 0 0 1 .75.75v15a.75.75 0 0 1-.75.75h-.75a.75.75 0 0 1-.75-.75v-15Z"/>',
+  // Heroicons solid "bolt" — botón "Programar Conteo" (vacios/list-view.js).
+  zapSolid: '<path fill-rule="evenodd" d="M14.615 1.595a.75.75 0 0 1 .359.852L12.982 9.75h7.268a.75.75 0 0 1 .548 1.262l-10.5 11.25a.75.75 0 0 1-1.272-.71l1.992-7.302H3.75a.75.75 0 0 1-.548-1.262l10.5-11.25a.75.75 0 0 1 .913-.143Z" clip-rule="evenodd"/>',
 };
 
 export function iconSolid(name, size = 20) {

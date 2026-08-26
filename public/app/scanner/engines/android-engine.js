@@ -1,18 +1,6 @@
-/* ============================================================
-   Motor de escaneo · Android / Chrome-Edge — BarcodeDetector nativo.
-
-   Es la API del propio navegador: cero dependencias, cero descarga
-   extra, y el mismo motor que ya venía funcionando. No existe en iOS
-   Safari (WebKit no la implementa) — para eso está ios-engine.js.
-
-   Contrato común con el resto de los motores (ver index.js):
-     isSupported()            → boolean, sin crear nada todavía
-     init()                   → prepara el detector, se llama una vez
-     detectFrame(videoEl)     → intenta leer el frame actual del
-                                 <video>; devuelve el código (string) o
-                                 null si no encontró nada — nunca lanza
-     destroy()                → libera el detector
-   ============================================================ */
+// Motor de escaneo Android/Chrome-Edge: BarcodeDetector nativo (no existe en iOS
+// Safari, ver ios-engine.js). Contrato común (ver index.js): isSupported() → boolean;
+// init() prepara el detector; detectFrame(videoEl) → código o null, nunca lanza; destroy().
 
 const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code'];
 
@@ -34,8 +22,7 @@ export async function detectFrame(videoEl) {
     const results = await detector.detect(videoEl);
     return results.length ? results[0].rawValue : null;
   } catch {
-    // Frame no decodificable (movimiento, fuera de foco...): se
-    // reintenta solo en el próximo ciclo del loop, no es un error real.
+    // Frame no decodificable (movimiento, fuera de foco...): se reintenta en el próximo ciclo.
     return null;
   }
 }

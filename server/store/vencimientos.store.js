@@ -1,21 +1,15 @@
-/* ============================================================
-   Repositorio de Vencimientos — cruza la fuente "Referencia"
-   (server/store/inventory.store.js, espejo de Copernico) con el
-   estado de validación de cada ítem (Supabase, tabla
-   `vencimiento_validaciones`) y la configuración de ubicaciones
-   excluidas (`vencimiento_settings`).
-
-   A propósito NO usa "gestioninv"/"diasvigenciaz" (columnas de
-   Copernico con su propio criterio de vencido/próximo) — se calculan
-   los días a vencer acá mismo, a partir de "fv" (fecha de vencimiento,
-   formato DD/MM/AAAA), comparada contra HOY: es el criterio propio
-   pedido explícitamente, no el de la fuente externa.
-
-   Clave de un ítem: bodega+caja+ean (el mismo UNIQUE natural que ya
-   tiene `inventario_cajas` en Supabase, ver services/supabase-sync.js)
-   — sobrevive a que Referencia se refresque entera (reemplaza todas
-   las filas) siempre que el mismo producto siga en la misma caja.
-   ============================================================ */
+// Repositorio de Vencimientos — cruza la fuente "Referencia"
+// (inventory.store.js) con el estado de validación de cada ítem
+// (Supabase, tabla `vencimiento_validaciones`) y la config de
+// ubicaciones excluidas (`vencimiento_settings`).
+//
+// A propósito NO usa "gestioninv"/"diasvigenciaz" (columnas de Copernico
+// con su propio criterio) — los días a vencer se calculan acá a partir
+// de "fv" (DD/MM/AAAA) vs HOY, con criterio propio.
+//
+// Clave de un ítem: bodega+caja+ean (mismo UNIQUE natural que
+// `inventario_cajas` en Supabase) — sobrevive a que Referencia se
+// refresque entera, mientras el producto siga en la misma caja.
 
 const inventoryStore = require('./inventory.store');
 const { requireClient } = require('../services/supabase-client');
@@ -98,10 +92,8 @@ async function fetchValidationRows() {
   return data;
 }
 
-// Sube la foto obligatoria de un ítem "faltante" (data URL base64,
-// generada del lado del cliente con un snapshot del video ya activo —
-// nunca pide permiso de cámara de nuevo) al bucket público
-// 'vencimiento-fotos' y devuelve su URL pública para guardar en la fila.
+// Sube la foto obligatoria de un ítem "faltante" (data URL base64) al
+// bucket público 'vencimiento-fotos' y devuelve su URL pública.
 async function uploadPhoto(fotoBase64, key) {
   const match = /^data:(image\/\w+);base64,(.+)$/.exec(fotoBase64 || '');
   if (!match) throw new Error('INVALID_PHOTO');
@@ -116,13 +108,11 @@ async function uploadPhoto(fotoBase64, key) {
   return supabase.storage.from('vencimiento-fotos').getPublicUrl(path).data.publicUrl;
 }
 
-// saldo/pedprov/unidadmedida se CONGELAN acá, tal como estaban en el
-// momento de validar — nunca más se vuelven a leer de Referencia para
-// este ítem (ver buildCombinedItems): si después se corre
-// "Actualizar DB" y el producto cambió de caja/ubicación, o
-// directamente ya no aparece en esa fuente, la validación ya hecha
-// sigue mostrando los datos reales de cuando se hizo, en vez de
-// perderlos o quedar en blanco.
+// saldo/pedprov/unidadmedida se CONGELAN acá tal como estaban al validar
+// — nunca más se releen de Referencia para este ítem (ver
+// buildCombinedItems): si luego cambia de caja/ubicación o desaparece de
+// esa fuente, la validación sigue mostrando los datos reales de cuando
+// se hizo, en vez de perderlos.
 async function validateItem({ bodega, caja, ean, referencia, ubicacion, descripcion, fv, saldo, pedprov, unidadmedida, motivo, motivoDetalle, fotoBase64, actor }) {
   if (!bodega || !caja || !ean) throw new Error('MISSING_KEY');
   if (!['ok', 'faltante', 'otro'].includes(motivo)) throw new Error('INVALID_MOTIVO');
@@ -159,12 +149,19 @@ async function clearValidation(bodega, caja, ean) {
   if (error) throw error;
 }
 
-// Edita SOLO la observación de un ítem ya validado (ver "Validado" en
-// list-view.js) — a diferencia de validateItem(), no toca motivo, foto
-// ni ningún otro dato: reescribir el motivo real (rehacer Caja/
-// Producto) no tiene sentido solo para corregir el texto. Si el ítem
-// no está validado (la fila no existe), no hace nada — no tiene
-// sentido crear una validación a medias desde acá.
+// Vacía TODAS las validaciones (usado por vencimiento-reset-scheduler.js
+// a las 00:00) — lo validado es un estado del día, no algo que deba
+// arrastrarse. `.gte('id', 0)` matchea cualquier fila (id es bigint
+// autoincremental) sin depender de una columna de negocio.
+async function resetValidations() {
+  const supabase = requireClient();
+  const { error } = await supabase.from('vencimiento_validaciones').delete().gte('id', 0);
+  if (error) throw error;
+}
+
+// Edita SOLO la observación de un ítem ya validado — a diferencia de
+// validateItem(), no toca motivo, foto ni otro dato. Si el ítem no está
+// validado, no hace nada (no crea una validación a medias).
 async function updateMotivoDetalle(bodega, caja, ean, motivoDetalle) {
   const supabase = requireClient();
   const { error } = await supabase.from('vencimiento_validaciones')
@@ -175,30 +172,20 @@ async function updateMotivoDetalle(bodega, caja, ean, motivoDetalle) {
 
 // ---- Listado combinado ----
 
-// Única fuente de verdad para Pendiente/Sugerido/Validado (app) Y para
-// el detalle exportado (services/vencimiento-export.js) — antes cada
-// uno armaba su propia lista por separado (y de hecho, ANTES de eso,
-// list() ni siquiera consideraba lo ya validado si su fila de
-// Referencia dejaba de existir: la app "perdía" la validación
-// directamente).
+// Única fuente de verdad para Pendiente/Sugerido/Validado (app) y para
+// el detalle exportado (services/vencimiento-export.js).
 //
-// Los ítems VALIDADOS salen ENTEROS de vencimiento_validaciones —
-// ubicación, descripción, saldo, pedprov, unidadmedida, fv, todo se
-// congela ahí en el momento de validar (ver validateItem) — sin volver
-// a chequear NADA contra la foto actual de Referencia. Así, si después
-// se corre "Actualizar DB" y el producto se movió de caja, cambió de
-// ubicación, o la ubicación pasó a estar excluida, o directamente ya
-// no aparece en esa fuente, la validación ya hecha sigue mostrando los
-// datos reales de cuando se hizo — nunca desaparece ni queda con
-// campos en blanco.
+// Los VALIDADOS salen ENTEROS de vencimiento_validaciones — todo se
+// congeló ahí al validar (ver validateItem), sin rechequear contra
+// Referencia. Así, si el producto se mueve de caja/ubicación, la
+// ubicación pasa a excluida, o el producto desaparece de esa fuente, la
+// validación sigue mostrando los datos reales de cuando se hizo.
 //
-// Los PENDIENTES no tienen otra fuente que Referencia (todavía no se
-// validó nada que congelar) — siguen el mismo criterio de siempre:
-// ventana de días y ubicaciones excluidas, si no cualquier producto de
-// la base entera aparecería como pendiente sin límite.
+// Los PENDIENTES no tienen otra fuente que Referencia — se filtran por
+// ventana de días y ubicaciones excluidas.
 //
-// Siempre ordenado por ubicación (A-Z, recorrido físico del depósito)
-// con los días como criterio secundario.
+// Ordenado por ubicación (recorrido físico del depósito), días como
+// criterio secundario.
 async function buildCombinedItems() {
   const [validationRows, settings] = await Promise.all([fetchValidationRows(), getSettings()]);
   const today = new Date();
@@ -223,8 +210,8 @@ async function buildCombinedItems() {
       unidadmedida: row.unidadmedida || null,
       pedprov: row.pedprov || null,
       fv: row.fv || null,
-      // Sin sector/factura congelados (no se guardan al validar) — son
-      // solo para buscar/filtrar pendientes, no una pérdida real.
+      // sector/factura no se congelan al validar: solo sirven para
+      // buscar/filtrar pendientes.
       sector: null,
       factura: null,
       days,
@@ -254,17 +241,14 @@ async function buildCombinedItems() {
       referencia: r.referencia || r.barcode || null,
       ubicacion: r.ubicacion || null,
       descripcion: r.descripcion || null,
-      // Copernico manda el saldo como número o como string con ceros de
-      // relleno ("144.0000") — Number() lo deja limpio (144, o 144.25 si
-      // de verdad hay fracción) para que el front nunca tenga que
-      // recortar ceros a mano.
+      // Copernico manda saldo como número o string con ceros de relleno
+      // ("144.0000") — Number() lo deja limpio.
       saldo: r.saldo != null && r.saldo !== '' ? Number(r.saldo) : null,
       unidadmedida: String(r.unidadmedida || '').trim() || null,
       pedprov: String(r.pedprov || '').trim() || null,
       fv: r.fv || null,
-      // Campos extra SOLO para poder buscar/filtrar por ellos (ver
-      // app/modules/vencimientos/list-view.js) — Copernico los manda
-      // con espacios de relleno en varios de estos campos de texto.
+      // Campos extra solo para buscar/filtrar (list-view.js); Copernico
+      // los manda con espacios de relleno.
       sector: String(r.subgrupo || '').trim() || null,
       factura: String(r.factura || '').trim() || null,
       days,
@@ -302,6 +286,7 @@ module.exports = {
   listForExport,
   validateItem,
   clearValidation,
+  resetValidations,
   updateMotivoDetalle,
   getSettings,
   updateSettings,

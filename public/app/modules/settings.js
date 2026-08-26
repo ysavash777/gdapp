@@ -1,16 +1,7 @@
-/* ============================================================
-   Módulo App · Configuración — hoy solo "Actualizar bases de datos"
-   (mismo motor que el desk, ver server/services/inventory-engine.js):
-   un botón para las tres fuentes juntas y uno puntual por fuente,
-   compartiendo la lógica de estimación/estado con desk/modules/
-   basesdatos.js vía shared/js/db-refresh.js (misma cuenta real de
-   cuánto tarda cada una, no dos números distintos en cada shell).
-
-   Exige el permiso 'basesdatos' — el mismo que ya protege esta acción
-   en el desk (server/routes/database.js), así que basta con no
-   pedirle nada al servidor si el usuario no lo tiene: no hay ruta
-   nueva que proteger, la de siempre ya rechaza sin ese permiso.
-   ============================================================ */
+// Módulo App · Configuración: actualizar bases de datos (Copernico) + contraseña.
+// Comparte estimación/estado con desk/modules/basesdatos.js vía shared/js/db-refresh.js.
+// Requiere permiso 'basesdatos'; la ruta del servidor ya lo exige, así que
+// alcanza con no pedir el bloque si el usuario no lo tiene.
 
 import { icon } from '/shared/js/icons.js';
 import { formatDateTime, escapeHtml } from '/shared/js/format.js';
@@ -43,16 +34,10 @@ const STATUS_ICON = {
   mirrorError: { name: 'alertTriangle', cls: 'is-warn', title: 'Actualizado, pero el respaldo en Supabase está fallando' },
 };
 
-// 'loading' es un estado propio de acá (nunca lo manda el servidor):
-// distingue "todavía no sabemos" de "ya sabemos que no hay datos"
-// (status real 'empty') — sourceRowHTML() se apoya en esto para
-// mostrar esqueleto solo mientras de verdad no hay respuesta.
+// 'loading' es local (nunca lo manda el servidor): distingue "todavía
+// no sabemos" del status real 'empty'.
 const EMPTY_SOURCE = { status: 'loading', lastUpdatedAt: null, rowCount: 0, durationMs: null, mirrorDurationMs: null, mirrorStatus: 'unknown', mirrorError: null };
 
-// Solo las tres activas: a diferencia del desk (que muestra "Líneas
-// picking" como vidriera de lo que vendrá, ocupando un lugar fijo en
-// una grilla de 4), esta lista de mobile no necesita reservar espacio
-// para una fuente que todavía no hace nada.
 const SOURCES = [
   { key: 'referencia', label: 'Referencia', icon: 'database' },
   { key: 'variables', label: 'Variables', icon: 'layers' },
@@ -60,12 +45,6 @@ const SOURCES = [
 ];
 const KEYS = SOURCES.map((s) => s.key);
 
-// Los dos bloques quedan en el DOM YA, sin esperar nada: la
-// contraseña se pinta al instante (formulario estático) y Bases de
-// datos pinta su propio esqueleto (drawShell()+drawRows(), ver
-// mountDatabases) antes de pedirle el estado real al servidor — nunca
-// más una pantalla en blanco con un spinner tapando todo mientras
-// tanto.
 export async function render(root, user) {
   const hasDbPerm = user?.permissions?.includes('basesdatos');
 
@@ -76,7 +55,7 @@ export async function render(root, user) {
     const dbBlock = document.createElement('div');
     container.appendChild(dbBlock);
     container.appendChild(document.createElement('hr')).className = 'settings-separator';
-    mountDatabases(dbBlock); // sin await: pinta su esqueleto ya, completa los datos en segundo plano
+    mountDatabases(dbBlock); // sin await: pinta esqueleto ya, completa en segundo plano
   }
 
   const pwBlock = document.createElement('div');
@@ -93,7 +72,7 @@ async function mountDatabases(root) {
   };
 
   drawShell();
-  drawRows(); // las 3 filas YA, con esqueleto — loadStatus() las completa apenas conteste el servidor
+  drawRows(); // esqueleto ya, loadStatus() completa al responder el servidor
   await loadStatus();
 
   function applySources(sourcesMeta) {
@@ -250,9 +229,6 @@ async function mountDatabases(root) {
     const hasData = s.rowCount > 0;
     const isRunningThis = !!state.runningKeys && state.runningKeys.length === 1 && state.runningKeys[0] === src.key;
 
-    // Ícono/título de cada fuente son estáticos (SOURCES ya los sabe
-    // de antemano) — el esqueleto va solo en lo que de verdad depende
-    // del servidor: el resumen de filas/fecha y el ícono de estado.
     return `
       <div class="settings-source-row" data-key="${src.key}">
         <div class="settings-source-top">
@@ -289,8 +265,7 @@ const PASSWORD_ERROR_MESSAGES = {
   INVALID_PASSWORD: 'La contraseña nueva debe tener al menos 4 caracteres.',
 };
 
-// Sección de autogestión: cualquier usuario logueado la ve, sin
-// depender del permiso 'basesdatos' que sí exige el bloque de arriba.
+// Cualquier usuario logueado la ve, sin depender de 'basesdatos'.
 function mountPassword(root) {
   root.innerHTML = `
     <section class="settings-block">

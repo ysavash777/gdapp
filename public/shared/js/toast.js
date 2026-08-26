@@ -1,9 +1,4 @@
-/* ============================================================
-   Alerta flotante temporal (toast) — mismo patrón visual que el
-   "Presiona de nuevo para salir" de app/app.js (clase .gd-toast en
-   app/app.css), generalizado para que cualquier módulo pueda avisar
-   algo puntual sin bloquear la interacción con un modal.
-   ============================================================ */
+// Alerta flotante temporal (toast), para avisar algo puntual sin bloquear con un modal.
 
 export function showToast(message, { variant = 'default' } = {}) {
   const old = document.getElementById('gdToast');

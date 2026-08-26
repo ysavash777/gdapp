@@ -1,12 +1,8 @@
-/* ============================================================
-   API de Mapeos — usada por la herramienta Mapear de /app (permiso
-   'mapear') y por el módulo de consulta/administración de /desk
-   (permiso 'mapeos') — cualquiera de los dos alcanza, ambos leen y
-   escriben la misma data. Delega toda la persistencia en
-   store/mapeos.store.js (Supabase); este archivo solo valida entrada,
-   traduce a códigos HTTP y fija el actor de cada mutación desde la
-   sesión autenticada (nunca desde el cliente).
-   ============================================================ */
+// API de Mapeos — usada por Mapear en /app (permiso 'mapear') y por
+// el módulo de /desk (permiso 'mapeos'); cualquiera de los dos
+// alcanza, ambos leen/escriben la misma data. Persistencia en
+// store/mapeos.store.js; el actor de cada mutación sale siempre de
+// la sesión autenticada, nunca del cliente.
 
 const express = require('express');
 const router = express.Router();
@@ -34,17 +30,12 @@ router.get('/', async (_req, res) => {
 });
 
 // GET /api/mapeos/lookup-catalog — catálogo liviano (referencia,
-// descripcion, ean, grupo) de Variables para que el celular pueda
-// completar esos datos al escanear SIN red (ver app/modules/mapear/
-// lookup-catalog.js) — Variables, no Referencia, porque es la única
-// de las dos que tiene el grupo/familia del producto. Tiene que ir
-// antes de GET /:id — si no, Express intentaría matchear
-// "lookup-catalog" como si fuera un id. Arrays en vez de objetos: con
-// 14000+ filas, no repetir las claves por fila ahorra buena parte del
-// payload. Una fila por referencia Y una fila más por cada código de
-// bulto en su "dun" (ver parseDunCodes() en variables.store.js) —
-// mismo criterio que routes/catalog.js, para que el autocompletado
-// offline reconozca también un código de caja/pallet escaneado.
+// descripcion, ean, grupo) de Variables para autocompletar offline al
+// escanear (ver app/modules/mapear/lookup-catalog.js). Debe ir antes
+// de GET /:id, si no Express matchea "lookup-catalog" como id. Arrays
+// en vez de objetos por payload (14000+ filas); una fila por
+// referencia y una más por cada código "dun" (parseDunCodes en
+// variables.store.js), mismo criterio que routes/catalog.js.
 router.get('/lookup-catalog', (_req, res) => {
   try {
     const items = [];
@@ -57,10 +48,8 @@ router.get('/lookup-catalog', (_req, res) => {
         if (dunCode && dunCode !== ref) items.push([dunCode, row[1], row[2], row[3]]);
       }
     }
-    // Ídem catalog.js: 'no-cache' fuerza a revalidar por ETag en vez de
-    // heurística del navegador — si Variables no cambió desde la última
-    // vez, el celular recibe un 304 sin cuerpo en vez de bajar de nuevo
-    // el catálogo completo cada vez que se abre Mapear.
+    // 'no-cache' fuerza revalidar por ETag (ver catalog.js): 304 sin
+    // cuerpo si Variables no cambió.
     res.set('Cache-Control', 'no-cache');
     res.json({ ok: true, items });
   } catch (e) {
@@ -70,10 +59,8 @@ router.get('/lookup-catalog', (_req, res) => {
 });
 
 // GET /api/mapeos/stock-alerts?code=... — aviso de stock "de paso"
-// (Recupero/Diferencias) del código contra Referencia, ver
-// openRegisterSheet() en app/modules/mapear/editor-view.js y
-// services/ubicacion-picker.js#stockAlerts. Tiene que ir antes de
-// GET /:id — si no, Express matchearía "stock-alerts" como un id.
+// contra Referencia (ver services/ubicacion-picker.js#stockAlerts).
+// Debe ir antes de GET /:id por el mismo motivo que lookup-catalog.
 router.get('/stock-alerts', (req, res) => {
   try {
     const code = String(req.query.code || '').trim();
@@ -98,18 +85,14 @@ router.get('/:id', async (req, res) => {
 });
 
 // GET /api/mapeos/:id/export — descarga el mapeo como XLSX (una hoja
-// por motivo, ver services/mapeo-export.js). Usado tanto desde
-// app/modules/mapear/list-view.js como desk/modules/mapeos.js — misma
-// ruta para las dos, ninguna genera el archivo por su cuenta.
+// por motivo, ver services/mapeo-export.js).
 router.get('/:id/export', async (req, res) => {
   try {
     const mapeo = await store.get(Number(req.params.id));
     if (!mapeo) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
 
     const workbook = buildWorkbook(mapeo);
-    // Nombre de archivo: solo caracteres seguros para Content-Disposition
-    // y para el sistema de archivos del que lo descarga (sin comillas,
-    // barras, etc. que vengan del título libre del mapeo).
+    // Sanitiza el título libre para que sirva como nombre de archivo.
     const safeName = (mapeo.title || `mapeo-${mapeo.id}`).replace(/[^a-z0-9-_ ]/gi, '').trim() || `mapeo-${mapeo.id}`;
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

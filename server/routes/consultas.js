@@ -1,50 +1,27 @@
-/* ============================================================
-   API de Consultar grupo — de solo lectura, sin nada que guardar:
-   cada escaneo dispara una búsqueda y devuelve una ficha. SIN
-   requireAuth/requirePermission a propósito: en /app, "Consultar
-   grupo" es la única herramienta pública (PUBLIC_TOOLS en app.js —
-   el equipo operativo la usa sin cuenta, desde el celular del
-   depósito) — el permiso 'consultas' solo importa para el equivalente
-   del desk. Bug real ya corregido: esta ruta exigía requirePermission
-   incondicional, así que cualquiera sin sesión que escaneara acá
-   recibía 401 y veía "no se pudo completar la búsqueda", como si la
-   base estuviera caída.
-
-   Al escanear un código, se busca en Variables (mismo catálogo que usa
-   Mapear, por referencia O por cualquiera de sus códigos de bulto en
-   "dun" — ver findByCode()/parseDunCodes() en variables.store.js) para
-   saber su grupo/familia ("codgrupoprm") y, si
-   tiene uno real (ni vacío ni "SIN GRUPO" — ese valor cubre 8000+
-   productos en la base real y cruzarlo daría un rango sin sentido),
-   se cruza contra Coordenadas: ahí el grupo/familia es la columna
-   "tipo_producto" (confirmado con datos reales — los mismos códigos
-   BEB1/FMFCCU/DES2/etc. aparecen en ambas fuentes). El front nunca
-   recibe la lista completa de ubicaciones de un grupo (puede ser
-   1500+ para uno grande): se agrupan por PASILLO (columna real
-   "fila_piso" — pese al nombre confuso, es el pasillo, ej. "MFCA" o
-   "B", no una fila numérica) Y NIVEL (columna "piso": "01"/"1" es
-   Picking; cada piso de estantería de ahí en más es SU PROPIO
-   "Nivel N", nunca un "Altura" genérico que los mezcle — confirmado
-   con datos reales que el grupo "PM" reparte su mismo pasillo en 5
-   pisos distintos, cada uno a una altura física real distinta), y
-   cada combinación pasillo+nivel manda solo el extremo de abajo y el
-   de arriba de su "módulo" (columna real "columna_piso" — el número
-   de posición dentro del pasillo). Importante: el ANCHO de
-   columna_piso varía por pasillo (2 dígitos para "B"/"PM", 3 para
-   "MFCA" — confirmado con datos reales: "089"/"091"/"024") — por eso
-   el rango usa esta columna directo, en vez de adivinar cuántos
-   dígitos cortar de la ubicación completa por regex (ese enfoque
-   anterior cortaba mal los módulos de 3 dígitos, ej. mostraba
-   "MFCA09" en vez de "MFCA095"). Nunca la lista completa. Más hasta
-   dos ubicaciones sugeridas (Picking/Altura), con la posición
-   completa (ubicacion) sin tocar.
-
-   La "más vacía" se calcula contra Referencia: se cuenta cuántas filas
-   (cajas/posiciones ocupadas) tiene cada ubicación candidata ahí — la
-   que tiene menos (o ninguna) es la sugerida. No es la cantidad física
-   real de espacio libre (eso no está en ninguna fuente conectada),
-   es la mejor aproximación disponible con los datos que sí tenemos.
-   ============================================================ */
+// API de Consultar grupo — solo lectura, cada escaneo busca y devuelve
+// una ficha. SIN requireAuth/requirePermission a propósito: en /app es
+// la única herramienta pública (PUBLIC_TOOLS en app.js, uso sin
+// cuenta desde el depósito); el permiso 'consultas' solo aplica al
+// equivalente del desk. (Antes exigía permiso incondicional y
+// cualquiera sin sesión recibía 401 acá, viéndose como base caída.)
+//
+// Flujo: busca el código en Variables (findByCode/parseDunCodes en
+// variables.store.js) para obtener el grupo/familia ("codgrupoprm";
+// vacío o "SIN GRUPO" no cruza — cubre 8000+ productos y daría un
+// rango sin sentido). Cruza contra Coordenadas, donde el grupo es la
+// columna "tipo_producto". Nunca se manda al front la lista completa
+// de ubicaciones (puede ser 1500+): se agrupan por PASILLO (columna
+// "fila_piso", pese al nombre) y NIVEL (columna "piso": 01/1 es
+// Picking, cada piso de estantería siguiente es su propio "Nivel N").
+// Cada pasillo+nivel manda solo el extremo de abajo/arriba de su
+// "módulo" (columna "columna_piso" — su ANCHO varía por pasillo, 2
+// dígitos vs 3, por eso se usa la columna directo y no un recorte por
+// regex de la ubicación completa, que cortaba mal los módulos de 3
+// dígitos). Además hasta dos sugerencias (Picking/Altura).
+//
+// La "más vacía" se aproxima contando filas ocupadas en Referencia
+// por ubicación candidata (no es espacio físico real, es la mejor
+// aproximación disponible).
 
 const express = require('express');
 const router = express.Router();
@@ -52,10 +29,8 @@ const variablesStore = require('../store/variables.store');
 const coordenadasStore = require('../store/coordenadas.store');
 const inventoryStore = require('../store/inventory.store');
 
-// piso "01"/"1"/"00" (o sin dato) es picking, a nivel de piso — cada
-// piso de estantería (02, 03, 04, 05...) es SU PROPIO nivel, nunca un
-// "Altura" genérico que los mezcle a todos: son alturas físicas
-// distintas, cada una con su propia escalera/autoelevador.
+// piso 01/1/00 (o sin dato) es Picking; cada piso siguiente es su
+// propio "Nivel N" (nunca una "Altura" genérica que los mezcle).
 function levelOf(piso) {
   const n = Number(piso);
   return !piso || Number.isNaN(n) || n <= 1 ? 'Picking' : `Nivel ${n}`;
@@ -69,15 +44,8 @@ function levelRank(level) {
   return Number.isNaN(n) ? 99 : n;
 }
 
-// Un rango por pasillo (fila_piso) Y nivel (extremo de abajo/de
-// arriba de columna_piso, comparado como número) — nunca uno por
-// pasillo a secas, ni uno por pasillo+altura genérico: dos niveles de
-// estantería distintos en el mismo pasillo (ej. Nivel 2 y Nivel 3)
-// mandan cada uno su propio rango. `rows` es
-// [{fila_piso, columna_piso, piso}, ...], nunca la lista completa de
-// vuelta al front — y el ancho de columna_piso puede variar entre
-// pasillos (2 dígitos vs 3), por eso se compara como número, nunca
-// con un sort de texto plano.
+// Un rango por pasillo+nivel (extremos de columna_piso, comparados
+// como número porque el ancho varía entre pasillos: 2 dígitos vs 3).
 function aisleRanges(rows) {
   const byGroup = new Map();
   for (const { fila_piso, columna_piso, piso } of rows) {
@@ -109,21 +77,13 @@ router.get('/lookup', (req, res) => {
       ean: match.productoean || '',
       group: grupo && grupo !== 'SIN GRUPO' ? grupo : '',
       ranges: [],
-      // Dos sugerencias como máximo, una por tipo de nivel (Picking y
-      // Altura combinada — no una por cada Nivel N exacto, esta es la
-      // versión "gruesa" para decidir rápido si hace falta subir o
-      // no) — nunca una sola, porque un producto con ambos tipos de
-      // ubicación necesita las dos alternativas, no solo la más vacía
-      // de las dos sin importar el tipo.
+      // Máximo dos: una por Picking, una por Altura combinada.
       suggestions: [],
     };
 
     if (product.group) {
-      // Una fila por ubicación (nunca duplicada, aunque Coordenadas
-      // pueda tener varias filas por posición) — se guardan piso,
-      // fila_piso y columna_piso de cada una: piso separa picking de
-      // altura, fila_piso/columna_piso son el pasillo y el módulo
-      // reales (nunca se adivinan cortando la ubicación completa).
+      // Una fila por ubicación, sin duplicar aunque Coordenadas tenga
+      // varias filas por posición.
       const candidatesByUbicacion = new Map();
       for (const r of coordenadasStore.getRowsForExport()) {
         if (r.tipo_producto !== product.group || !r.ubicacion) continue;
@@ -148,7 +108,7 @@ router.get('/lookup', (req, res) => {
             if (!filterFn(c)) continue;
             const count = occupancy.get(c.ubicacion) || 0;
             if (!best || count < best.count) best = { ...c, count };
-            if (best.count === 0) break; // ya no hay una más vacía posible
+            if (best.count === 0) break; // ya no puede haber una más vacía
           }
           return best;
         }

@@ -1,24 +1,12 @@
-/* ============================================================
-   Repositorio de mapeos — Supabase (tablas `mapeos` + `mapeo_codes`,
-   proyecto "bodega-47-inventario"). Antes vivía entero en la memoria
-   del NAVEGADOR (public/app/modules/mapear/store.js) — se perdía todo
-   al recargar la página o cerrar la pestaña, y cada operario tenía su
-   propia copia aislada. Ahora es la única fuente real: el store del
-   navegador pasa a ser un cliente de esta API (ver
-   server/routes/mapeos.js), sin cambiar la forma de sus funciones.
-
-   `actor` en cada mutación es el username de quien la hizo — lo pasa
-   la ruta HTTP desde la sesión autenticada (req.user.username), nunca
-   viene del cliente directamente.
-   ============================================================ */
+// Repositorio de mapeos — Supabase (tablas `mapeos` + `mapeo_codes`,
+// proyecto "bodega-47-inventario"). `actor` en cada mutación es el
+// username autenticado (req.user.username), nunca viene del cliente.
 
 const { requireClient } = require('../services/supabase-client');
 const variablesStore = require('./variables.store');
 
-// Cada mutación de código termina tocando el mapeo (updated_at/by) y
-// devolviendo el mapeo completo con sus códigos — mismo patrón que
-// tenía el store del navegador, para que list-view.js/editor-view.js
-// no tengan que pedir dos cosas separadas.
+// Cada mutación de código devuelve el mapeo completo con sus códigos,
+// para que list-view.js/editor-view.js no pidan dos cosas separadas.
 const CODE_PATCH_KEY_MAP = {
   expiryDate: 'expiry_date',
   roturaResponsible: 'rotura_responsible',
@@ -82,8 +70,8 @@ async function create(actor, title) {
     .select(SELECT_WITH_CODES)
     .single();
   if (error) throw error;
-  // El título por defecto usa el id real asignado por Supabase, no un
-  // contador propio — se completa en un segundo paso si no vino title.
+  // Título por defecto usa el id real asignado por Supabase, se completa
+  // en un segundo paso si no vino title.
   if (!trimmed) {
     const { data: renamed, error: renameErr } = await supabase
       .from('mapeos')
@@ -122,21 +110,13 @@ async function remove(id) {
   await supabase.from('mapeos').delete().eq('id', id);
 }
 
-// Cantidad y condición quedan con valores por defecto al escanear —
-// se completan después sin frenar el ritmo de un escaneo masivo
-// (mismo comportamiento que tenía el store del navegador). Descripción,
-// EAN y Grupo, en cambio, se completan solos en este mismo paso:
-// findByCode() busca el código escaneado (un EAN-13, o el código de
-// una caja/bulto — ver parseDunCodes() en variables.store.js) contra
-// "referencia" O cualquiera de los códigos en "dun" de la fuente
-// Variables (variables.store, hidratada desde Supabase — antes se
-// buscaba en Referencia, pero Variables es la única de las dos que
-// además tiene el grupo/familia del producto, "codgrupoprm") — si hay
-// match, "descripcion" queda como título del producto, "productoean"
-// (el código corto interno, no el de barras) y "codgrupoprm" se
-// muestran en la ficha de registro — si no hay match (código fuera de
-// catálogo o fuente vacía), los tres quedan '' y el front los muestra
-// como "sin datos".
+// Cantidad y condición quedan con valores por defecto al escanear, para
+// no frenar el ritmo de un escaneo masivo. Descripción/EAN/Grupo se
+// completan acá mismo vía findByCode() contra la fuente Variables
+// (referencia o cualquier código en "dun" — ver parseDunCodes en
+// variables.store.js); Variables se usa en vez de Referencia porque
+// además trae "codgrupoprm" (grupo/familia). Sin match, quedan '' y el
+// front los muestra como "sin datos".
 async function addCode(mapeoId, rawCode, actor) {
   const supabase = requireClient();
   const code = String(rawCode).trim();

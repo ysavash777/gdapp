@@ -1,26 +1,13 @@
 /* ============================================================
    Exporta un mapeo a XLSX (ExcelJS) — una hoja por motivo (Rotura,
-   Unidades, Vencido, Otro, Sin motivo), nunca una sola hoja con todo
-   mezclado: cada motivo tiene su propio dato extra relevante (el
-   responsable en Rotura/Vencido, el vencimiento en Unidades, el texto
-   libre en Otro) que no tiene sentido en las demás columnas. Una hoja
-   se omite por completo si no tiene ningún código (nunca una hoja
-   vacía con solo el encabezado).
+   Unidades, Vencido, Otro, Sin motivo); cada una con su propio dato
+   extra (responsable, vencimiento, texto libre). Se omite la hoja si
+   no tiene códigos. Dentro de cada hoja, códigos repetidos se
+   consolidan (ver consolidate()) sumando cantidad, solo si también
+   coincide el dato extra de esa hoja.
 
-   Mismo criterio en las cuatro hojas: encabezado en negrita con
-   relleno de color, todas las celdas centradas y con biordes en
-   los cuatro lados — pedido explícito, no una decisión de estilo
-   improvisada.
-
-   Dentro de cada hoja, códigos repetidos se CONSOLIDAN en una sola
-   fila sumando la cantidad — ver consolidate() — pero solo si
-   coincide también el dato extra propio de esa hoja (vencimiento en
-   Unidades, responsable en Rotura/Vencido): comportamiento permanente
-   pedido explícitamente, no algo puntual de una corrida.
-
-   Columna "Ubicación" (UBICACION_COLUMN): siempre presente. No es un
-   dato del mapeo — se resuelve acá mismo contra Referencia (ver
-   ubicacion-picker.js), nunca se guarda en Supabase.
+   Columna "Ubicación": no es un dato del mapeo — se resuelve acá
+   contra Referencia (ver ubicacion-picker.js), nunca se guarda en Supabase.
    ============================================================ */
 
 const ExcelJS = require('exceljs');
@@ -35,10 +22,7 @@ const CENTER = { horizontal: 'center', vertical: 'middle' };
 
 const RESPONSABLE_LABEL = { idl: 'IDL', rappi: 'Rappi' };
 
-// Un motivo (o null = "sin motivo todavía") = una hoja, con su propia
-// columna extra — nunca todas las columnas posibles en todas las
-// hojas, que dejaría casillas vacías sin sentido (ej. "Vencimiento" en
-// la hoja de Rotura).
+// Un motivo (o null = "sin motivo todavía") = una hoja, con su columna extra.
 const SHEETS = [
   { value: 'rotura', label: 'Rotura', extraHeader: 'Responsable', extraValue: (c) => RESPONSABLE_LABEL[c.roturaResponsible] || '' },
   { value: 'unidades', label: 'Unidades', extraHeader: 'Vencimiento', extraValue: (c) => c.expiryDate || '' },
@@ -54,24 +38,17 @@ const BASE_COLUMNS = [
   { header: 'Cantidad', width: 10, value: (c) => c.quantity },
 ];
 
-// No es un dato del mapeo en sí — se resuelve recién acá buscando el
-// código contra Referencia (ver ubicacion-picker.js).
+// Se resuelve acá buscando el código contra Referencia (ver ubicacion-picker.js).
 const UBICACION_COLUMN = {
   header: 'Ubicación',
   width: 16,
   value: (c) => pickUbicacion(inventoryStore.findAllByReferencia(c.code)),
 };
 
-// Consolida códigos repetidos DENTRO de una misma hoja (mismo motivo)
-// sumando su cantidad — pedido explícito y permanente: "123 rotura x6"
-// + "123 rotura x8" en el mismo mapeo pasan a ser una sola fila "123
-// rotura x14". La clave de agrupación es código + el MISMO dato extra
-// que ya distingue esa hoja (extraValue) — nunca solo el código: dos
-// "unidades" del mismo código con vencimiento distinto (o dos
-// "rotura"/"vencido" con responsable distinto) NO se mezclan, quedan
-// en filas separadas, porque esa diferencia es real y perderla sería
-// mentir en el reporte. Nunca toca los datos originales en Supabase
-// (mapeo.codes) — la consolidación es solo para este archivo.
+// Consolida códigos repetidos dentro de una misma hoja sumando cantidad.
+// Clave: código + el mismo dato extra de esa hoja (extraValue) — nunca
+// solo el código, para no mezclar filas con vencimiento/responsable
+// distinto. No toca los datos originales en Supabase (mapeo.codes).
 function consolidate(codes, extraValue) {
   const groups = new Map();
   for (const c of codes) {

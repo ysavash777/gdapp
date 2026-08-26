@@ -1,31 +1,19 @@
-/* ============================================================
-   Módulo App · Vencimientos — cliente de /api/vencimientos.
-   A diferencia de Mapear, no hay caché offline-first: esta lista
-   cambia con cada corrida de "Actualizar DB" (Referencia) y con cada
-   validación de cualquier usuario — siempre se pide fresca. "Los
-   avances son online" es justamente el punto: no tiene sentido
-   guardar una foto local que puede quedar vieja en minutos.
-   ============================================================ */
+// Módulo Vencimientos — cliente de /api/vencimientos. Sin caché
+// offline-first: la lista cambia con cada corrida de Referencia y con
+// cada validación de cualquier usuario, así que siempre se pide fresca.
 
 import { apiFetch } from '/shared/js/api.js';
 
-// Siempre ordenado por ubicación (el servidor ya no acepta otro orden
-// — Pendiente/Validado es un FILTRO del cliente sobre esta lista, ver
-// list-view.js).
+// Siempre ordenado por ubicación en el servidor; Pendiente/Validado es
+// un filtro del cliente sobre esta misma lista (ver list-view.js).
 export async function list() {
   const { items, excludedLocations, windowDays, retirarDays } = await apiFetch('/api/vencimientos');
   return { items, excludedLocations, windowDays, retirarDays };
 }
 
-// fotoBase64 (data URL) es obligatoria cuando motivo === 'faltante' —
-// el servidor la exige igual, esto solo evita un viaje de red al pedo
-// si por algún motivo se llama sin ella.
-//
-// saldo/pedprov/unidadmedida viajan tal cual estaban en `item` al
-// momento de validar — el servidor los CONGELA ahí (ver validateItem
-// en vencimientos.store.js): si después el producto se mueve de caja
-// o Referencia cambia, esta validación ya hecha sigue mostrando los
-// datos reales de este momento, nunca en blanco ni perdida.
+// saldo/pedprov/unidadmedida viajan tal cual estaban en `item` al validar
+// — el servidor los CONGELA ahí (ver validateItem en vencimientos.store.js)
+// para que la validación no cambie si después Referencia se actualiza.
 export async function validate(item, motivo, motivoDetalle, fotoBase64) {
   await apiFetch('/api/vencimientos/validate', {
     method: 'POST',
@@ -54,9 +42,7 @@ export async function clearValidation(item) {
   });
 }
 
-// Edita solo la observación de un ítem ya validado (ver "Validado" en
-// list-view.js) — nunca rehace la validación (motivo/foto quedan tal
-// cual estaban).
+// Edita solo la observación de un ítem ya validado; nunca toca motivo/foto.
 export async function updateObservacion(item, motivoDetalle) {
   await apiFetch('/api/vencimientos/validate', {
     method: 'PATCH',

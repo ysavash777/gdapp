@@ -1,42 +1,22 @@
-/* ============================================================
-   App · Controlador de cámara para escaneo — usado por Mapear y
-   Consultar grupo (y cualquier otra herramienta que escanee), para no
-   duplicar el manejo de stream/torch/loop de detección en cada una.
-
-   Encapsula todo lo que es "hardware de cámara", nada de qué hacer
-   con un código leído — eso queda 100% del lado de quien lo usa, vía
-   el callback onCode. El debounce por "mismo código" (mientras un
-   código sigue en cuadro, el loop lo vuelve a leer cada ciclo) también
-   vive acá, porque es un problema del loop de detección, no de cada
-   herramienta — el ingreso manual de cada módulo no pasa por acá, así
-   que nunca se debounce (una acción deliberada del usuario siempre
-   se procesa, aunque sea el mismo código que el último).
-
-   Uso:
-     const scanner = createCameraScanner({ videoEl, cameraBox, torchBtn, hintEl, onCode });
-     scanner.start();          // pide permiso, arranca el loop
-     scanner.setPaused(true);  // pausa el loop (p. ej. con una ventana abierta encima)
-     scanner.pauseView();      // además congela/oscurece el video sin soltar el stream
-     scanner.destroy();        // suelta cámara y detiene todo, para cuando se cierra la vista
-   ============================================================ */
+// Controlador de cámara para escaneo (stream/torch/loop de detección), compartido por
+// las herramientas que escanean. Encapsula solo el hardware; qué hacer con un código
+// leído es del callback onCode. El debounce por "mismo código" vive acá (loop de
+// detección); el ingreso manual no pasa por acá y nunca se debounce.
+//
+// Uso:
+//   const scanner = createCameraScanner({ videoEl, cameraBox, torchBtn, hintEl, onCode });
+//   scanner.start(); scanner.setPaused(true); scanner.pauseView(); scanner.destroy();
 
 import { pickEngine } from './engines/index.js';
 
 const DETECT_INTERVAL_MS = 350;
 const SAME_CODE_DEBOUNCE_MS = 1200;
 
-// En celulares con varias lentes traseras, "facingMode: environment"
-// a veces elige la gran angular (0.5x) en vez de la lente normal —
-// documentado sobre todo en iPhone Pro con iOS reciente. Esa lente
-// tiene una distancia mínima de foco mucho mayor, así que nunca logra
-// enfocar un código a la distancia habitual de escaneo: la cámara
-// prende y se ve bien, pero jamás decodifica nada. Acá solo se
-// corrige cuando se puede CONFIRMAR por el label del device que la
-// lente activa es la gran angular sola (no el "Back Dual/Triple
-// Camera" combinado, que sí funciona) y existe una alternativa mejor
-// — si los labels no están disponibles o son ambiguos, no se toca
-// nada, así no hay riesgo de romper un dispositivo que hoy funciona
-// bien (Android incluido).
+// En celulares con varias lentes traseras, "facingMode: environment" a veces elige la
+// gran angular (0.5x) en vez de la normal (visto en iPhone Pro/iOS reciente); esa lente
+// tiene distancia mínima de foco muy alta y nunca enfoca un código de cerca. Solo se
+// corrige si el label del device confirma gran angular sola (no "Dual/Triple Camera")
+// y hay alternativa mejor — labels ambiguos o ausentes, no se toca nada.
 function isUltraWideLabel(label) {
   return /ultra[\s-]?wide/i.test(label || '') && !/dual|triple/i.test(label || '');
 }
@@ -88,9 +68,8 @@ export function createCameraScanner({ videoEl, cameraBox, torchBtn, hintEl, onCo
       return;
     }
 
-    // Recién con el permiso ya concedido los labels de los devices
-    // dejan de venir vacíos, así que esta corrección solo puede
-    // intentarse acá, después del primer getUserMedia.
+    // Los labels de los devices vienen vacíos hasta que hay permiso concedido,
+    // por eso esta corrección solo puede intentarse acá, tras el primer getUserMedia.
     const betterId = await pickBetterBackCamera(stream.getVideoTracks()[0]?.getSettings().deviceId);
     if (betterId) {
       try {
@@ -115,9 +94,8 @@ export function createCameraScanner({ videoEl, cameraBox, torchBtn, hintEl, onCo
     track = stream.getVideoTracks()[0];
     const caps = track.getCapabilities ? track.getCapabilities() : {};
     torchBtn.hidden = !caps.torch;
-    // Enfoque continuo explícito donde el dispositivo lo soporte —
-    // sin esto, algunos celulares enfocan una sola vez al abrir la
-    // cámara y no vuelven a intentarlo al acercar el código.
+    // Enfoque continuo explícito: sin esto, algunos celulares enfocan una sola vez
+    // al abrir la cámara y no reintentan al acercar el código.
     if (caps.focusMode?.includes('continuous')) {
       track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
     }
@@ -155,14 +133,12 @@ export function createCameraScanner({ videoEl, cameraBox, torchBtn, hintEl, onCo
     track = null;
   }
 
-  // Tocar el recuadro de la cámara la apaga/prende por completo — un
-  // escape a mano para resolver bugs de cámara sin reiniciar la app,
-  // sin exponer un botón dedicado para algo que no se usa seguido.
+  // Tocar el recuadro apaga/prende la cámara por completo — escape manual para
+  // resolver bugs de cámara sin reiniciar la app.
   cameraBox.addEventListener('click', () => {
     if (cameraOn) {
       stop();
-      // Solo frena la animación de la línea de escaneo — nada más del
-      // recuadro (video, gradiente) cambia por apagar la cámara a mano.
+      // Solo frena la animación de la línea de escaneo.
       cameraBox.classList.add('is-off');
       showHint('Cámara apagada. Tocá para reactivarla.');
     } else {
@@ -171,10 +147,8 @@ export function createCameraScanner({ videoEl, cameraBox, torchBtn, hintEl, onCo
     }
   });
 
-  // Mientras hay una ventana propia abierta encima (registro, ficha de
-  // producto...), la cámara se ve "apagada" (video congelado, sin
-  // barra) para no distraer — sin soltar el stream, así se reanuda al
-  // instante al cerrarla.
+  // Con una ventana propia abierta encima, la cámara se ve "apagada" (video
+  // congelado) sin soltar el stream, para reanudar al instante al cerrarla.
   function pauseView() {
     videoEl.pause();
     cameraBox.classList.add('is-paused');
@@ -195,7 +169,7 @@ export function createCameraScanner({ videoEl, cameraBox, torchBtn, hintEl, onCo
       torchOn = on;
       torchBtn.classList.toggle('is-active', torchOn);
     } catch {
-      /* el navegador anunció soporte pero no lo aplicó */
+      /* soporte anunciado pero no aplicado */
     }
   }
   torchBtn.addEventListener('click', () => setTorch(!torchOn));

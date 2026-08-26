@@ -1,8 +1,5 @@
-/* ============================================================
-   Módulo App · Vencimientos — punto de entrada.
-   Solo orquesta list-view.js (listado + toggle de orden + settings +
-   export) y validation-view.js (escaneo en 2 pasos + motivo).
-   ============================================================ */
+// Módulo Vencimientos — punto de entrada. Orquesta list-view.js
+// (listado + toggle + settings + export) y validation-view.js (escaneo + motivo).
 
 import { renderList } from './list-view.js';
 

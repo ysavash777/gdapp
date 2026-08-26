@@ -1,34 +1,15 @@
-/* ============================================================
-   Módulo App · Mapear — motor de sincronización en segundo plano.
-
-   Cola de trabajos (outbox) persistida en localStorage: cada alta,
-   edición o baja de un código se encola acá y se intenta enviar a
-   /api/mapeos en orden, uno a la vez — nunca en paralelo, para no
-   saturar el servidor ni arriesgar dos escrituras concurrentes sobre
-   el mismo mapeo — y solo mientras haya algo pendiente: sin trabajos
-   en cola no queda ningún timer corriendo.
-
-   Sigue drenando la cola aunque se cierre el editor (vive mientras el
-   módulo esté cargado, es decir mientras dure la pestaña) y retoma
-   sola al recuperar conexión (evento 'online') o, como red de
-   seguridad para el caso en que ese evento no llegue a disparar, cada
-   RETRY_MS mientras siga habiendo algo sin enviar.
-
-   store.js es el único consumidor: encola trabajos con enqueueAdd/
-   enqueueUpdate/enqueueRemove y escucha sus resultados vía onEvent
-   para reflejarlos en su caché local — este archivo no sabe qué es
-   un "código" ni un "mapeo", solo ejecuta HTTP contra la forma ya
-   conocida de /api/mapeos y guarda el estado de la cola.
-
-   Límite conocido: la cola vive en localStorage sin coordinación
-   entre pestañas — pensado para una sola pestaña activa por
-   dispositivo (el uso real: un operario, un celular, un mapeo a la
-   vez). Un trabajo que se cae justo después de que el servidor ya lo
-   aplicó (crash a mitad de la respuesta) se reintenta igual al
-   recargar — puede duplicar como mucho ese único registro; se acepta
-   ese riesgo puntual a cambio de no necesitar claves de idempotencia
-   en el servidor.
-   ============================================================ */
+// Módulo App · Mapear — motor de sincronización en segundo plano.
+// Cola (outbox) persistida en localStorage: cada alta/edición/baja se encola
+// y se envía a /api/mapeos en orden, uno a la vez, mientras haya algo pendiente.
+// Sigue drenando aunque se cierre el editor, y retoma al volver la conexión
+// (evento 'online') o cada RETRY_MS como red de seguridad. store.js es el
+// único consumidor (enqueueAdd/Update/Remove + onEvent).
+//
+// Límite conocido: sin coordinación entre pestañas (pensado para una sola
+// pestaña activa por dispositivo). Un trabajo que se cae justo después de que
+// el servidor ya lo aplicó se reintenta igual al recargar — puede duplicar
+// como mucho ese registro; riesgo aceptado a cambio de no necesitar
+// idempotencia en el servidor.
 
 import { apiFetch } from '/shared/js/api.js';
 
@@ -36,9 +17,8 @@ const OUTBOX_KEY = 'gd.mapear.outbox.v1';
 const RETRY_MS = 8000;
 
 let outbox = loadOutbox();
-// Un trabajo que quedó marcado "sending" de una sesión anterior (la
-// pestaña se cerró a mitad de un request) no sabemos si en verdad se
-// aplicó o no — se trata como no enviado y se reintenta desde cero.
+// Un trabajo marcado "sending" de una sesión anterior (pestaña cerrada a
+// mitad de un request): no se sabe si se aplicó, se trata como no enviado.
 outbox.forEach((j) => { j.sending = false; });
 
 let processing = false;
@@ -58,9 +38,7 @@ function persist() {
   try {
     localStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox));
   } catch (e) {
-    // Cuota llena o storage deshabilitado (modo privado): la cola
-    // sigue funcionando en memoria para esta sesión, solo se pierde
-    // el respaldo en disco si se cierra la pestaña a mitad de camino.
+    // Cuota llena o storage deshabilitado: sigue en memoria, se pierde el respaldo en disco.
     console.error('[mapear/sync-engine] No se pudo persistir la cola:', e.message);
   }
 }
@@ -78,9 +56,7 @@ function emit(evt) {
   listeners.forEach((cb) => cb(evt));
 }
 
-// fetch() rechaza con TypeError cuando no hay red (offline, DNS caído,
-// etc.) — cualquier otro error ya es una respuesta real del servidor
-// (4xx/5xx, con su propio código en err.message vía apiFetch).
+// fetch() rechaza con TypeError sin red; cualquier otro error es una respuesta real del servidor.
 function isNetworkError(err) {
   return err instanceof TypeError || !navigator.onLine;
 }
@@ -93,9 +69,8 @@ export function enqueueAdd(mapeoId, codeId, code) {
   scheduleFlush(0);
 }
 
-// Varias ediciones seguidas del mismo registro (cantidad, motivo,
-// fecha) se combinan en un solo trabajo mientras no se haya empezado
-// a enviar — así no sale un request por cada campo tocado.
+// Ediciones seguidas del mismo registro se combinan en un solo trabajo
+// mientras no se haya empezado a enviar.
 export function enqueueUpdate(mapeoId, codeId, patch) {
   const existing = outbox.find((j) => j.kind === 'update' && j.mapeoId === mapeoId && j.codeId === codeId && !j.sending);
   if (existing) {
@@ -107,10 +82,8 @@ export function enqueueUpdate(mapeoId, codeId, patch) {
   scheduleFlush(0);
 }
 
-// Si el alta de este código todavía no se envió, no hace falta tocar
-// la red en absoluto: se descarta junto con cualquier edición
-// encolada para el mismo id, como si nunca hubiera salido del
-// dispositivo.
+// Si el alta todavía no se envió, se descarta sin tocar la red, junto con
+// cualquier edición encolada para el mismo id.
 export function enqueueRemove(mapeoId, codeId) {
   const pendingAdd = outbox.find((j) => j.kind === 'add' && j.mapeoId === mapeoId && j.codeId === codeId && !j.sending);
   if (pendingAdd) {
@@ -124,11 +97,8 @@ export function enqueueRemove(mapeoId, codeId) {
   scheduleFlush(0);
 }
 
-// El id local (temporal, string) de un alta se reemplaza por el id
-// real que asigna el servidor apenas esa alta se confirma — cualquier
-// otro trabajo que todavía la esté esperando en la cola (una edición,
-// una baja) se actualiza para apuntar al id real, sin que quien
-// encoló ese trabajo tenga que saber que el id cambió.
+// Al confirmarse un alta, actualiza cualquier otro trabajo en cola que
+// todavía apunte al id temporal para que apunte al id real.
 export function remapId(mapeoId, oldId, newId) {
   let changed = false;
   outbox.forEach((j) => {

@@ -1,19 +1,7 @@
-/* ============================================================
-   Catálogo local de existencia de producto (referencia, descripcion,
-   ean) — compartido por Mapear y Consultar grupo para validar un
-   código escaneado ANTES de abrir cualquier ventana. Se descarga una
-   vez (GET /api/catalog/lookup) y se cachea en localStorage, igual
-   que app/modules/mapear/lookup-catalog.js (que sigue existiendo
-   aparte, con "grupo" incluido, porque a Mapear le sirve además para
-   autocompletar esos campos — acá solo hace falta saber si el código
-   existe o no).
-
-   Si nunca hubo conexión en este dispositivo, el catálogo queda
-   vacío: existsLocal() devuelve `false` para cualquier código, así
-   que hasta la primera sincronización ningún escaneo abre ventana. Se
-   refresca solo, sin que nadie tenga que acordarse de llamarlo: apenas
-   se carga el módulo y cada vez que vuelve la conexión.
-   ============================================================ */
+// Catálogo local de existencia de producto (referencia/descripcion/ean), cacheado en
+// localStorage, para validar un código escaneado antes de abrir ventana. Distinto de
+// app/modules/mapear/lookup-catalog.js (ese incluye "grupo" para autocompletar).
+// Si nunca hubo conexión, existsLocal() da false para todo hasta la primera sincronización.
 
 import { apiFetch } from './api.js';
 
@@ -50,15 +38,11 @@ export async function refresh() {
     try {
       localStorage.setItem(CACHE_KEY, JSON.stringify(items));
     } catch (e) {
-      // Cuota llena o storage deshabilitado: el catálogo sigue
-      // funcionando en memoria para esta sesión, solo no sobrevive un
-      // reload — no hay razón para tirar abajo el refresh por esto.
+      // Cuota llena o storage deshabilitado: sigue en memoria, solo no sobrevive un reload.
       console.error('[shared/product-catalog] No se pudo persistir el catálogo:', e.message);
     }
   } catch (e) {
-    // Sin red o el servidor falló: se sigue con lo que ya había en
-    // caché (o vacío, si nunca se pudo traer) — nunca bloquea el
-    // escaneo por esto.
+    // Sin red o falló el servidor: sigue con lo que ya había en caché, nunca bloquea el escaneo.
     console.error('[shared/product-catalog] No se pudo actualizar el catálogo:', e.message);
   } finally {
     refreshing = false;
@@ -69,18 +53,13 @@ export function existsLocal(code) {
   return map.has(normalize(code));
 }
 
-// Descripción + EAN ya conocidos localmente (sin red) — referencia,
-// descripción y EAN de un producto no cambian una vez creados en
-// Variables, así que no hace falta esperar al servidor ni mostrar un
-// "hueso" para estos dos campos si ya están en el catálogo local.
+// Descripción + EAN conocidos localmente (sin red) — no cambian una vez creados en Variables.
 export function findLocal(code) {
   return map.get(normalize(code)) || null;
 }
 
-// Si el catálogo nunca se pudo descargar en este dispositivo (nunca
-// hubo red desde el primer uso), no hay forma de saber si un código
-// existe o no — los llamadores deben dejar pasar el escaneo en vez de
-// bloquearlo con un "no encontrado" que en realidad es "no se sabe".
+// Si nunca se pudo descargar el catálogo, no hay forma de saber si un código existe:
+// el llamador debe dejar pasar el escaneo en vez de bloquear con un falso "no encontrado".
 export function hasData() {
   return map.size > 0;
 }

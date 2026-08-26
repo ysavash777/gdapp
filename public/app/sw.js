@@ -1,8 +1,5 @@
-/* ============================================================
-   GDapp · Service Worker — cache básico del app-shell
-   Estrategia: network-first con fallback a cache (la app siempre
-   intenta lo fresco; sin red, sirve lo guardado).
-   ============================================================ */
+// Service Worker: cache del app-shell, network-first con fallback a cache.
+// Subir CACHE invalida el cache anterior en 'activate'.
 
 const CACHE = 'gdapp-shell-v7';
 

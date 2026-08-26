@@ -1,10 +1,7 @@
-/* ============================================================
-   API de Vencimientos — todo lo que venza dentro de la ventana de
-   store/vencimientos.store.js (hoy 15 días, o ya vencido), cruzando
-   Referencia con el estado de validación (Supabase) y la
-   configuración de ubicaciones excluidas. Exige el permiso
-   'vencimientos' (scope app — no tiene equivalente en desk todavía).
-   ============================================================ */
+// API de Vencimientos — todo lo que venza dentro de la ventana de
+// store/vencimientos.store.js (15 días, o ya vencido), cruzando
+// Referencia con el estado de validación (Supabase) y las ubicaciones
+// excluidas. Requiere el permiso 'vencimientos'.
 
 const express = require('express');
 const router = express.Router();
@@ -95,17 +92,11 @@ router.delete('/validate', async (req, res) => {
     const { bodega, caja, ean } = req.body || {};
     if (!bodega || !caja || !ean) return res.status(400).json({ ok: false, error: 'MISSING_KEY' });
     await store.clearValidation(bodega, caja, ean);
-    // El ítem revertido vuelve a "pendiente" con la última foto de
-    // Referencia que haya (hasta 1h vieja, ver refresh-scheduler.js) —
-    // sin esto, podría resucitar en la lista con datos que ya no
-    // corresponden (motivo real por el que se pidió "siempre debemos
-    // validar"). Dispara una corrida puntual de Referencia en segundo
-    // plano para que la próxima consulta refleje el estado real de
-    // Copernico lo antes posible, sin bloquear la respuesta de este
-    // revert (una corrida real tarda decenas de segundos). Si ya hay
-    // una corrida en curso, engine.refresh() se limita a devolver
-    // ALREADY_RUNNING sin romper nada — el próximo ciclo programado
-    // (o el botón manual) igual la pone al día.
+    // Dispara una corrida de Referencia en segundo plano (sin esperar,
+    // tarda decenas de segundos) para que el ítem revertido no quede
+    // con datos viejos hasta el próximo refresh programado. Si ya hay
+    // una corrida en curso, engine.refresh() devuelve ALREADY_RUNNING
+    // sin romper nada.
     engine.refresh(['referencia']).catch((e) => {
       console.error('[routes/vencimientos] refresh de Referencia tras revertir falló:', e);
     });
@@ -116,10 +107,9 @@ router.delete('/validate', async (req, res) => {
   }
 });
 
-// GET /api/vencimientos/export — XLSX con todo el estado actual. Usa
+// GET /api/vencimientos/export — XLSX con el estado actual. Usa
 // listForExport() (no list()): lo validado sale directo de
-// vencimiento_validaciones, sin re-chequear contra la foto actual de
-// Referencia — ver el comentario de esa función en el store.
+// vencimiento_validaciones, ver esa función en el store.
 router.get('/export', async (_req, res) => {
   try {
     const items = await store.listForExport();

@@ -1,30 +1,14 @@
-/* ============================================================
-   App · Notificaciones — productos vencidos.
-
-   A propósito simple: sin toast flotante, solo la campana del header
-   con un badge rojo. Ya no es un listado por SKU/ubicación con
-   seguimiento de "visto" por ítem — es un único aviso "Existen N
-   artículos vencidos" que se dispara como máximo una vez por día
-   (por dispositivo, en localStorage) mientras haya al menos un
-   vencido pendiente. Si no hay ninguno, no se muestra nada — ni
-   badge ni aviso — y se olvida la fecha guardada, para que el día
-   que vuelva a haber vencidos el aviso se dispare de nuevo aunque
-   sea el mismo día.
-
-   Solo "vencido" (ya pasó la fecha) — "próximo a vencer" no dispara
-   esto, es un aviso para lo que ya hay que sacar YA, no un recordatorio
-   de lo que viene.
-   ============================================================ */
+// Notificaciones de productos vencidos: un único aviso "Existen N artículos
+// vencidos" (badge en la campana), como máximo una vez por día por dispositivo.
+// Solo cuenta "vencido" (fecha ya pasada), no "próximo a vencer".
 
 import { list } from './modules/vencimientos/store.js';
 import { icon } from '/shared/js/icons.js';
 
 const ALERT_KEY = 'gd.vencidos.alertDate.v1';
 
-// Fecha LOCAL en formato YYYY-MM-DD (no UTC: toISOString corriría el
-// día para cualquiera al este/oeste del meridiano de Greenwich cerca
-// de medianoche) — el locale 'en-CA' es el truco estándar para que
-// toLocaleDateString devuelva ese formato sin armarlo a mano.
+// Fecha LOCAL YYYY-MM-DD (no toISOString: corre el día cerca de medianoche
+// según el huso). 'en-CA' es el truco estándar para ese formato.
 function todayKey() {
   return new Date().toLocaleDateString('en-CA');
 }
@@ -46,11 +30,9 @@ function setAlertedDate(day) {
   }
 }
 
-// { count, shouldAlert } — count es cuántos vencidos pendientes hay
-// AHORA; shouldAlert indica si corresponde prender el badge (todavía
-// no se avisó hoy Y hay al menos uno). Sin vencidos, se limpia la
-// fecha guardada para no dejar "gastado" el aviso de un día que ya
-// no aplica.
+// shouldAlert: no se avisó hoy y hay al menos un vencido. Sin vencidos,
+// limpia la fecha guardada para que el aviso vuelva a dispararse el
+// mismo día si reaparece un vencido.
 export async function checkVencidos() {
   const { items } = await list();
   const count = items.filter((i) => i.severity === 'vencido' && !i.validated).length;
@@ -64,16 +46,11 @@ export async function checkVencidos() {
   return { count, shouldAlert };
 }
 
-// Se llama al abrir la campana: apaga el badge por el resto del día,
-// sin importar si el conteo sigue cambiando — el aviso ya cumplió su
-// propósito de avisar una vez.
+// Al abrir la campana: apaga el badge por el resto del día.
 export function markAlertSeen() {
   setAlertedDate(todayKey());
 }
 
-// El avatar usa el mismo ícono/color que la tarjeta de Vencimientos en
-// el inicio (ver TOOLS en app.js y .notif-item-avatar en app.css) —
-// así el aviso se reconoce de qué herramienta viene de un vistazo.
 export function notifMessageHTML(count) {
   if (!count) return `<p class="notif-empty">No tenés notificaciones</p>`;
   return `

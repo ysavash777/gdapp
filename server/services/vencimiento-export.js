@@ -1,19 +1,10 @@
 /* ============================================================
-   Exporta el estado de Vencimientos a XLSX (ExcelJS) — UNA sola hoja
-   (pedido explícito, nunca una por estado), ordenada por ubicación
-   (mismo criterio que el recorrido físico de la app), con una columna
-   "Observación" que resume el resultado: "Pendiente" si todavía no se
-   validó, "OK" o el detalle escrito si el motivo fue "Otro", o
-   "Faltante" (con la foto de evidencia en su propia columna, como
-   link). Mismo criterio visual que services/mapeo-export.js:
-   encabezado en negrita con relleno azul, todas las celdas centradas
-   y con borde en los cuatro lados.
-
-   `items` viene de store/vencimientos.store.js#listForExport() — los
-   ítems validados salen directo de vencimiento_validaciones, nunca se
-   re-chequean contra la foto actual de Referencia (ver el comentario
-   de esa función), así que un producto ya validado nunca desaparece
-   del reporte aunque Referencia haya cambiado después.
+   Exporta el estado de Vencimientos a XLSX (ExcelJS) — una sola hoja,
+   ordenada por ubicación, con columna "Observación" (Pendiente / OK /
+   detalle de "Otro" / Faltante). `items` viene de
+   store/vencimientos.store.js#listForExport() — los ya validados salen
+   directo de vencimiento_validaciones, nunca desaparecen del reporte
+   aunque Referencia haya cambiado después.
    ============================================================ */
 
 const ExcelJS = require('exceljs');

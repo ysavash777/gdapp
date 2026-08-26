@@ -1,30 +1,8 @@
-/* ============================================================
-   Módulo Desk · Bases de datos
-   Un botón "Actualizar DB" para todas las fuentes de una — hoy
-   dispara el motor de "Referencia", "Coordenadas" y "Variables"
-   (server/services/inventory-engine.js, un solo login, una consulta
-   por fuente, un solo logout) — y, además, un botón puntual en cada
-   tarjeta para actualizar SOLO esa fuente (mismo motor, mismo login
-   único, filtrado a una sola — ver refresh(sourceKeys) en
-   inventory-engine.js). Los dos disparadores comparten el mismo lock
-   del servidor: nunca pueden correr dos actualizaciones en simultáneo,
-   sea masiva o puntual. Líneas picking todavía no tiene motor propio:
-   la tarjeta ya existe con la forma final, pero no hace nada al
-   tocarla (sin botón de actualizar).
-
-   Cada tarjeta es sobre todo una vidriera de estado (ícono, sin
-   texto). Tampoco se muestran las filas traídas acá, solo la cantidad
-   y el horario (el detalle vive en el servidor, listo para
-   consultarse desde otro módulo sin que el navegador tenga que
-   cargarlo).
-
-   La barra de progreso (botón masivo Y cada tarjeta puntual) usa
-   shared/js/db-refresh.js para estimar cuánto va a tardar — tiempo
-   REAL medido de la última corrida de cada fuente (Copernico + espejo
-   en Supabase), nunca un número fijo igual para todas: no tiene
-   sentido animar Referencia y Coordenadas al mismo ritmo si una trae
-   ~11000 filas y la otra ~20000.
-   ============================================================ */
+// Módulo Desk · Bases de datos. Botón "Actualizar DB" masivo + botón puntual por
+// tarjeta (mismo motor/lock en el servidor, ver inventory-engine.js refresh(sourceKeys));
+// nunca corren dos actualizaciones a la vez. Líneas picking no tiene motor propio todavía
+// (tarjeta sin botón). La barra de progreso usa db-refresh.js para estimar duración con
+// tiempo real medido por fuente.
 
 import { icon } from '/shared/js/icons.js';
 import { formatDateTime, escapeHtml } from '/shared/js/format.js';
@@ -49,16 +27,12 @@ function errorMessage(err) {
   return ERROR_MESSAGES[err.message] || 'Ocurrió un error al actualizar la base de datos.';
 }
 
-// Íconos premium (nunca CSS dibujado) por estado — sin texto al lado:
-// el color + la forma del ícono ya distinguen los tres casos.
 const STATUS_ICON = {
   ok: { name: 'check', cls: 'is-ok', title: 'Actualizado y cargado' },
   error: { name: 'alertTriangle', cls: 'is-error', title: 'Error al actualizar' },
   empty: { name: 'inbox', cls: 'is-empty', title: 'Sin datos' },
-  // Copernico contestó bien (por eso no es "error"), pero el respaldo
-  // en Supabase — lo único que sobrevive un restart/deploy en Render —
-  // está fallando: los datos de esta fuente NO van a sobrevivir el
-  // próximo restart, aunque se vean bien ahora mismo.
+  // Copernico contestó bien, pero el respaldo en Supabase (lo único que sobrevive
+  // un restart/deploy en Render) está fallando: no sobrevivirá el próximo restart.
   mirrorError: { name: 'alertTriangle', cls: 'is-warn', title: 'Actualizado, pero el respaldo en Supabase está fallando: no sobrevivirá un restart' },
 };
 
@@ -109,16 +83,13 @@ async function mount(root) {
     }
   }
 
-  // Sin datos de progreso real (Copernico no informa avance, solo
-  // responde entero al final): el relleno avanza una sola vez de 0 a
-  // ~92% calibrado contra la estimación real (nunca en loop) y se
-  // completa de golpe cuando la corrida real termina (antes o después
-  // de lo estimado) — ver finishFill().
+  // Sin progreso real de Copernico (responde entero al final): el relleno avanza
+  // una sola vez de 0 a ~92% calibrado contra la estimación, y finishFill() lo completa.
   function startFill(fillEl, ms) {
     if (!fillEl) return;
     fillEl.style.transition = 'none';
     fillEl.style.width = '0%';
-    void fillEl.offsetWidth; // fuerza reflow: sin esto el navegador podía fusionar este cambio con el de abajo y saltar directo a 92%, sin animar
+    void fillEl.offsetWidth; // fuerza reflow, si no el navegador salta directo a 92% sin animar
     fillEl.style.transition = `width ${ms}ms linear`;
     fillEl.style.width = '92%';
   }
@@ -137,10 +108,7 @@ async function mount(root) {
     return !!keys && keys.length === ACTIVE_KEYS.length && ACTIVE_KEYS.every((k) => keys.includes(k));
   }
 
-  // Arranca la animación correcta según qué se esté corriendo: si son
-  // TODAS las fuentes activas, el relleno del botón masivo; si es una
-  // sola, el relleno de esa tarjeta puntual — nunca los dos a la vez,
-  // porque el servidor no deja correr dos actualizaciones juntas.
+  // Todas las fuentes activas → relleno del botón masivo; una sola → relleno de esa tarjeta.
   function startProgressFor(keys) {
     if (isMassRun(keys)) {
       startFill(root.querySelector('.db-refresh-btn-fill'), estimateTotalMs(state.sources, ACTIVE_KEYS));
@@ -163,15 +131,12 @@ async function mount(root) {
       data = await fetchStatus();
       applySources(data.sources);
     } catch {
-      // Sin conexión al status: se queda con el último estado local
-      // conocido (por defecto "Sin datos") en vez de romper la vista.
+      // Sin conexión al status: se queda con el último estado local conocido.
     }
     drawCards();
     if (data?.running) {
-      // Alguien más (otra pestaña/persona) ya disparó una corrida —
-      // los botones se muestran ocupados igual, en vez de dejar pensar
-      // que se puede tocar de nuevo, y se refleja cuando esa corrida
-      // ajena termine. Nunca dispara una corrida nueva por su cuenta.
+      // Otra pestaña/persona ya disparó una corrida: se muestra ocupado también acá,
+      // sin disparar una corrida nueva propia.
       state.refreshing = true;
       state.runningKeys = data.runningKeys || ACTIVE_KEYS;
       drawButton();
@@ -212,15 +177,11 @@ async function mount(root) {
     drawCards();
     startProgressFor(state.runningKeys);
     try {
-      // Solo dispara la corrida — no espera a que termine (eso puede
-      // tardar 30-100+ segundos, según Copernico). El resultado final
-      // se conoce por polling a /status, igual que cuando la corrida
-      // la arranca otra pestaña — mismo pollUntilDone() para los dos
-      // casos, sin mantener una conexión HTTP gigante abierta.
+      // Solo dispara la corrida (puede tardar 30-100+ segundos); el resultado se
+      // conoce por polling a /status, mismo pollUntilDone() que si la arranca otra pestaña.
       await triggerRefresh(sourceKey);
     } catch (err) {
-      // No llegó ni a arrancar (ej. ALREADY_RUNNING) — no hay nada
-      // que esperar.
+      // No llegó ni a arrancar (ej. ALREADY_RUNNING).
       finishProgressFor(state.runningKeys);
       state.refreshing = false;
       state.runningKeys = null;

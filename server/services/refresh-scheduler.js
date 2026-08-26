@@ -1,25 +1,15 @@
 /* ============================================================
    Scheduler del refresh automático de bases (Copernico WMS).
+   Lunes a sábado, 6:00-22:00 hora Argentina, una corrida por hora en
+   punto; si falla, un único reintento a los 15 min (temporizador
+   independiente, no retrasa la próxima corrida en punto).
 
-   Regla de negocio (explícita, decisión de producto — ver la nota
-   en inventory-engine.js sobre por qué ese archivo nunca se
-   auto-invoca): lunes a sábado, de 6:00 a 22:00 hora Argentina,
-   una corrida por hora en punto. Si esa corrida falla, se reintenta
-   una única vez a los 15 minutos, sin tocar ni retrasar la próxima
-   corrida en punto (son dos temporizadores independientes).
+   Solo Referencia se refresca automáticamente (baja el egress hacia
+   Supabase, que sube todas las filas en cada corrida). Coordenadas y
+   Variables siguen disponibles a mano desde el desk.
 
-   Solo Referencia se refresca en la corrida automática (2026-08-24,
-   para bajar el egress hacia Supabase — cada corrida sube TODAS las
-   filas de la fuente, y Referencia es la única que de verdad necesita
-   estar al minuto). Coordenadas y Variables cambian con mucha menos
-   frecuencia y siguen disponibles para refrescar a mano desde el desk
-   ("Actualizar DB" por fuente) cuando haga falta — solo dejan de
-   dispararse solas cada hora.
-
-   Se usa America/Argentina/Buenos_Aires vía Intl en vez de la zona
-   horaria del proceso (en Render normalmente corre en UTC) para que
-   el horario 6-22 sea siempre hora Argentina sin depender de cómo
-   esté configurado el entorno.
+   Zona horaria fija vía Intl (no la del proceso, que en Render suele
+   ser UTC) para que 6-22 sea siempre hora Argentina.
    ============================================================ */
 
 const engine = require('./inventory-engine');
@@ -69,8 +59,7 @@ function runRefresh(label) {
       scheduleRetry();
     })
     .catch((e) => {
-      // engine.refresh() ya atrapa sus propios errores; esto es solo
-      // una red de seguridad para no dejar una promesa rechazada sin manejar.
+      // Red de seguridad: engine.refresh() ya atrapa sus propios errores.
       console.error(`[refresh-scheduler] (${label}) rechazó sin capturar:`, e);
       scheduleRetry();
     });

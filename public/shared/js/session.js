@@ -1,10 +1,5 @@
-/* ============================================================
-   GDapp · Sesión.
-   El servidor identifica al usuario por una cookie httpOnly (no
-   por lo que guardamos aquí) — localStorage solo cachea sus datos
-   para pintar la UI al instante. refreshUser() trae la versión
-   actual (permisos/rol al día) sin necesidad de volver a loguearse.
-   ============================================================ */
+// Sesión: el servidor identifica al usuario por cookie httpOnly, localStorage solo
+// cachea datos para pintar la UI al instante. refreshUser() trae permisos/rol al día.
 
 const KEY = 'gdapp.session';
 
@@ -18,11 +13,8 @@ export function currentUser() {
 
 function save(user) {
   localStorage.setItem(KEY, JSON.stringify(user));
-  // Los catálogos locales (shared/js/product-catalog.js,
-  // mapear/lookup-catalog.js) intentan refrescarse apenas se cargan,
-  // pero en un arranque sin sesión todavía (pantalla de login) esa
-  // primera llamada da 401 y se queda así hasta el próximo 'online' —
-  // este evento les avisa que ya hay sesión válida para reintentar.
+  // Los catálogos locales intentan refrescarse al cargar, pero sin sesión dan 401
+  // hasta el próximo 'online' — este evento les avisa que ya hay sesión para reintentar.
   window.dispatchEvent(new Event('gd-session-ready'));
   return user;
 }
@@ -38,9 +30,8 @@ export async function login(username, password) {
   return data;
 }
 
-// Trae del servidor los datos actuales del usuario logueado (según
-// la cookie de sesión) y actualiza el caché local. Devuelve null si
-// la sesión ya no es válida (p. ej. el usuario fue eliminado).
+// Trae del servidor los datos actuales del usuario y actualiza el caché local.
+// Devuelve null si la sesión ya no es válida.
 export async function refreshUser() {
   try {
     const res = await fetch('/api/auth/me');
@@ -52,9 +43,8 @@ export async function refreshUser() {
   }
 }
 
-// El propio usuario cambia su contraseña — la sesión ya autenticada es
-// la única puerta, no pide la contraseña actual (pedido explícito). No
-// toca el caché local: username/rol/permisos no cambian.
+// El usuario cambia su propia contraseña; no pide la actual (la sesión ya autenticada
+// es la puerta). No toca el caché local: username/rol/permisos no cambian.
 export async function changePassword(newPassword) {
   const res = await fetch('/api/auth/password', {
     method: 'PATCH',
@@ -64,9 +54,7 @@ export async function changePassword(newPassword) {
   return res.json();
 }
 
-// No hace location.reload(): en una PWA instalada, una recarga completa
-// puede hacer que el navegador vuelva a calcular el layout como si fuera
-// una pestaña normal (se ha visto perder el modo standalone/responsive).
+// No hace location.reload(): en una PWA instalada puede perder el modo standalone.
 // El caller re-renderiza la vista en el propio documento.
 export function logout() {
   localStorage.removeItem(KEY);

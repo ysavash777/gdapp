@@ -1,76 +1,10 @@
-/* ============================================================
-   Módulo App · Vencimientos — validación de un ítem.
-
-   El acordeón (nav de ubicación + Caja/Producto/Observación) se
-   arma en renderValidationFlow() y se monta con mountSuggestedFlow(),
-   embebido en el flujo normal de la página, DEBAJO del toggle
-   Sugerido/Pendiente/Validado (ver list-view.js, modo "Sugerido") —
-   único punto de entrada: tocar un ítem en "Pendiente" no abre nada
-   aparte, salta a esta misma ficha ya parada en ese ítem (ver
-   list-view.js). Sin overlay ni historial propio — "confirmar" no
-   cierra nada, la propia ficha relee la cola (onValidated) y pasa sola
-   a la siguiente posición pendiente.
-
-   Arriba de todo, una barra solo con las flechas de navegación entre
-   posiciones pendientes y el texto estático "Ubicación" en el medio
-   (.venc-loc-nav) — no muestra datos del ítem, es puramente el
-   control para saltar de a una posición (pendingItems) sin perder el
-   estado (loadItem reinicia todo el estado, reutilizando la misma
-   cámara ya activa — nunca se vuelve a pedir permiso).
-
-   Debajo, el acordeón de 3 contenedores de siempre, uno a la vez:
-     1) Caja — ubicación + número de caja + avatar de estado, mismo
-        patrón exacto que Producto (tap para abrir/cerrar, cámara
-        adentro). Nunca se puede saltar: es el único paso que confirma
-        que el operario está parado frente a la posición correcta (por
-        eso Producto arranca BLOQUEADO hasta que este se valida).
-     2) Producto — descripción + referencia/EAN. Acá SÍ se puede
-        reportar "faltante" sin escanear (si el producto de verdad no
-        está, insistir en escanearlo no tiene sentido): reemplaza a
-        Producto por un módulo compacto que exige una foto de la
-        posición vacía como evidencia (cámara nativa o galería del
-        dispositivo, no la cámara compartida — ver enterFotoMode()).
-     3) Observación — contenedor de cierre, oculto por completo hasta
-        validar 1 y 2. Repite la info del producto (descripción,
-        saldo, pedprov, vencimiento) para la última revisión y pide
-        una observación en texto libre — obligatoria, no se puede
-        confirmar vacía. No se valida contra nada, así que no tiene
-        avatar de estado propio.
-
-   Abrir un contenedor cierra automáticamente cualquier otro que
-   estuviera abierto — pero sin desplazar nada de lugar: el que se abre
-   crece hacia el espacio libre de la pantalla, nunca empuja lo que
-   sigue. Una vez validado correctamente, el contenedor queda bloqueado
-   (no se puede reabrir ni tiene más lógica) y su avatar pasa de
-   "pendiente" a "éxito".
-
-   Un solo <video> de cámara (envuelto en .scan-camera-stage junto con
-   linterna/teclado/input manual) se reutiliza entre Caja y Producto —
-   se mueve entero con .prepend, nunca se recrea ni se vuelve a pedir
-   permiso. La foto de faltante NO la usa (ver más abajo): mientras esa
-   vista está activa, la cámara compartida solo se pausa donde esté
-   parqueada (siempre en el panel de Producto), nunca se mueve.
-   moveCameraTo
-   evita mover el stage si ya está en el contenedor destino: aunque no
-   relanza nada (ni cámara ni permisos), un .prepend "de más" corta y
-   reinicia la animación de la línea de escaneo — se nota feo cada vez
-   que se cambiaba de ítem sin necesidad.
-
-   El teclado abre un input chico que reemplaza a la cámara por
-   completo (no flota encima): mientras está activo, la cámara se
-   oculta y el contenedor entero se achica a la altura justa del
-   input, en vez de quedarse con el alto grande que usaba la cámara.
-   Volver a la cámara es un botón integrado en el propio input (no un
-   botón flotando aparte). Ese input pasa por el mismo checkMatch()
-   que un código leído por cámara.
-
-   Un match en cualquier paso avanza SOLO, sin pedir confirmación —
-   pero se marca fuerte (color de éxito + vibración + destello + toast)
-   para que nunca pase desapercibido. El valor esperado nunca se
-   muestra de entrada; si hay un desacuerdo, se imprime solo lo leído
-   (recortado a 14 caracteres) como insignia flotante sobre la cámara,
-   nunca como bloque de texto que deforme el layout.
-   ============================================================ */
+// Módulo Vencimientos — validación de un ítem. Acordeón de 3 pasos (Caja >
+// Producto > Observación), uno a la vez, montado embebido en list-view.js
+// (modo "Sugerido") vía mountSuggestedFlow(). Caja confirma la posición
+// (bloquea Producto hasta validarse); Producto admite reportar "faltante"
+// con foto en vez de escanear; Observación repite los datos y pide texto
+// libre obligatorio. Un solo <video> de cámara se reutiliza entre Caja y
+// Producto (se mueve con .prepend, nunca se recrea ni repide permiso).
 
 import { icon, iconSolid } from '/shared/js/icons.js';
 import { escapeHtml } from '/shared/js/format.js';
@@ -89,18 +23,13 @@ function truncate(v) {
   return s.length > MISMATCH_MAX_CHARS ? `${s.slice(0, MISMATCH_MAX_CHARS)}…` : s;
 }
 
-// Mismo criterio que formatQty() en list-view.js.
 function formatQty(saldo) {
   if (saldo == null) return '-';
   return saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 });
 }
 
-// La ubicación en la barra de navegación (arriba de todo) tiene que
-// entrar siempre en una sola línea, sin importar el largo del código
-// — nunca deformar el contenedor ni saltar de línea. Mismo criterio
-// que el resto de "medidas fijas" de la app (ver qtySizeClass/
-// chipSizeClass en otras herramientas): se va escalando el tamaño de
-// fuente en vez de cortar texto.
+// La ubicación debe entrar siempre en una línea: se escala la fuente por
+// tramos de longitud en vez de cortar texto.
 function locSizeClass(text) {
   const len = String(text || '').length;
   if (len <= 8) return '';
@@ -109,15 +38,9 @@ function locSizeClass(text) {
   return 'is-xs';
 }
 
-// La descripción del producto no tiene un largo predecible como la
-// ubicación (es texto libre) — achicar por escalones fijos según
-// cantidad de caracteres no alcanza (dos textos del mismo largo
-// pueden ocupar distinto según el ancho de cada letra/palabra). Se
-// mide de verdad: con el texto puesto a tamaño normal y recortado a 2
-// líneas (line-clamp), scrollHeight > clientHeight indica que sigue
-// sin entrar completo — de a un pixel, hasta que entre o se llegue al
-// piso mínimo (nunca desaparece del todo, en el peor caso queda algo
-// recortado por la elipsis del line-clamp, red de seguridad final).
+// Texto libre: no alcanza con escalones fijos, se mide de verdad
+// (scrollHeight > clientHeight con line-clamp a 2 líneas) y se achica de a
+// 1px hasta que entre o se llegue al piso mínimo.
 const PROD_DESC_MIN_FONT_PX = 11;
 function fitProdDescription(el) {
   el.style.fontSize = '';
@@ -128,11 +51,7 @@ function fitProdDescription(el) {
   }
 }
 
-// Mismo criterio que urgencyBannerHTML() en list-view.js (modo
-// Sugerido) — acá se repite el mismo aviso, ya al final del flujo,
-// para reforzar la acción a tomar justo antes de escribir la
-// observación (que es donde tiene más sentido registrarla si hace
-// falta retirar el producto).
+// Debe reflejar el mismo aviso que urgencyBannerHTML() en list-view.js.
 function urgencyBannerHTML(it) {
   if (it.isRetirar) {
     return `<div class="venc-suggest-urgency is-${it.severity}">${icon('alertTriangle', 16)} Retirar de ubicación</div>`;
@@ -140,20 +59,12 @@ function urgencyBannerHTML(it) {
   return `<div class="venc-suggest-urgency is-${it.severity}">${icon('calendarAlert', 16)} Vence en ${it.days} día${it.days === 1 ? '' : 's'}</div>`;
 }
 
-// Arma todo el acordeón dentro de `overlay` (el <div> que
-// mountSuggestedFlow ya insertó en el flujo normal de la página —
-// nunca se asume posición fixed acá adentro).
-//   - onValidated(item): se llama YA, antes de que el guardado real
-//     termine (ver finishValidation — optimista, nunca espera al
-//     servidor). Devuelve la cola pendiente ya sin este ítem (quitado
-//     de la copia local, sin pedirle nada al servidor) — refreshQueue
-//     avanza sola con eso.
-//   - onValidateError(item): el guardado real falló en segundo plano
-//     — quien llama debe reincorporar el ítem a su lista local (nunca
-//     quedó guardado, aunque la UI ya haya avanzado).
-//   - onIndexChange(idx)/onEmpty(): opcionales, solo los usa la ficha
-//     embebida (persistir la posición, mostrar el estado "todo
-//     validado" cuando la cola queda vacía).
+// Arma el acordeón dentro de `overlay`.
+//   - onValidated(item): optimista, llamado antes de que termine el guardado
+//     real; devuelve la cola pendiente sin este ítem.
+//   - onValidateError(item): el guardado falló en segundo plano, quien llama
+//     debe reincorporar el ítem a su lista local.
+//   - onIndexChange(idx)/onEmpty(): opcionales, usados por la ficha embebida.
 function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValidated, onValidateError, onIndexChange, onEmpty }) {
   let item = initialItem;
   let slides = pendingItems.length ? pendingItems : [initialItem];
@@ -290,11 +201,9 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
   locPrev.addEventListener('click', () => goToIndex(currentIndex - 1));
   locNext.addEventListener('click', () => goToIndex(currentIndex + 1));
 
-  // Stage de cámara compartido (video + línea + destello + insignia +
-  // linterna + teclado + input manual) — se mueve entero entre Caja,
-  // Producto y la foto de faltante, sin recrear nada ni perder el
-  // stream. Linterna/teclado viven en el STAGE, no en el <video> en sí,
-  // para seguir tocables aunque la cámara esté oculta (modo manual).
+  // Stage de cámara compartido, se mueve entero entre Caja/Producto sin
+  // recrear el stream. Linterna/teclado viven en el stage (no en <video>)
+  // para seguir tocables con la cámara oculta en modo manual.
   const cameraStage = document.createElement('div');
   cameraStage.className = 'scan-camera-stage';
   cameraStage.innerHTML = `
@@ -332,10 +241,8 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     flashEl.classList.add('is-playing');
   }
 
-  // Insignia flotante SOBRE la cámara (position:absolute, no ocupa
-  // lugar en el flujo) — a diferencia de un bloque de texto en los
-  // controles, aparecer/desaparecer nunca achica el espacio de la
-  // cámara ni mueve nada alrededor.
+  // Insignia flotante sobre la cámara (position:absolute): aparecer/
+  // desaparecer nunca achica el espacio de la cámara ni mueve nada alrededor.
   function showMismatch(raw) {
     mismatchTextEl.textContent = truncate(raw);
     mismatchEl.classList.add('is-visible');
@@ -343,29 +250,16 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     mismatchTimer = setTimeout(() => mismatchEl.classList.remove('is-visible'), 2200);
   }
 
-  // Modo manual: reemplaza la cámara por completo (nunca flota
-  // encima) — mientras está activo, se oculta y el CONTENEDOR GRIS
-  // ENTERO (no solo la cámara) se achica a la altura justa del input,
-  // con una animación real (mismo ancho, mismo radio, solo el alto se
-  // mueve). Técnica FLIP: se mide el alto real ANTES de cambiar nada,
-  // se aplica el cambio (cámara↔input, y la clase que determina el
-  // alto nuevo), se mide el alto real DESPUÉS, y recién ahí se anima
-  // de un número al otro — animar flex-grow/flex-basis directamente
-  // no da una transición de alto fiable entre navegadores. Pausa la
-  // detección: no tiene sentido seguir leyendo frames de una cámara
-  // escondida.
+  // Modo manual: técnica FLIP — mide el alto ANTES de cambiar nada, aplica
+  // el cambio, mide el alto DESPUÉS y anima entre esos valores (flex-grow/
+  // flex-basis no da una transición de alto fiable entre navegadores).
   let manualAnimCleanup = null;
   function setManualMode(active) {
-    // closeManualInput() se llama "por las dudas" en varios puntos
-    // (moveCameraTo, loadItem, markDone...) aunque el modo manual ya
-    // esté apagado — sin este freno, cada una de esas llamadas
-    // disparaba igual toda la animación FLIP de abajo (mide alto
-    // ANTES/DESPUÉS aunque nada vaya a cambiar) y, si esa medición
-    // ocurre con el panel todavía vacío (cámara sin mover adentro
-    // todavía), el alto capturado quedaba mal — sin una transición
-    // real de por medio nunca dispara "transitionend", así que el
-    // cleanup que libera el height inline nunca llegaba a correr y el
-    // contenedor quedaba con un alto fijo pegado para siempre.
+    // Guard necesario: closeManualInput() se llama "por las dudas" en varios
+    // puntos aunque el modo ya esté apagado. Sin este freno, la medición de
+    // alto podía ocurrir con el panel vacío (alto mal capturado), sin una
+    // transición real de por medio nunca dispara "transitionend", y el
+    // cleanup que libera el height inline queda pegado para siempre.
     if (active === cameraStage.classList.contains('is-manual')) return;
     const activeItem = openKey === 'caja' ? itemCaja : (openKey === 'prod' ? itemProd : null);
     keyboardBtn.classList.toggle('is-active', active);
@@ -384,8 +278,6 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
       activeItem.style.flex = 'none';
       activeItem.style.height = `${fromHeight}px`;
       void activeItem.offsetHeight; // fuerza reflow antes de animar
-      // Curva suave (ease-out pronunciado, sin frenada seca al final)
-      // en vez del material-standard más "mecánico" de antes.
       activeItem.style.transition = 'height 280ms cubic-bezier(.22, 1, .36, 1)';
       activeItem.style.height = `${toHeight}px`;
 
@@ -412,10 +304,6 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     setManualMode(false);
   }
   keyboardBtn.addEventListener('click', () => setManualMode(true));
-  // Volver a la cámara vive integrado en el propio input (no flotando
-  // encima, superpuesto y descolgado como el botón de teclado — que
-  // además solo tiene sentido para ABRIR el modo manual, no para
-  // cerrarlo).
   manualBackBtn.addEventListener('click', () => setManualMode(false));
   manualRow.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -425,11 +313,8 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     manualInput.value = '';
   });
 
-  // No mover el stage si ya está en el destino: un .prepend "de más"
-  // no relanza la cámara ni pide permiso de nuevo (sigue siendo el
-  // mismo <video>/stream), pero SÍ corta y reinicia la animación de
-  // la línea de escaneo — se notaba feo cada vez que se cambiaba de
-  // ítem con el mismo contenedor ya activo.
+  // No mover el stage si ya está en destino: aunque un .prepend de más no
+  // relanza la cámara, sí corta y reinicia la animación de la línea de escaneo.
   function moveCameraTo(target) {
     closeManualInput();
     if (cameraStage.parentElement !== target) target.prepend(cameraStage);
@@ -456,11 +341,8 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     itemEl.classList.toggle('is-open', isOpen);
     panelEl.hidden = !isOpen;
     if (!isOpen) {
-      // Si se cierra con una animación de modo manual a mitad de
-      // camino (p. ej. se validó justo mientras estaba escribiendo a
-      // mano), la termina de una para no dejar estilos inline
-      // colgados (height/transition/flex) en un contenedor que ya no
-      // se ve.
+      // Corta de una la animación de modo manual si estaba a mitad de camino,
+      // para no dejar estilos inline colgados (height/transition/flex).
       itemEl.classList.remove('is-manual-active');
       if (manualAnimCleanup) { manualAnimCleanup(); manualAnimCleanup = null; }
     }
@@ -495,8 +377,6 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     setOpen(key, false);
   }
 
-  // Tocar un contenedor ya abierto no lo contrae — solo abrir OTRO lo
-  // cierra (ver openAccordion). Evita cerrar la cámara sin querer.
   headCaja.addEventListener('click', () => {
     if (stateOf.caja !== 'pending' || openKey === 'caja') return;
     openAccordion('caja');
@@ -506,17 +386,9 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     openAccordion('prod');
   });
 
-  // Reportar faltante exige una foto de la posición vacía — reemplaza
-  // solo al contenedor de Producto (nunca a Caja, que ya quedó
-  // "Ubicación confirmada" arriba y sirve de contexto) ni al de
-  // Observación (sigue oculto, no se llega a él por acá — el motivo
-  // queda registrado como "Faltante" directo). Nada de cámara propia:
-  // dos accesos nativos (cámara del dispositivo o galería, vía <input
-  // type="file">) en vez de la vista previa en vivo de antes — "es
-  // incómodo tomar la foto desde ahí" fue el pedido explícito. La
-  // cámara COMPARTIDA (Caja/Producto) solo se pausa mientras tanto,
-  // nunca se mueve: sigue exactamente donde estaba (en panelProd) para
-  // cuando se cancele.
+  // Reportar faltante reemplaza solo el contenedor de Producto y exige
+  // foto (input file nativo, cámara o galería). La cámara compartida solo
+  // se pausa, nunca se mueve, para seguir donde estaba si se cancela.
   function enterFotoMode() {
     fotoViewOpen = true;
     photoDataUrl = null;
@@ -541,16 +413,10 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
 
   overlay.querySelector('#vencPhotoCancel').addEventListener('click', exitFotoMode);
 
-  // Achica cualquier foto (de cámara o de galería, puede pesar varios
-  // MB tal cual la entrega el dispositivo) a un tamaño manejable antes
-  // de convertirla a data URL — el body JSON tiene un límite de 4mb
-  // (ver server/index.js) y de todas formas no tiene sentido mandar
-  // una foto de evidencia a resolución completa. createImageBitmap()
-  // decodifica bastante más rápido que un <img> (evita todo el
-  // pipeline de carga de imagen HTML) — con fotos de cámara modernas
-  // (10+ MP) esa diferencia se sentía como la app "trabada" un par de
-  // segundos; con fallback a Image+canvas para navegadores que no lo
-  // soporten.
+  // Achica la foto antes de convertirla a data URL: el body JSON tiene un
+  // límite de 4mb (ver server/index.js). createImageBitmap() decodifica
+  // mucho más rápido que un <img> con fotos de cámara modernas (10+ MP);
+  // fallback a Image+canvas si no está disponible.
   const PHOTO_MAX_DIM = 1280;
   const PHOTO_QUALITY = 0.6;
   async function resizeImageFile(file) {
@@ -582,14 +448,11 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     });
   }
 
-  // `photoRequestId` descarta cualquier procesamiento que llegue tarde
-  // (dos toques seguidos en Cámara/Galería, o cancelar y elegir de
-  // nuevo mientras el anterior todavía procesa) — sin esto, un
-  // resultado viejo podía pisar al más nuevo, o peor, aplicarse
-  // aunque el usuario ya haya salido del modo foto. `file.size` en 0
-  // (algunos navegadores móviles disparan `change` con un archivo
-  // vacío si se cancela la cámara sin tomar nada) se descarta directo,
-  // nunca debe mostrar "Foto lista" sin una foto real.
+  // `photoRequestId` descarta procesamiento que llegue tarde (dos toques
+  // seguidos, o elegir de nuevo mientras el anterior procesa), evitando que
+  // un resultado viejo pise al más nuevo. `file.size === 0` se descarta
+  // directo: algunos navegadores móviles disparan `change` con un archivo
+  // vacío (0 bytes) si se cancela la cámara sin tomar nada.
   let photoRequestId = 0;
   async function handlePhotoFile(file) {
     if (!file || !file.size) return;
@@ -625,12 +488,9 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     finishValidation('faltante', 'Faltante', photoDataUrl);
   });
 
-  // Detalle del producto (descripción + saldo/pedprov/vencimiento +
-  // sugerencia de acción) — última revisión antes de escribir la
-  // observación. Se arma recién en unlockComment(), nunca antes: con
-  // el contenedor todavía oculto (display:none) fitProdDescription()
-  // mide alto 0 y nunca llega a achicar la fuente si el texto es
-  // largo (mismo problema que ya se vio con setManualMode).
+  // Se arma recién en unlockComment(), nunca antes: con el contenedor oculto
+  // (display:none) fitProdDescription() mide alto 0 y no llega a achicar la
+  // fuente.
   function renderCommentInfo(it) {
     const um = it.unidadmedida ? ` ${it.unidadmedida}` : '';
     reviewBox.innerHTML = `
@@ -657,11 +517,7 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     fitProdDescription(reviewBox.querySelector('#commentDescripcion'));
   }
 
-  // El contenedor queda oculto por completo hasta validar Caja y
-  // Producto (a diferencia de esos dos, acá no hay nada contra qué
-  // validar — la observación es texto libre, obligatorio). Sin foco
-  // automático: el operario ya viene de escanear, no tiene sentido
-  // "robarle" el teclado antes de que decida escribir.
+  // Sin foco automático: el operario ya viene de escanear.
   function unlockComment() {
     itemComment.hidden = false;
     renderCommentInfo(item);
@@ -712,8 +568,6 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     onCode: (code) => handleCode(code),
   });
 
-  // La observación es obligatoria — "Confirmar" queda deshabilitado
-  // hasta que haya texto.
   comentarioInput.addEventListener('input', () => {
     confirmBtn.disabled = !comentarioInput.value.trim();
   });
@@ -723,28 +577,19 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     finishValidation('otro', texto, null);
   });
 
-  // Único punto de guardado, usado tanto por "Confirmar" (Observación)
-  // como por "Confirmar faltante" (foto). Optimista: el avance a la
-  // próxima posición (onValidated) es INMEDIATO, ya con la lista local
-  // — nunca espera al servidor. El guardado real (store.validate)
-  // corre en paralelo, en silencio; si falla, onValidateError le avisa
-  // a quien llama para que reincorpore el ítem a la cola en vez de
-  // darlo por guardado sin estarlo. onValidated puede devolver un
-  // array (la ficha embebida avanza sola con refreshQueue) o null (el
-  // modal ya se está cerrando, no hay nada más que mover acá).
+  // Único punto de guardado (Confirmar Observación o Confirmar faltante).
+  // Optimista: onValidated avanza YA con la lista local, sin esperar al
+  // servidor. store.validate corre en paralelo; si falla, onValidateError
+  // avisa para reincorporar el ítem a la cola.
   function finishValidation(motivo, texto, photoUrl) {
     if (submitting) return;
     submitting = true;
     if (navigator.vibrate) navigator.vibrate(35);
     const validatedItem = item;
-    // `item` es la MISMA referencia que vive en state.items del lado
-    // de list-view.js (pendingItems nunca clona) — completar estos
-    // campos acá ya los deja bien en los dos lados, sin pasar nada
-    // extra por onValidated. Sin esto, abrir el detalle en "Validado"
-    // justo en la ventana optimista (antes de que el guardado real
-    // confirme) mostraba motivo/fecha vacíos. fotoUrl usa el propio
-    // data URL local — se ve igual que la real, no hace falta esperar
-    // a que el servidor la aloje para poder mostrarla.
+    // `item` es la MISMA referencia que vive en state.items de list-view.js
+    // (pendingItems nunca clona) — completar estos campos acá los deja bien
+    // en los dos lados. Sin esto, abrir "Validado" en la ventana optimista
+    // mostraba motivo/fecha vacíos.
     validatedItem.motivo = motivo;
     validatedItem.motivoDetalle = texto;
     validatedItem.validatedAt = new Date().toISOString();
@@ -765,12 +610,8 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     });
   }
 
-  // Tras validar un ítem (o si la cola cambia por otro motivo, p. ej.
-  // se excluyó una ubicación), la ficha embebida se reacomoda sola:
-  // si el ítem actual sigue en la cola nueva, solo actualiza los
-  // límites de las flechas (sin tocar nada visible); si no (el caso
-  // normal después de validar), avanza a la posición que haya quedado
-  // en el mismo índice, o a la última si la cola se acortó más allá.
+  // Si el ítem actual sigue en la cola nueva, solo actualiza los límites de
+  // las flechas; si no, avanza al mismo índice (o al último si se acortó).
   function refreshQueue(newSlides) {
     slides = newSlides;
     if (!slides.length) {
@@ -790,18 +631,13 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     loadItem(slides[currentIndex]);
   }
 
-  // Destello mínimo (fade + corrimiento leve) al cambiar el dato de
-  // ubicación/SKU — sin esto, entre posiciones parecidas no se
-  // percibía que el intercambio había ocurrido de verdad.
   function flashDataSwap(el) {
     el.classList.remove('venc-data-swap');
     void el.offsetWidth; // fuerza reflow para poder re-disparar la animación seguida
     el.classList.add('venc-data-swap');
   }
 
-  // Reinicia todo el estado por-ítem (sin recrear la cámara ni pedir
-  // permiso de nuevo) — usado tanto al abrir por primera vez como al
-  // navegar con las flechas de arriba.
+  // Reinicia el estado por-ítem sin recrear la cámara ni pedir permiso.
   function loadItem(newItem) {
     item = newItem;
     closeManualInput();
@@ -815,10 +651,12 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     locCajaNumeroEl.textContent = item.caja || '-';
     prodDescripcionEl.textContent = item.descripcion || 'Producto sin descripción';
     fitProdDescription(prodDescripcionEl);
-    prodReferenciaEl.textContent = item.referencia || '-';
+    const prodUm = item.unidadmedida ? ` ${item.unidadmedida}` : '';
+    prodReferenciaEl.innerHTML = `
+      <span class="venc-prod-ref-item venc-prod-ref-referencia">${iconSolid('barcodeSolid', 13)}${escapeHtml(item.referencia || '-')}</span>
+      <span class="venc-prod-ref-item venc-prod-ref-cantidad">${iconSolid('caja', 13)}${escapeHtml(formatQty(item.saldo))}${escapeHtml(prodUm)}</span>
+    `;
     prodReferenciaEl.hidden = false;
-    // Ubicación y número de caja cambian juntos con cada ítem — un
-    // solo destello para todo el bloque de arriba.
     flashDataSwap(locInfoEl);
 
     openKey = null;
@@ -850,10 +688,7 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
 }
 
 // Ficha embebida del modo "Sugerido" (ver list-view.js/drawSuggested):
-// se monta una sola vez dentro de `container` y queda viva mientras esa
-// pestaña está a la vista — validar un ítem no cierra nada, onValidated
-// releé la cola pendiente y la propia ficha avanza sola a la siguiente
-// posición (o dispara onEmpty si ya no queda ninguna).
+// se monta una sola vez y queda viva mientras esa pestaña está a la vista.
 export function mountSuggestedFlow(container, initialItem, { pendingItems, onValidated, onValidateError, onIndexChange, onEmpty }) {
   const root = document.createElement('div');
   root.className = 'venc-suggest-inline cq-fade-in';

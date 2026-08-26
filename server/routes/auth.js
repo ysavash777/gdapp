@@ -1,10 +1,6 @@
-/* ============================================================
-   API de autenticación — usa el mismo store que la gestión de
-   usuarios, así que un usuario eliminado o editado ahí se refleja
-   de inmediato en el login. La sesión vive en una cookie httpOnly
-   (token opaco -> id de usuario), no en el objeto que guarda el
-   cliente — eso permite refrescar permisos sin volver a loguearse.
-   ============================================================ */
+// API de autenticación. Sesión: cookie httpOnly con token opaco -> id
+// de usuario (no se guarda estado en el cliente, así se puede
+// refrescar permisos sin volver a loguearse).
 
 const express = require('express');
 const router = express.Router();
@@ -40,14 +36,13 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// GET /api/auth/me — datos frescos del usuario logueado (permisos/rol al día)
+// GET /api/auth/me — datos frescos del usuario logueado
 router.get('/me', requireAuth, (req, res) => {
   res.json({ ok: true, user: req.user });
 });
 
-// PATCH /api/auth/password  { newPassword } — el propio usuario
-// logueado cambia su contraseña. No pide la contraseña actual (pedido
-// explícito) — la sesión ya autenticada es la única puerta.
+// PATCH /api/auth/password  { newPassword } — no pide contraseña
+// actual a propósito: la sesión autenticada es la única puerta.
 router.patch('/password', requireAuth, async (req, res) => {
   try {
     const { newPassword } = req.body || {};

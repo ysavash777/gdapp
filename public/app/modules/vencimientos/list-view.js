@@ -1,27 +1,10 @@
-/* ============================================================
-   Módulo App · Vencimientos — listado.
-
-   Un solo orden posible (ubicación A-Z, para el recorrido físico del
-   depósito — lo trae así el servidor) y TRES modos, todos sobre la
-   misma lista ya cargada (nunca pedidos separados al servidor):
-     "Sugerido"   — modo por DEFECTO y primero en el toggle: UNA sola
-                    posición pendiente a la vez, con navegación
-                    anterior/siguiente — para cuando lo que hace falta
-                    no es revisar todo, sino que alguien sepa YA a
-                    dónde ir sin tener que elegir de una lista.
-     "Pendiente"  — todo lo que falta validar, en lista.
-     "Validado"   — lo ya resuelto, para revisar/revertir.
-   La urgencia (color/número de días) sigue visible en cada tarjeta,
-   pero no reordena nada — pedido explícito.
-
-   Buscar/Configurar/Descargar viven agrupados en un único menú "más
-   opciones" (ver moreMenuHTML() en renderList) en vez de 3 botones
-   sueltos — con los 3 en la cabecera, en pantallas angostas
-   deformaban el toggle Sugerido/Pendiente/Validado. Buscar filtra en
-   vivo sobre ubicación/descripción/caja/referencia/sector/pedprov/
-   factura, solo disponible en Pendiente/Validado (en Sugerido se ve
-   una sola posición, no una lista para filtrar).
-   ============================================================ */
+// Módulo Vencimientos — listado. Orden único (ubicación A-Z, recorrido
+// físico del depósito, lo trae así el servidor). Tres modos sobre la misma
+// lista ya cargada (sin pedidos separados al servidor): "Sugerido" (default,
+// una posición pendiente a la vez con navegación ant/sig), "Pendiente"
+// (todo lo que falta, en lista) y "Validado" (lo resuelto, para
+// revisar/revertir). Buscar/Configurar/Descargar viven en el menú "más
+// opciones" (moreMenuHTML) para no deformar el toggle en pantallas angostas.
 
 import { icon, iconSolid } from '/shared/js/icons.js';
 import { escapeHtml, formatDateTime, capitalize } from '/shared/js/format.js';
@@ -33,24 +16,18 @@ const MOTIVO_LABEL = { ok: 'OK', faltante: 'Faltante', otro: 'Otro' };
 
 let outletRef = null;
 
-// Sin la frase "Vencido hace"/"Vence en" — el signo del número ya lo
-// dice todo (negativo, 0, positivo).
 function daysLabel(days) {
   return days === 0 ? 'Hoy' : `${days}d`;
 }
 
-// Copernico puede mandar el saldo con ceros de relleno ("144.0000") —
-// ya llega limpio como Number desde el servidor (ver
-// server/store/vencimientos.store.js); esto solo evita más de 2
-// decimales si alguna vez hay una fracción real.
+// El servidor ya limpia el saldo a Number (ver vencimientos.store.js);
+// esto solo topea a 2 decimales si hay una fracción real.
 function formatQty(saldo) {
   if (saldo == null) return '-';
   return saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 });
 }
 
-// Mismo criterio que urgencyBannerHTML() en validation-view.js (el
-// contenedor de Observación) — el detalle de "Validado" repite ese
-// mismo aviso, pedido explícito ("debe contener lo mismo").
+// Debe reflejar el mismo aviso que urgencyBannerHTML() en validation-view.js.
 function urgencyBannerHTML(it) {
   if (it.isRetirar) {
     return `<div class="venc-suggest-urgency is-${it.severity}">${icon('alertTriangle', 16)} Retirar de ubicación</div>`;
@@ -58,8 +35,7 @@ function urgencyBannerHTML(it) {
   return `<div class="venc-suggest-urgency is-${it.severity}">${icon('calendarAlert', 16)} Vence en ${it.days} día${it.days === 1 ? '' : 's'}</div>`;
 }
 
-// Ídem fitProdDescription() en validation-view.js — el detalle de
-// "Validado" usa el mismo texto de 2 líneas + achique adaptativo.
+// Mismo achique adaptativo que fitProdDescription() en validation-view.js.
 const DETAIL_DESC_MIN_FONT_PX = 11;
 function fitDetailDescription(el) {
   el.style.fontSize = '';
@@ -70,9 +46,7 @@ function fitDetailDescription(el) {
   }
 }
 
-// Foto de evidencia a pantalla completa (ver .venc-detail-photo-thumb)
-// — un único overlay creado al vuelo y descartado al cerrar, nunca
-// vive de antemano en el DOM.
+// Overlay de foto a pantalla completa, creado al vuelo y descartado al cerrar.
 function openPhotoLightbox(url) {
   const box = document.createElement('div');
   box.className = 'venc-photo-lightbox';
@@ -95,12 +69,8 @@ function subChipsHTML(item) {
   `;
 }
 
-// Última línea de una tarjeta ya validada: caja/saldo/vencimiento ya
-// no aportan nada nuevo acá (son del PRODUCTO, no de la validación en
-// sí) — lo que sí importa revisar de un vistazo es la observación que
-// se dejó. Cortada con elipsis, nunca en 2 líneas (a diferencia de la
-// fila de arriba): es solo un adelanto, el detalle completo se ve al
-// tocar la tarjeta.
+// En tarjeta validada se muestra la observación (no caja/saldo/vencimiento,
+// eso es del producto), cortada con elipsis a una línea.
 function commentRowHTML(item) {
   const text = item.motivoDetalle || MOTIVO_LABEL[item.motivo] || '-';
   return `
@@ -108,21 +78,10 @@ function commentRowHTML(item) {
   `;
 }
 
-// caja/cantidad/vencimiento tienen que entrar SIEMPRE en una sola
-// línea (pedido explícito) — antes, cuando no entraban, cada uno se
-// cortaba con elipsis y en pantallas angostas el dato quedaba
-// ilegible. Acá, después de pintar, se mide cada fila real (no hay
-// forma de saber de antemano si un texto entra: depende del ancho de
-// pantalla Y del largo de esos 3 valores puntuales) y si algún dato
-// no entra a su tamaño normal, toda la fila pasa a fuente más chica
-// — un solo escalón ("levemente"), la elipsis de CSS queda como red
-// de seguridad para el caso extremo en que ni así entre.
-//
-// Tolerancia de 6px (no 0/1px): un desborde mínimo todavía tiene
-// margen para resolverse con la elipsis sin perder información real
-// (recorta como mucho el último carácter) — activar el achique ahí
-// era innecesario y se notaba más el cambio de tamaño que lo que
-// evitaba.
+// Mide cada fila post-pintado y si algo no entra, achica la fuente de toda
+// la fila un escalón (la elipsis CSS queda de red de seguridad). Tolerancia
+// de 6px, no 0/1px: un desborde mínimo lo resuelve la elipsis sin achicar
+// innecesariamente.
 const OVERFLOW_TOLERANCE_PX = 6;
 function fitSubRows(container) {
   const tight = [];
@@ -134,15 +93,10 @@ function fitSubRows(container) {
   tight.forEach((row) => row.classList.add('is-tight'));
 }
 
-// Jerarquía de lectura pedida explícitamente: 1) ubicación (a dónde
-// dirigirse — la línea más grande y oscura de la tarjeta, primera,
-// SIN ícono), 2) descripción del producto, 3) caja/cantidad/
-// vencimiento como apoyo menor, cada uno con su ícono sólido. Estos 3
-// datos SIEMPRE completos (nunca cortados con "…") — en pantallas
-// angostas pasan a una segunda línea en vez de truncarse (ver
-// .venc-card-sub, flex-wrap). La "vida útil" (círculo de días) va a
-// la IZQUIERDA, centrada en las dos direcciones y en toda la altura
-// del contenedor.
+// Jerarquía de lectura: ubicación (línea principal, sin ícono) > descripción
+// > caja/cantidad/vencimiento (apoyo menor, con íconos). Estos 3 últimos
+// nunca se truncan: pasan a segunda línea en pantallas angostas (ver
+// .venc-card-sub, flex-wrap).
 function itemCardHTML(item) {
   const desc = item.descripcion || 'Producto sin descripción';
   return `
@@ -160,12 +114,8 @@ function itemCardHTML(item) {
   `;
 }
 
-// Mismo acordeón que la ficha real de Sugerido (ver validation-view.js
-// #renderValidationFlow) pero con esqueleto en vez de dato real — se
-// muestra mientras store.list() contesta, así el contenedor entero
-// (nav de ubicación + Caja + Producto) está siempre ahí, nunca una
-// pantalla en blanco con spinner. "Sugerido" es la vista por defecto,
-// así que es lo único que hace falta para el primer pintado.
+// Esqueleto del acordeón de Sugerido, mostrado mientras store.list() contesta
+// (vista por defecto, así que es lo único que hace falta para el primer pintado).
 function suggestedSkeletonHTML() {
   return `
     <div class="venc-suggest-inline">
@@ -240,13 +190,8 @@ export async function renderList(outlet) {
   const searchInput = outlet.querySelector('#vencSearchInput');
   const searchClear = outlet.querySelector('#vencSearchClear');
 
-  // Buscar/Configurar/Descargar viven juntos en un único menú (antes
-  // eran 3 botones sueltos en la cabecera — con el de buscar sumado,
-  // ya no entraban junto al toggle Sugerido/Pendiente/Validado sin
-  // deformarlo en pantallas angostas). "Buscar" solo tiene sentido en
-  // Pendiente/Validado (listas reales para filtrar) — en Sugerido se
-  // ve una sola posición a la vez, así que ni aparece en el menú; se
-  // arma de nuevo cada vez que se abre para reflejar el modo actual.
+  // "Buscar" solo aparece en Pendiente/Validado (listas reales para filtrar);
+  // se arma de nuevo en cada apertura para reflejar el modo actual.
   function moreMenuHTML() {
     const canSearch = state.view !== 'sugerido';
     return `
@@ -302,8 +247,7 @@ export async function renderList(outlet) {
     applyQuery();
     searchInput.focus();
   });
-  // En desuso (se cierra sin haber escrito nada) se oculta solo — mismo
-  // criterio que el buscador de Mapear.
+  // Se oculta solo si queda vacío al perder foco.
   searchInput.addEventListener('blur', () => {
     if (searchInput.value.trim()) return;
     searchBar.hidden = true;
@@ -312,30 +256,24 @@ export async function renderList(outlet) {
   outlet.querySelectorAll('#vencViewToggle button').forEach((btn) => {
     btn.addEventListener('click', () => {
       if (btn.dataset.view === state.view) return;
-      // Salir de Sugerido apaga la cámara de la ficha montada — nunca
-      // debe seguir corriendo en segundo plano en otra pestaña.
+      // Apaga la cámara de la ficha montada al salir de Sugerido: no debe
+      // seguir corriendo en segundo plano en otra pestaña.
       if (state.view === 'sugerido' && suggestedFlow) {
         suggestedFlow.destroy();
         suggestedFlow = null;
       }
       state.view = btn.dataset.view;
-      // suggestedIndex NO se resetea acá: cambiar de modo y volver a
-      // "Sugerido" debe mantener la misma posición donde se había
-      // quedado — drawSuggested() arranca la ficha en ese índice.
+      // suggestedIndex no se resetea: volver a "Sugerido" debe mantener
+      // la posición donde se había quedado.
       outlet.querySelectorAll('#vencViewToggle button').forEach((b) => b.classList.toggle('is-active', b === btn));
-      // Sugerido no tiene buscador — si estaba abierto, se cierra.
       if (state.view === 'sugerido') searchBar.hidden = true;
       draw();
     });
   });
 
-  // Tocar un ítem en "Pendiente" ya no abre nada aparte — salta a
-  // Sugerido parado justo en esa posición (mismo criterio que elegir
-  // "Sugerido" a mano, ver arriba). suggestedFlow ya está destruida a
-  // esta altura (se sale de Sugerido apenas se cambia de pestaña), así
-  // que drawSuggested() la monta de nuevo desde cero en el índice que
-  // se fija acá — pero se destruye explícito antes por las dudas, para
-  // no depender de en qué pestaña se estaba antes de llegar a Pendiente.
+  // Tocar un ítem en "Pendiente" salta a Sugerido parado en esa posición.
+  // Se destruye suggestedFlow explícito antes de recrearla, sin depender
+  // de en qué pestaña se estaba antes.
   function goToSugerido(item) {
     if (suggestedFlow) { suggestedFlow.destroy(); suggestedFlow = null; }
     const queue = pendingQueue();
@@ -347,10 +285,8 @@ export async function renderList(outlet) {
     draw();
   }
 
-  // Separado de load(): la ficha de Sugerido necesita releer el
-  // listado después de validar un ítem SIN pasar por draw() (eso
-  // remontaría toda la pestaña y reiniciaría la cámara) — ver
-  // drawSuggested()/onValidated más abajo.
+  // Separado de load(): la ficha de Sugerido relee el listado tras validar
+  // sin pasar por draw() (remontaría la pestaña y reiniciaría la cámara).
   async function fetchItems() {
     try {
       const data = await store.list();
@@ -387,8 +323,6 @@ export async function renderList(outlet) {
       .filter(matchesQuery);
   }
 
-  // Cuenta al lado de cada toggle — se recalcula sola en cada draw(),
-  // nunca pide nada aparte: ya tiene state.items en memoria.
   function updateCounts() {
     const pendEl = outlet.querySelector('#vencPendienteCount');
     const validEl = outlet.querySelector('#vencValidadoCount');
@@ -401,10 +335,8 @@ export async function renderList(outlet) {
     const wrap = outlet.querySelector('#vencListWrap');
     if (!wrap) return;
 
-    // Un error de red al recargar (p. ej. tras guardar Configurar)
-    // reemplaza el contenido de wrap por la tarjeta de error de abajo
-    // — sin esto, la ficha de Sugerido quedaba con la cámara corriendo
-    // detrás de ese cartel, desconectada del DOM visible.
+    // Sin esto, la ficha de Sugerido queda con la cámara corriendo detrás
+    // del cartel de error, desconectada del DOM visible.
     if (state.error && suggestedFlow) { suggestedFlow.destroy(); suggestedFlow = null; }
 
     if (state.error) {
@@ -455,14 +387,6 @@ export async function renderList(outlet) {
     });
   }
 
-  // "Sugerido": ya no es una tarjeta de resumen con un botón "Validar"
-  // que abre una pantalla aparte — ese paso era innecesario, la ficha
-  // de validación entera (selector de ubicación + acordeón Caja/
-  // Producto/Observación) vive ACÁ directamente, montada una sola vez
-  // mientras esta pestaña está a la vista (mountSuggestedFlow, ver
-  // validation-view.js). Confirmar un ítem no cierra nada: la propia
-  // ficha relee la cola (onValidated) y pasa sola a la siguiente
-  // posición pendiente, sin volver a montar la cámara.
   function renderSuggestedEmpty(wrap) {
     wrap.innerHTML = `
       <div class="card cq-fade-in">
@@ -483,10 +407,8 @@ export async function renderList(outlet) {
       return;
     }
     if (suggestedFlow) {
-      // Ya montada: no se recrea nada (evita relanzar la cámara) — si
-      // la cola cambió por otro motivo (p. ej. se excluyó una
-      // ubicación desde Configurar), la ficha se entera sola y sigue
-      // en el mismo ítem si sigue vigente, o avanza si no.
+      // Ya montada: no se recrea (evita relanzar la cámara); refresh()
+      // resuelve sola si la cola cambió por otro motivo (p. ej. Configurar).
       suggestedFlow.refresh(queue);
       return;
     }
@@ -496,12 +418,9 @@ export async function renderList(outlet) {
     suggestedFlow = mountSuggestedFlow(wrap, queue[state.suggestedIndex], {
       pendingItems: queue,
       onIndexChange: (idx) => { state.suggestedIndex = idx; },
-      // Optimista: el ítem ya se sabe validado ACÁ, sin pedirle nada
-      // al servidor — evita el refetch completo de la lista por cada
-      // validación (era el cuello de botella real: dos viajes de red
-      // seguidos antes de poder avanzar). El guardado real sigue
-      // corriendo en segundo plano (ver finishValidation); si falla,
-      // onValidateError reincorpora el ítem acá mismo.
+      // Optimista: marca validado localmente sin esperar al servidor (evita
+      // el refetch completo por cada validación). El guardado real sigue en
+      // segundo plano; si falla, onValidateError revierte acá mismo.
       onValidated: (validatedItem) => {
         const target = state.items.find((i) => i.key === validatedItem.key);
         if (target) target.validated = true;
@@ -521,14 +440,8 @@ export async function renderList(outlet) {
     });
   }
 
-  // Mismo contenido que el contenedor de Observación (validation-view.js
-  // #renderCommentInfo): avatar + descripción, grilla Saldo/Pedprov/
-  // Vencimiento, aviso de acción, foto (si hay) y la observación en sí
-  // — con la diferencia de que acá el texto ya llega completo (lo que
-  // se haya escrito, o "Faltante" si ese fue el motivo) y se puede
-  // editar sin rehacer nada: "Guardar" solo pisa la observación
-  // (PATCH /api/vencimientos/validate, ver store.js#updateObservacion),
-  // nunca vuelve a tocar motivo/foto/Caja/Producto.
+  // "Guardar" solo pisa la observación (ver store.js#updateObservacion),
+  // nunca motivo/foto/Caja/Producto.
   function openValidatedDetail(item) {
     const um = item.unidadmedida ? ` ${item.unidadmedida}` : '';
     const overlay = document.createElement('div');
@@ -580,11 +493,8 @@ export async function renderList(outlet) {
     const photoEl = overlay.querySelector('#vencDetailPhoto');
     if (photoEl) photoEl.addEventListener('click', () => openPhotoLightbox(item.fotoUrl));
 
-    // Optimista: cierra y actualiza la lista YA (nada más queda por
-    // esperar del lado del cliente, ya sabemos que revirtió) — el
-    // DELETE real corre en segundo plano. Si de verdad falla, se
-    // vuelve a marcar validado y se avisa, en vez de dejar la UI
-    // mintiendo que revirtió cuando el servidor no lo confirmó.
+    // Optimista: cierra y actualiza YA; el DELETE corre en segundo plano.
+    // Si falla, se re-marca validado y se avisa.
     overlay.querySelector('#vencRevertBtn').addEventListener('click', () => {
       close();
       const target = state.items.find((i) => i.key === item.key);
@@ -598,9 +508,7 @@ export async function renderList(outlet) {
       });
     });
 
-    // La observación sigue siendo obligatoria (mismo criterio que al
-    // validar) — "Guardar" queda deshabilitado con el campo vacío o
-    // sin cambios reales.
+    // "Guardar" deshabilitado con campo vacío o sin cambios reales.
     const obsInput = overlay.querySelector('#vencDetailObs');
     const saveBtn = overlay.querySelector('#vencSaveObsBtn');
     const original = item.motivoDetalle || '';
@@ -676,10 +584,8 @@ export async function renderList(outlet) {
   await load();
 }
 
-// Cierra el menú "más opciones" al tocar fuera de él — mismo patrón
-// que el menú de opciones de cada mapeo (ver mapear/list-view.js): un
-// solo listener a nivel documento, agregado una vez al cargar el
-// módulo (no por cada render), que lee outletRef dinámicamente.
+// Cierra el menú "más opciones" al tocar fuera de él. Listener único a
+// nivel documento (no por render), lee outletRef dinámicamente.
 document.addEventListener('click', (e) => {
   if (!outletRef) return;
   if (e.target.closest('.venc-more-wrap')) return;
