@@ -4,9 +4,12 @@
    punto; si falla, un único reintento a los 15 min (temporizador
    independiente, no retrasa la próxima corrida en punto).
 
-   Solo Referencia se refresca automáticamente (baja el egress hacia
-   Supabase, que sube todas las filas en cada corrida). Coordenadas y
-   Variables siguen disponibles a mano desde el desk.
+   Las tres fuentes se refrescan automáticamente — el espejo hacia
+   Supabase es incremental (replaceTableDiff, ver supabase-sync.js):
+   solo sube lo que cambió desde la corrida anterior, así que traer
+   Coordenadas/Variables en cada corrida no vuelve a pegarle al egress
+   como cuando se resubía la tabla entera cada vez (motivo por el que
+   antes se habían sacado de acá).
 
    Zona horaria fija vía Intl (no la del proceso, que en Render suele
    ser UTC) para que 6-22 sea siempre hora Argentina.
@@ -45,7 +48,7 @@ function isScheduledHour({ weekday, hour, minute }) {
 let lastRunKey = null; // "Mon-6" etc. — evita disparar dos veces el mismo minuto en punto
 let retryTimer = null;
 
-const AUTO_SOURCE_KEYS = ['referencia'];
+const AUTO_SOURCE_KEYS = ['referencia', 'coordenadas', 'variables'];
 
 function runRefresh(label) {
   console.log(`[refresh-scheduler] Disparando actualización automática (${label})...`);

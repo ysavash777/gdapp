@@ -28,13 +28,18 @@ const variablesStore = require('../store/variables.store');
 const supabaseSync = require('./supabase-sync');
 
 // Cada fuente: fetch, store local, tabla de Supabase a espejar.
-// conflictKey: solo inventario_cajas tiene unique constraint natural
-// (bodega, caja, ean) — ver replaceTable() en supabase-sync.js, sin
-// esto el upsert-antes-de-borrar choca con esa constraint.
+// conflictKey: columnas con unique constraint natural en Supabase —
+// sin esto, replaceTableDiff() no tiene forma segura de identificar la
+// MISMA fila entre corridas y cae al reemplazo completo de siempre
+// (ver supabase-sync.js). ubicacion es única en layout_coordenadas;
+// en variables_logisticas hace falta el par (referencia, productoean)
+// porque una misma referencia puede repetirse con distinto EAN (caso
+// real confirmado: 7792170110704 aparece dos veces, un Gatorade con
+// dos códigos de producto distintos).
 const SOURCES = [
   { key: 'referencia', fetch: copernico.fetchReferencia, store: inventoryStore, supabaseTable: 'inventario_cajas', conflictKey: 'bodega,caja,ean' },
-  { key: 'coordenadas', fetch: copernico.fetchCoordenadas, store: coordenadasStore, supabaseTable: 'layout_coordenadas' },
-  { key: 'variables', fetch: copernico.fetchVariables, store: variablesStore, supabaseTable: 'variables_logisticas' },
+  { key: 'coordenadas', fetch: copernico.fetchCoordenadas, store: coordenadasStore, supabaseTable: 'layout_coordenadas', conflictKey: 'ubicacion' },
+  { key: 'variables', fetch: copernico.fetchVariables, store: variablesStore, supabaseTable: 'variables_logisticas', conflictKey: 'referencia,productoean' },
 ];
 
 const LOCK_FILE = path.join(__dirname, '..', 'data', 'refresh.lock');
