@@ -64,6 +64,22 @@ export function hasData() {
   return map.size > 0;
 }
 
+// ¿El código escaneado es el mismo producto que `expected` (una
+// referencia)? El catálogo mete al mismo EAN tanto la referencia como
+// cada código "dun" (bulto) del producto — ver routes/catalog.js — así
+// que dos códigos que resuelven al mismo EAN son el mismo producto,
+// aunque el escaneado sea un DUN. Se usa donde se compara un escaneo
+// contra un valor esperado (ej. Vencimientos): el DUN nunca se muestra,
+// solo sirve para que el match no falle por escanear el bulto en vez
+// de la unidad.
+export function matchesCode(raw, expected) {
+  if (!expected) return false;
+  if (normalize(raw) === normalize(expected)) return true;
+  const scanned = findLocal(raw);
+  const target = findLocal(expected);
+  return !!(scanned?.ean && target?.ean && scanned.ean === target.ean);
+}
+
 refresh();
 window.addEventListener('online', refresh);
 window.addEventListener('gd-session-ready', refresh);

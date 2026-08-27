@@ -250,7 +250,10 @@ export function openScanner() {
       // encontrado" o un error de red nunca deben pisar el último
       // escaneado válido que ya había.
       if (!lookupError && product) {
-        const scanned = { code, description: product.description, ean: product.ean, group: product.group };
+        // El código escaneado puede ser un DUN (bulto) — se guarda la
+        // referencia real que devolvió el servidor, nunca el DUN (es
+        // solo una facilidad de escaneo, no debe verse en la interfaz).
+        const scanned = { code: product.referencia || code, description: product.description, ean: product.ean, group: product.group };
         saveLastScanned(scanned);
         renderLastScanned(scanned);
       }
@@ -273,7 +276,7 @@ export function openScanner() {
           </div>
           <div class="reg-info-cell">
             <span class="reg-info-label">Referencia</span>
-            <span class="reg-info-value">${escapeHtml(code)}</span>
+            <span class="reg-info-value">${escapeHtml(product.referencia || code)}</span>
           </div>
           <div class="reg-info-cell">
             <span class="reg-info-label">Grupo</span>

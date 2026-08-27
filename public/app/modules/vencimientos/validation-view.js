@@ -9,6 +9,7 @@
 import { icon, iconSolid } from '/shared/js/icons.js';
 import { escapeHtml } from '/shared/js/format.js';
 import { showToast } from '/shared/js/toast.js';
+import { matchesCode } from '/shared/js/product-catalog.js';
 import { createCameraScanner } from '../../scanner/camera.js';
 import * as store from './store.js';
 import { currentUser } from '/shared/js/session.js';
@@ -546,8 +547,12 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
     }
   }
 
-  function checkMatch(key, raw, expected) {
-    if (!expected || norm(raw) === norm(expected)) {
+  // allowDun: solo el paso "Producto" — el escaneado puede ser el DUN
+  // (bulto) del mismo producto, no solo su referencia de unidad (ver
+  // matchesCode en shared/js/product-catalog.js). "Caja" es una
+  // ubicación física, nunca un código de producto, así que no aplica.
+  function checkMatch(key, raw, expected, allowDun) {
+    if (!expected || norm(raw) === norm(expected) || (allowDun && matchesCode(raw, expected))) {
       if (navigator.vibrate) navigator.vibrate(35);
       playFlash();
       markDone(key);
@@ -559,8 +564,8 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
 
   function handleCode(raw) {
     if (fotoViewOpen) return;
-    if (openKey === 'caja') checkMatch('caja', raw, item.caja);
-    else if (openKey === 'prod') checkMatch('prod', raw, item.referencia);
+    if (openKey === 'caja') checkMatch('caja', raw, item.caja, false);
+    else if (openKey === 'prod') checkMatch('prod', raw, item.referencia, true);
   }
 
   const scanner = createCameraScanner({

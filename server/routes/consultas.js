@@ -73,6 +73,10 @@ router.get('/lookup', (req, res) => {
 
     const grupo = match.codgrupoprm || '';
     const product = {
+      // El código escaneado puede ser un DUN (bulto) — se manda la
+      // referencia REAL del producto para mostrar, nunca el DUN (que
+      // es solo una facilidad de escaneo, no debe verse en la interfaz).
+      referencia: match.referencia || '',
       description: match.descripcion || '',
       ean: match.productoean || '',
       group: grupo && grupo !== 'SIN GRUPO' ? grupo : '',

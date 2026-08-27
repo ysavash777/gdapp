@@ -119,10 +119,14 @@ async function remove(id) {
 // front los muestra como "sin datos".
 async function addCode(mapeoId, rawCode, actor) {
   const supabase = requireClient();
-  const code = String(rawCode).trim();
-  if (!code) throw new Error('EMPTY_CODE');
+  const raw = String(rawCode).trim();
+  if (!raw) throw new Error('EMPTY_CODE');
 
-  const match = variablesStore.findByCode(code);
+  const match = variablesStore.findByCode(raw);
+  // El código escaneado puede ser un DUN (bulto) — se guarda la
+  // referencia real del producto, nunca el DUN (es solo una facilidad
+  // de escaneo, no debe verse en la interfaz ni en el XLSX exportado).
+  const code = match?.referencia || raw;
   const description = match?.descripcion || '';
   const ean = match?.productoean || '';
   const grupo = match?.codgrupoprm || '';

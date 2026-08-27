@@ -13,6 +13,7 @@
 //     para que el conteo se autocomplete del otro lado.
 
 const inventoryStore = require('./inventory.store');
+const variablesStore = require('./variables.store');
 const { requireClient } = require('../services/supabase-client');
 
 // Sesión sin heartbeat en los últimos 20s = desconectada (mismo umbral
@@ -59,8 +60,16 @@ function sortByUbicacion(rows) {
 // variantes de buildCodeCandidates no relajan esto — siguen siendo
 // comparaciones exactas, solo contra distintas formas válidas del
 // mismo código de barras (UPC-A/EAN-13/ceros a la izquierda).
+//
+// El código escaneado puede ser un DUN (bulto, ver parseDunCodes en
+// variables.store.js) — Referencia (inventario_cajas) no conoce el
+// DUN, solo la referencia/EAN de unidad, así que se resuelve primero
+// contra Variables. Si no es un DUN conocido, findByCode ya lo intenta
+// como referencia directa y no cambia nada.
 function buscarProducto(codigoRaw) {
-  const candidates = buildCodeCandidates(codigoRaw);
+  const dunMatch = variablesStore.findByCode(codigoRaw);
+  const resolvedCode = dunMatch?.referencia || codigoRaw;
+  const candidates = buildCodeCandidates(resolvedCode);
   if (!candidates.length) return [];
   const wanted = new Set(candidates.map((c) => c.toLowerCase()));
 
