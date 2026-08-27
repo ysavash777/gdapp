@@ -25,7 +25,20 @@ router.get('/', async (_req, res) => {
   } catch (e) {
     console.error('[routes/vencimientos] list falló:', e.message);
     res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
+    return;
   }
+  // Dispara una corrida de Referencia en segundo plano cada vez que se
+  // entra a Vencimientos (sin esperarla: tarda decenas de segundos) —
+  // así una ubicación que cambió hace poco en Copernico no se queda
+  // pegada hasta el próximo tick del scheduler (hasta 1h de desfase).
+  // Esta respuesta ya salió con los datos de ANTES de esta corrida —
+  // el que entra ahora puede seguir viendo lo viejo por unos segundos,
+  // pero la próxima vez que abra o recargue la lista ya sale al día. Si
+  // ya hay una corrida en curso, engine.refresh() devuelve
+  // ALREADY_RUNNING sin romper nada (nunca se pisan dos corridas).
+  engine.refresh(['referencia']).catch((e) => {
+    console.error('[routes/vencimientos] refresh de Referencia al listar falló:', e);
+  });
 });
 
 // GET /api/vencimientos/settings
