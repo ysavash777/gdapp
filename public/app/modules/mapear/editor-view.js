@@ -110,6 +110,38 @@ function recordCardHTML(c, flashId) {
   `;
 }
 
+// Confirmación antes de borrar un registro (#regDelete) — misma pareja
+// de clases .modal-overlay/.modal.compact-modal que usa list-view.js
+// para "Eliminar mapeo", pero sin formulario: acá no hay campos, solo
+// confirmar o cancelar.
+function confirmDeleteModal(onConfirm) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal compact-modal">
+      <div class="modal-head">
+        <h3>Eliminar registro</h3>
+        <button class="btn-icon" data-close>${icon('x', 18)}</button>
+      </div>
+      <div class="modal-body">
+        <p>¿Estás seguro? Esta acción no se puede deshacer.</p>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Eliminar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelectorAll('[data-close]').forEach((btn) => btn.addEventListener('click', close));
+  overlay.querySelector('#confirmDeleteBtn').addEventListener('click', () => {
+    close();
+    onConfirm();
+  });
+}
+
 export async function openEditor({ mapeoId, title, onClose }) {
   const isNew = !mapeoId;
   const mapeo = isNew ? await store.create(actor(), title) : await store.get(mapeoId);
@@ -678,9 +710,11 @@ export async function openEditor({ mapeoId, title, onClose }) {
 
     const deleteBtn = backdrop.querySelector('#regDelete');
     if (deleteBtn) {
-      deleteBtn.addEventListener('click', async () => {
-        await discardEntry();
-        cleanupSheet();
+      deleteBtn.addEventListener('click', () => {
+        confirmDeleteModal(async () => {
+          await discardEntry();
+          cleanupSheet();
+        });
       });
     }
   }

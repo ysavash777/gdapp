@@ -103,17 +103,6 @@ function openWorkspace() {
   let sheetOpen = false; // hay un reg-sheet (ubicación o sesiones) encima
   let searchQuery = '';
 
-  // Ancho fijo (.record-qty, reusado acá para la ubicación); de 4 a 10+
-  // caracteres entran achicando la fuente, mismo criterio que qtySizeClass
-  // en mapear/editor-view.js.
-  function ubicSizeClass(text) {
-    const len = String(text || '').length;
-    if (len <= 6) return '';
-    if (len <= 8) return 'is-md';
-    if (len <= 10) return 'is-sm';
-    return 'is-xs';
-  }
-
   function visibleRecords() {
     if (!searchQuery) return records;
     const q = searchQuery.toLowerCase();
@@ -122,20 +111,17 @@ function openWorkspace() {
 
   function recordCardHTML(r, i) {
     return `
-      <button type="button" class="record-card" data-i="${i}">
-        <div class="record-qty ${ubicSizeClass(r.ubicacion)}">
-          <span class="record-qty-num">${escapeHtml(r.ubicacion || '-')}</span>
-          <span class="record-qty-label">Ubicación</span>
+      <button type="button" class="pr-record" data-i="${i}">
+        <div class="pr-record-head">
+          <span class="pr-record-ubic">${iconSolid('caja', 12)}${escapeHtml(r.ubicacion || '-')}</span>
+          <span class="pr-record-hint" title="Tocar para modificar">${icon('moreVertical', 14)}</span>
         </div>
-        <div class="record-info">
-          <span class="record-desc">${escapeHtml(r.descripcion || r.codigo)}</span>
-          <span class="record-code-line">${escapeHtml(r.codigo)}</span>
-          <div class="record-badges">
-            <span class="record-resp-badge">Cant ${escapeHtml(formatQty(r.saldo))}</span>
-            ${r.fv ? `<span class="record-fecha-badge">FV ${escapeHtml(r.fv)}</span>` : ''}
-          </div>
+        <span class="pr-record-desc">${escapeHtml(r.descripcion || r.codigo)}</span>
+        <div class="pr-record-meta">
+          <span class="pr-record-meta-item">${iconSolid('barcodeSolid', 11)}${escapeHtml(r.referencia || r.codigo)}</span>
+          <span class="pr-record-meta-item">${icon('calendarAlert', 12)}${escapeHtml(r.fv || '-')}</span>
+          <span class="pr-record-meta-item">Ped/Prov ${escapeHtml(r.pedprov || '-')}</span>
         </div>
-        <div class="record-edit-hint" title="Tocar para modificar">${icon('moreVertical', 14)}</div>
       </button>
     `;
   }
@@ -181,7 +167,7 @@ function openWorkspace() {
   });
 
   chipsEl.addEventListener('click', (e) => {
-    const card = e.target.closest('.record-card');
+    const card = e.target.closest('.pr-record');
     if (!card) return;
     const i = Number(card.dataset.i);
     const rec = records[i];
@@ -234,7 +220,7 @@ function openWorkspace() {
     backdrop.innerHTML = `
       <div class="reg-sheet">
         <div class="reg-sheet-head">
-          <span class="reg-sheet-title">Producto <b>${escapeHtml(codigo)}</b></span>
+          <span class="reg-sheet-title">${editIndex == null ? 'Producto encontrado' : 'Editar registro'}</span>
           <div class="reg-sheet-head-actions">
             ${editIndex != null ? `<button type="button" class="btn-icon" id="prUbicDelete" title="Quitar registro">${icon('trash', 18)}</button>` : ''}
             <button type="button" class="btn-icon" id="prUbicClose" title="Cerrar">${icon('x', 18)}</button>
@@ -278,7 +264,7 @@ function openWorkspace() {
           <div class="pr-prod-desc">${escapeHtml(first.descripcion || 'Producto sin descripción')}</div>
           <div class="pr-prod-codes">
             <span>${iconSolid('barcodeSolid', 12)}${escapeHtml(first.referencia || codigo)}</span>
-            <span>${escapeHtml(first.ean || '')}</span>
+            ${first.ean ? `<span>${iconSolid('tagSolid', 12)}${escapeHtml(first.ean)}</span>` : ''}
           </div>
         </div>
         <div class="pr-ubic-list" id="prUbicList">

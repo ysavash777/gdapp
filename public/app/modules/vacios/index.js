@@ -4,7 +4,7 @@
 import { renderHome } from './list-view.js';
 
 export const title = 'Programación remota';
-export const description = 'Programá conteos para que se hagan solos, sin tener que estar en el depósito.';
+export const description = 'Programá conteos sin importar a la distancia a la que te encuentres.';
 
 export function render(outlet) {
   renderHome(outlet);

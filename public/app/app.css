@@ -2602,16 +2602,81 @@ html, body {
 /* ============================================================
    Programación remota (app/modules/vacios/list-view.js) — escanear ->
    elegir ubicación -> lista de registros -> programar conteo a otro
-   usuario. Mismo lenguaje visual que Mapear/Vencimientos/Consultar
-   grupo: encabezado y herramientas del sheet (.scan-sheet-head,
-   .scan-sheet-tools, .manual-toggle) y tarjetas de registro
-   (.record-card y compañía) son las MISMAS clases que ya usa Mapear,
-   sin duplicar estilos — acá solo lo que no existía en ningún lado.
-   ============================================================ */
-
-/* .btn-primary de siempre (mismo look que el resto de la app) — sin
-   estilo propio, solo el layout que ya trae .btn. */
+   usuario. El encabezado/herramientas del sheet (.scan-sheet-head,
+   .scan-sheet-tools, .manual-toggle, .record-list) son las MISMAS
+   clases que ya usa Mapear. La tarjeta de registro (.pr-record) es
+   propia: a diferencia de Mapear, el dato que manda acá es la
+   ubicación (texto variable, "A1" a "MFCB0440101"), no una cantidad
+   de 1 a 5 cifras — meterla en el mismo box angosto de ancho fijo
+   (.record-qty) rompía con ubicaciones largas. Por eso la ubicación
+   pasa a ser una píldora que crece con el texto, arriba de todo, y
+   los datos propios de esta herramienta (referencia, vencimiento,
+   PedProv) van en una fila de metadatos debajo de la descripción. */
 .pr-fab { flex-shrink: 0; }
+
+.pr-record {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.pr-record:active { background: var(--n-200); }
+
+.pr-record-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.pr-record-ubic {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 9px;
+  border-radius: var(--r-full);
+  background: var(--accent-100);
+  color: var(--accent-700);
+  font-weight: 700;
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pr-record-ubic svg { flex-shrink: 0; }
+.pr-record-hint { flex-shrink: 0; display: flex; color: var(--ink-3); }
+
+.pr-record-desc {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.pr-record-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 1px; }
+.pr-record-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.pr-record-meta-item svg { flex-shrink: 0; }
 
 /* Cabecera del producto dentro de la hoja "elegir ubicación". */
 .pr-prod-desc { font-size: var(--text-base); font-weight: 700; color: var(--ink); line-height: 1.35; }
