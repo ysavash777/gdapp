@@ -8,6 +8,7 @@
 import { icon, iconSolid } from '/shared/js/icons.js';
 import { escapeHtml } from '/shared/js/format.js';
 import { showToast } from '/shared/js/toast.js';
+import { existsLocal, hasData } from '/shared/js/product-catalog.js';
 import { createCameraScanner } from '../../scanner/camera.js';
 import * as store from './store.js';
 
@@ -188,6 +189,16 @@ function openWorkspace() {
     if (sheetOpen) return; // ya hay una hoja abierta, no encimar
     const codigo = raw.trim();
     if (!codigo) return;
+    // Valida contra el catálogo local (Variables) ANTES de ir a buscar
+    // ubicación — mismo criterio que Mapear/Consultar grupo: si el
+    // código ni siquiera es un SKU real, ir a buscarle ubicación en
+    // Referencia es una consulta de más que nunca va a encontrar nada.
+    // Se salta solo si el catálogo local todavía está vacío (sin red
+    // desde el primer uso), donde no hay forma de saber si existe.
+    if (hasData() && !existsLocal(codigo)) {
+      showToast(`Código no encontrado: ${codigo}`, { variant: 'warn' });
+      return;
+    }
     if (navigator.vibrate) navigator.vibrate(35);
     openUbicacionSheet(codigo, null);
   }
@@ -406,8 +417,10 @@ function openWorkspace() {
         records = [];
         saveRecords();
         renderChips();
+        // No cleanup() acá a propósito: la herramienta sigue abierta y
+        // lista para armar el próximo lote, sin volver a la cámara desde
+        // cero (antes cerraba todo el espacio de trabajo de golpe).
         closeSheet();
-        cleanup();
         showToast('Conteo programado');
       } catch {
         showToast('No se pudo programar el conteo. Probá de nuevo.', { variant: 'warn' });
