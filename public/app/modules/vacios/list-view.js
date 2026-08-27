@@ -102,6 +102,7 @@ function openWorkspace() {
 
   let closed = false;
   let sheetOpen = false; // hay un reg-sheet (ubicación o sesiones) encima
+  let activeBackdrop = null; // el backdrop de esa hoja — vive en document.body, no dentro de `overlay`
   let searchQuery = '';
 
   function visibleRecords() {
@@ -178,6 +179,14 @@ function openWorkspace() {
   function cleanup() {
     if (closed) return;
     closed = true;
+    // El backdrop de la hoja abierta (ubicación o sesiones) vive en
+    // document.body, NUNCA dentro de `overlay` — sin esto, deslizar
+    // para atrás con una hoja abierta se llevaba puesto el espacio de
+    // trabajo pero dejaba la hoja huérfana, tapando la pantalla.
+    if (activeBackdrop) {
+      activeBackdrop.remove();
+      activeBackdrop = null;
+    }
     scanner.destroy();
     window.removeEventListener('popstate', cleanup);
     overlay.remove();
@@ -241,9 +250,11 @@ function openWorkspace() {
       </div>
     `;
     document.body.appendChild(backdrop);
+    activeBackdrop = backdrop;
 
     function closeSheet() {
       backdrop.remove();
+      activeBackdrop = null;
       sheetOpen = false;
       scanner.setPaused(false);
       scanner.resumeView();
@@ -358,13 +369,15 @@ function openWorkspace() {
           <button type="button" class="btn-icon" id="prSesClose" title="Cerrar">${icon('x', 18)}</button>
         </div>
         <div id="prSesBody"><p class="cq-desc-value">Buscando usuarios en línea...</p></div>
-        <button type="button" class="btn btn-primary btn-block" id="prSesConfirm" disabled>${icon('zap', 16)} Enviar</button>
+        <button type="button" class="btn btn-primary btn-block" id="prSesConfirm" disabled>${iconSolid('zapSolid', 16)} Enviar</button>
       </div>
     `;
     document.body.appendChild(backdrop);
+    activeBackdrop = backdrop;
 
     function closeSheet() {
       backdrop.remove();
+      activeBackdrop = null;
       sheetOpen = false;
       scanner.setPaused(false);
       scanner.resumeView();
