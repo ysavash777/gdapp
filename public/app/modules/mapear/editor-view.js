@@ -114,9 +114,14 @@ function recordCardHTML(c, flashId) {
 // de clases .modal-overlay/.modal.compact-modal que usa list-view.js
 // para "Eliminar mapeo", pero sin formulario: acá no hay campos, solo
 // confirmar o cancelar.
-function confirmDeleteModal(onConfirm) {
+function confirmDeleteModal(onConfirm, onClose) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
+  // .modal-overlay es z-index:50 — menos que .reg-sheet-backdrop (70),
+  // que es justo lo que hay abierto detrás cuando se llama a esto (la
+  // ficha de "Editar registro"). Sin esto, el modal quedaba invisible
+  // y sin poder tocarse detrás de la ficha.
+  overlay.style.zIndex = '80';
   overlay.innerHTML = `
     <div class="modal compact-modal">
       <div class="modal-head">
@@ -133,13 +138,17 @@ function confirmDeleteModal(onConfirm) {
     </div>
   `;
   document.body.appendChild(overlay);
-  const close = () => overlay.remove();
+  // onClose corre SIEMPRE que el modal se cierra, cancelado o
+  // confirmado — el llamador lo usa para soltar su propia referencia
+  // (activeConfirmModal) sin duplicar esa lógica en cada camino.
+  const close = () => { overlay.remove(); onClose?.(); };
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   overlay.querySelectorAll('[data-close]').forEach((btn) => btn.addEventListener('click', close));
   overlay.querySelector('#confirmDeleteBtn').addEventListener('click', () => {
     close();
     onConfirm();
   });
+  return { overlay, close };
 }
 
 export async function openEditor({ mapeoId, title, onClose }) {
@@ -299,6 +308,12 @@ export async function openEditor({ mapeoId, title, onClose }) {
   // Redibuja solo descripción/EAN si el sheet sigue abierto cuando el
   // servidor resuelve la búsqueda contra Referencia.
   let activeSheetRefreshLookup = null;
+  // El modal de confirmar borrado (confirmDeleteModal) también vive en
+  // document.body, por encima del reg-sheet — mismo motivo que arriba:
+  // si el editor se cierra (volver atrás) mientras está abierto, hay
+  // que cerrarlo a mano o queda huérfano, tapando la pantalla y
+  // operando sobre un editor ya destruido si se llega a confirmar.
+  let activeConfirmModal = null;
 
   function onDocClick(e) {
     if (!filterMenu.hidden && !e.target.closest('#filterToggle') && !e.target.closest('#filterMenu')) {
@@ -310,6 +325,10 @@ export async function openEditor({ mapeoId, title, onClose }) {
   function close() {
     if (closed) return;
     closed = true;
+    if (activeConfirmModal) {
+      activeConfirmModal.close();
+      activeConfirmModal = null;
+    }
     if (activeSheetBackdrop) {
       activeSheetBackdrop.remove();
       if (activeSheetDiscard) activeSheetDiscard();
@@ -711,10 +730,13 @@ export async function openEditor({ mapeoId, title, onClose }) {
     const deleteBtn = backdrop.querySelector('#regDelete');
     if (deleteBtn) {
       deleteBtn.addEventListener('click', () => {
-        confirmDeleteModal(async () => {
-          await discardEntry();
-          cleanupSheet();
-        });
+        activeConfirmModal = confirmDeleteModal(
+          async () => {
+            await discardEntry();
+            cleanupSheet();
+          },
+          () => { activeConfirmModal = null; },
+        );
       });
     }
   }
