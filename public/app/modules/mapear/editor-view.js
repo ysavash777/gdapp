@@ -151,10 +151,26 @@ function confirmDeleteModal(onConfirm, onClose) {
   return { overlay, close };
 }
 
+// Un doble tap en "abrir mapeo" (o en "Crear mapeo") antes de que la
+// primera llamada termine de resolver store.get()/create() disparaba
+// DOS sesiones de editor en paralelo — cada una con su propia cámara
+// y su propio `registering`/`activeSheetBackdrop` (esos sí ya estaban
+// protegidos contra reentrancia, pero cada sesión es independiente
+// entre sí). Resultado real reportado: escanear un producto abría 2+
+// hojas de "Producto encontrado" encimadas, cada una de una sesión
+// distinta agregando el código por su cuenta. Este guard es a nivel
+// módulo porque el problema es ENTRE sesiones, no dentro de una sola.
+let editorOpen = false;
+
 export async function openEditor({ mapeoId, title, onClose }) {
+  if (editorOpen) return;
+  editorOpen = true;
   const isNew = !mapeoId;
   const mapeo = isNew ? await store.create(actor(), title) : await store.get(mapeoId);
-  if (!mapeo) return onClose();
+  if (!mapeo) {
+    editorOpen = false;
+    return onClose();
+  }
 
   const overlay = document.createElement('div');
   overlay.className = 'scan-overlay';
@@ -325,6 +341,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
   function close() {
     if (closed) return;
     closed = true;
+    editorOpen = false;
     if (activeConfirmModal) {
       activeConfirmModal.close();
       activeConfirmModal = null;
@@ -725,7 +742,16 @@ export async function openEditor({ mapeoId, title, onClose }) {
     backdrop.addEventListener('click', (e) => {
       if (e.target === backdrop) discardIfNew();
     });
-    backdrop.querySelector('#regDone').addEventListener('click', confirmAndClose);
+    // iOS/Safari: con el teclado numérico de #qtyInput todavía abierto,
+    // el primer tap sobre un botón "position: fixed" apilado (acá:
+    // .scan-overlay + .reg-sheet-backdrop) puede no disparar `click` —
+    // bug conocido de WebKit al reposicionar fixed mientras el teclado
+    // se anima. Sacar el foco ANTES (en pointerdown, no en click) deja
+    // que el teclado empiece a cerrarse a tiempo para que el tap sí
+    // registre. Inofensivo en Android/desktop (blur() sin teclado no
+    // hace nada visible).
+    doneBtn.addEventListener('pointerdown', () => qtyInput.blur());
+    doneBtn.addEventListener('click', confirmAndClose);
 
     const deleteBtn = backdrop.querySelector('#regDelete');
     if (deleteBtn) {
