@@ -2700,9 +2700,10 @@ html, body {
 
 /* Lista de sesiones online (paso "Programar a") — mismo patrón de fila
    seleccionable que .pr-ubicbox, con un punto de estado en vez de
-   datos de stock. flex:1 dentro de un panel de alto fijo (ver
-   .pr-wizard-panel): con 3 filas o menos entran todas sin scroll, con
-   más aparece scroll propio en vez de estirar la hoja entera. */
+   datos de stock. En la práctica casi siempre hay 1-2 conectados; con
+   flex:1 dentro de un panel de alto fijo (ver .pr-wizard-panel) entran
+   sin problema, y si alguna vez hay más aparece scroll propio en vez
+   de estirar la hoja entera. */
 .pr-session-list { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; overflow-y: auto; margin-top: var(--sp-2); }
 .pr-session-row { display: flex; align-items: center; gap: var(--sp-3); padding: 12px; border-radius: var(--r-md); background: var(--surface-2); cursor: pointer; flex-shrink: 0; }
 .pr-session-row.selected { background: var(--accent-100); }
@@ -2758,10 +2759,10 @@ html, body {
 .pr-wizard-connector { flex: 1 1 auto; height: 2px; background: var(--n-200); margin: 12px 4px 0; transition: background var(--t-fast); }
 .pr-wizard-connector.is-done { background: var(--accent-500); }
 
-/* clamp: nunca menos de 190px (que 3 filas + texto entren cómodos en
-   pantallas chicas) ni más de 250px (pasos 2/3 tienen poco contenido —
-   más que esto era espacio vacío de sobra, no "alto fijo prolijo"). */
-.pr-wizard-viewport { overflow: hidden; height: clamp(190px, 32vh, 250px); }
+/* clamp: nunca menos de 150px (2 filas + texto, el caso normal, entran
+   cómodas) ni más de 200px — antes 320/250px dejaba mucho espacio
+   vacío de sobra en los pasos con poco contenido. */
+.pr-wizard-viewport { overflow: hidden; height: clamp(150px, 24vh, 200px); }
 .pr-wizard-track { display: flex; width: 300%; height: 100%; transition: transform 240ms ease; }
 .pr-wizard-panel {
   width: calc(100% / 3);
@@ -2794,22 +2795,27 @@ html, body {
 .pr-wizard-result-label { font-size: 15px; font-weight: 700; color: var(--ink); }
 .pr-wizard-result-number { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; color: var(--accent-700); margin: 2px 0 6px; }
 .pr-wizard-result-hint { font-size: 12.5px; color: var(--ink-3); line-height: 1.4; max-width: 280px; margin: 0; }
+.pr-wizard-result-hint b { color: var(--ink-2); font-weight: 650; }
 .pr-wizard-result:not(.is-error) svg { color: var(--ok); }
 .pr-wizard-result .btn { width: 100%; margin-top: var(--sp-3); }
 
-/* Buscador de contador: desplegable minimalista, no tarjetas — una
-   franja EN EL FLUJO normal debajo del input (nunca position:absolute:
-   flotaba tapando el botón "Generar conteo" de abajo en vez de
-   empujarlo). Alto fijo (2-3 sugerencias) con scroll propio si hay más.
+/* Buscador de contador: desplegable minimalista, no tarjetas — EN EL
+   FLUJO normal (nunca position:absolute: flotaba tapando el botón
+   "Generar conteo" de abajo en vez de empujarlo). Se abre ARRIBA del
+   input (column-reverse, mismo orden de DOM/tabulación) a propósito:
+   en el celular el teclado nativo tapa la mitad de abajo de la
+   pantalla, justo donde cae el input — si las sugerencias aparecían
+   debajo quedaban tapadas por el teclado; arriba siempre quedan a la
+   vista. Alto fijo (2-3 sugerencias) con scroll propio si hay más.
    Elegir una opción solo llena el campo; el conteo se genera con el
    botón de abajo, nunca al tocar la sugerencia (evita asignar el
    contador equivocado por un tap de más). */
-.pr-combo { display: flex; flex-direction: column; flex-shrink: 0; }
+.pr-combo { display: flex; flex-direction: column-reverse; gap: 6px; flex-shrink: 0; }
 .pr-combo-menu {
-  margin-top: 6px;
   background: var(--surface-2);
   border: 1px solid var(--n-200);
   border-radius: var(--r-md);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
   max-height: 104px; /* ~2-3 filas */
   overflow-y: auto;
 }

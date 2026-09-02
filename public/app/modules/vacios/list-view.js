@@ -600,6 +600,7 @@ function openWorkspace() {
       // Los registros ya se mandaron: se limpia la lista de la herramienta
       // (la cámara sigue lista para el próximo lote), sin cerrar esta hoja
       // — el número de conteo se muestra hasta que el usuario lo cierre.
+      const itemCount = records.length;
       records = [];
       saveRecords();
       renderChips();
@@ -621,10 +622,16 @@ function openWorkspace() {
         // Sin botón "Cerrar" acá — la cruz del encabezado del modal ya
         // cierra la hoja, un segundo botón para lo mismo era redundante.
         if (resultado.ok) {
+          // El número solo se ve chico y "flotando" en un panel de alto
+          // fijo — en vez de agrandar el modal, se llena el mismo
+          // espacio con un resumen útil (a quién y cuántos ítems) en
+          // vez de dejarlo vacío.
           panels[3].innerHTML = `
             <div class="pr-wizard-result">
+              ${iconSolid('checkCircleSolid', 40)}
               <span class="pr-wizard-result-label">Conteo generado</span>
               <span class="pr-wizard-result-number">${escapeHtml(resultado.idConteo || '-')}</span>
+              <p class="pr-wizard-result-hint">Asignado a <b>${escapeHtml(targetNombre)}</b> · contador <b>${escapeHtml(contadorNombre)}</b> · ${itemCount} ${itemCount === 1 ? 'ítem' : 'ítems'}</p>
             </div>
           `;
         } else {

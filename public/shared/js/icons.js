@@ -77,6 +77,8 @@ const SOLID_PATHS = {
   zapSolid: '<path fill-rule="evenodd" d="M14.615 1.595a.75.75 0 0 1 .359.852L12.982 9.75h7.268a.75.75 0 0 1 .548 1.262l-10.5 11.25a.75.75 0 0 1-1.272-.71l1.992-7.302H3.75a.75.75 0 0 1-.548-1.262l10.5-11.25a.75.75 0 0 1 .913-.143Z" clip-rule="evenodd"/>',
   // Heroicons solid "tag" — EAN en la hoja de "elegir ubicación" (vacios/list-view.js).
   tagSolid: '<path fill-rule="evenodd" d="M5.25 2.25a3 3 0 0 0-3 3v4.318a3 3 0 0 0 .879 2.121l9.58 9.581c.92.92 2.39.94 3.348.048a19.352 19.352 0 0 0 5.783-6.756c.108-.221.108-.472 0-.693a19.353 19.353 0 0 0-5.783-6.756A3.75 3.75 0 0 0 13.42 2.25H5.25ZM6.375 7.5a1.125 1.125 0 1 0 0-2.25 1.125 1.125 0 0 0 0 2.25Z" clip-rule="evenodd"/>',
+  // Heroicons solid "check-circle" — resultado exitoso de "Programar conteo" (vacios/list-view.js).
+  checkCircleSolid: '<path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25ZM15.53 9.72a.75.75 0 0 0-1.06-1.06l-4.72 4.72-1.72-1.72a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.06 0l5.25-5.25Z" clip-rule="evenodd"/>',
 };
 
 export function iconSolid(name, size = 20) {
