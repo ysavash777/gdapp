@@ -27,9 +27,12 @@ const inventoryStore = require('./inventory.store');
 const variablesStore = require('./variables.store');
 const { requireClient } = require('../services/supabase-client');
 
-// Sesión sin heartbeat en los últimos 20s = desconectada (mismo umbral
-// que la extensión/PWA original).
-const SESSION_STALE_MS = 20000;
+// Sesión sin heartbeat reciente = desconectada. La extensión manda
+// heartbeat cada 5s, pero una pestaña de Copernico en segundo plano puede
+// hacer que Chrome demore/salte algún tick de ese setInterval - 45s da
+// colchón de sobra para eso sin dejar de detectar una sesión realmente
+// cerrada (que deja de mandar heartbeat del todo, no solo un tick tarde).
+const SESSION_STALE_MS = 45000;
 
 // El mismo producto puede llegar con variantes de código (UPC-A de 12
 // dígitos vs EAN-13 con 0 adelante, ceros a la izquierda recortados) —
