@@ -395,12 +395,35 @@ function openWorkspace() {
     document.body.appendChild(backdrop);
     activeBackdrop = backdrop;
 
+    // El teclado nativo, en el celular, no achica el viewport de layout
+    // (position:fixed sigue midiendo la pantalla completa) — solo el
+    // "visual viewport" se achica. Sin esto la hoja seguía anclada
+    // abajo de TODA la pantalla, y el teclado la tapaba desde ahí,
+    // dejando el input de contador escondido detrás mientras se tipea.
+    // Siguiendo al visual viewport, la hoja queda siempre pegada justo
+    // arriba del teclado.
+    function syncKeyboardViewport() {
+      const vv = window.visualViewport;
+      if (!vv) return;
+      backdrop.style.top = `${vv.offsetTop}px`;
+      backdrop.style.height = `${vv.height}px`;
+    }
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', syncKeyboardViewport);
+      window.visualViewport.addEventListener('scroll', syncKeyboardViewport);
+      syncKeyboardViewport();
+    }
+
     let pollTimer = null;
     let sesionesPollTimer = null;
     function closeSheet() {
       if (pollTimer) clearInterval(pollTimer);
       if (sesionesPollTimer) clearInterval(sesionesPollTimer);
       resizeObserver.disconnect();
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', syncKeyboardViewport);
+        window.visualViewport.removeEventListener('scroll', syncKeyboardViewport);
+      }
       backdrop.remove();
       activeBackdrop = null;
       sheetOpen = false;
