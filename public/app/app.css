@@ -2695,7 +2695,9 @@ html, body {
 .pr-ubicbox-code { font-size: var(--text-base); font-weight: 700; letter-spacing: 0.01em; color: var(--ink); }
 .pr-ubicbox-top svg { color: var(--accent-500); visibility: hidden; flex-shrink: 0; }
 .pr-ubicbox.selected .pr-ubicbox-top svg { visibility: visible; }
-.pr-ubicbox-meta { display: flex; gap: var(--sp-3); margin-top: 4px; font-size: 11.5px; color: var(--ink-3); }
+.pr-ubicbox-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: 11.5px; color: var(--ink-3); }
+.pr-ubicbox-meta span { display: inline-flex; align-items: center; gap: 4px; }
+.pr-ubicbox-meta svg { flex-shrink: 0; }
 .pr-ubicbox-meta b { color: var(--ink-2); font-weight: 650; }
 
 /* Lista de sesiones online (paso "Programar a") — mismo patrón de fila

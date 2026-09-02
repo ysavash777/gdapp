@@ -122,7 +122,7 @@ function openWorkspace() {
         <div class="pr-record-meta">
           <span class="pr-record-meta-item">${iconSolid('barcodeSolid', 11)}${escapeHtml(r.referencia || r.codigo)}</span>
           <span class="pr-record-meta-item">${icon('calendarAlert', 12)}${escapeHtml(r.fv || '-')}</span>
-          <span class="pr-record-meta-item">Ped/Prov ${escapeHtml(r.pedprov || '-')}</span>
+          <span class="pr-record-meta-item">${iconSolid('tagSolid', 12)}${escapeHtml(r.pedprov || '-')}</span>
         </div>
       </button>
     `;
@@ -297,9 +297,9 @@ function openWorkspace() {
                 ${icon('check', 16)}
               </div>
               <div class="pr-ubicbox-meta">
-                <span>Cant <b>${escapeHtml(formatQty(r.saldo))}</b></span>
-                <span>FV <b>${escapeHtml(r.fv || '-')}</b></span>
-                <span>Ped/Prov <b>${escapeHtml(r.pedprov || '-')}</b></span>
+                <span>${icon('package', 12)}<b>${escapeHtml(formatQty(r.saldo))}</b></span>
+                <span>${icon('calendarAlert', 12)}<b>${escapeHtml(r.fv || '-')}</b></span>
+                <span>${iconSolid('tagSolid', 12)}<b>${escapeHtml(r.pedprov || '-')}</b></span>
               </div>
             </div>
           `).join('')}
