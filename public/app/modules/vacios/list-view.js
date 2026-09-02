@@ -351,10 +351,10 @@ function openWorkspace() {
       });
   }
 
-  // ---------- hoja: elegir a quién programarle el conteo ----------
-  programarBtn.addEventListener('click', () => openSesionesSheet());
+  // ---------- hoja: wizard de 3 pasos (Programar a / Contador / N° conteo) ----------
+  programarBtn.addEventListener('click', () => openProgramarWizard());
 
-  function openSesionesSheet() {
+  function openProgramarWizard() {
     sheetOpen = true;
     scanner.setPaused(true);
     scanner.setTorch(false);
@@ -365,81 +365,285 @@ function openWorkspace() {
     backdrop.innerHTML = `
       <div class="reg-sheet">
         <div class="reg-sheet-head">
-          <span class="reg-sheet-title">Programar a</span>
-          <button type="button" class="btn-icon" id="prSesClose" title="Cerrar">${icon('x', 18)}</button>
+          <span class="reg-sheet-title">Programar conteo</span>
+          <button type="button" class="btn-icon" id="prWizClose" title="Cerrar">${icon('x', 18)}</button>
         </div>
-        <div id="prSesBody"><p class="cq-desc-value">Buscando usuarios en línea...</p></div>
-        <button type="button" class="btn btn-primary btn-block" id="prSesConfirm" disabled>${iconSolid('zapSolid', 16)} Enviar</button>
+        <div class="pr-wizard">
+          <div class="pr-wizard-steps">
+            <button type="button" class="pr-wizard-step" id="prWizDot1" data-step="1">
+              <span class="pr-wizard-dot">1</span><span class="pr-wizard-label">Programar a</span>
+            </button>
+            <div class="pr-wizard-connector" id="prWizConn1"></div>
+            <button type="button" class="pr-wizard-step" id="prWizDot2" data-step="2" disabled>
+              <span class="pr-wizard-dot">2</span><span class="pr-wizard-label">Contador</span>
+            </button>
+            <div class="pr-wizard-connector" id="prWizConn2"></div>
+            <button type="button" class="pr-wizard-step" id="prWizDot3" data-step="3" disabled>
+              <span class="pr-wizard-dot">3</span><span class="pr-wizard-label">N° conteo</span>
+            </button>
+          </div>
+          <div class="pr-wizard-viewport">
+            <div class="pr-wizard-track" id="prWizTrack">
+              <div class="pr-wizard-panel" id="prWizPanel1"><p class="cq-desc-value">Buscando usuarios en línea...</p></div>
+              <div class="pr-wizard-panel" id="prWizPanel2"></div>
+              <div class="pr-wizard-panel" id="prWizPanel3"></div>
+            </div>
+          </div>
+        </div>
       </div>
     `;
     document.body.appendChild(backdrop);
     activeBackdrop = backdrop;
 
+    let pollTimer = null;
+    let sesionesPollTimer = null;
     function closeSheet() {
+      if (pollTimer) clearInterval(pollTimer);
+      if (sesionesPollTimer) clearInterval(sesionesPollTimer);
+      resizeObserver.disconnect();
       backdrop.remove();
       activeBackdrop = null;
       sheetOpen = false;
       scanner.setPaused(false);
       scanner.resumeView();
     }
-    backdrop.querySelector('#prSesClose').addEventListener('click', closeSheet);
-    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeSheet(); });
+    backdrop.querySelector('#prWizClose').addEventListener('click', closeSheet);
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) { closeSheet(); return; }
+      // Cierra el desplegable de sugerencias (paso Contador) al tocar
+      // afuera, sin cerrar toda la hoja — un solo listener acá evita
+      // sumar uno nuevo cada vez que renderPaso2() se vuelve a llamar
+      // (retroceder y avanzar entre pasos).
+      const openMenu = backdrop.querySelector('.pr-combo-menu:not([hidden])');
+      if (openMenu && !e.target.closest('.pr-combo')) openMenu.hidden = true;
+    });
 
-    const confirmBtn = backdrop.querySelector('#prSesConfirm');
-    let sesiones = [];
-    let selectedId = null;
+    const track = backdrop.querySelector('#prWizTrack');
+    const wizViewport = track.parentElement;
+    const dots = [null, backdrop.querySelector('#prWizDot1'), backdrop.querySelector('#prWizDot2'), backdrop.querySelector('#prWizDot3')];
+    const conns = [null, backdrop.querySelector('#prWizConn1'), backdrop.querySelector('#prWizConn2')];
+    const panels = [null, backdrop.querySelector('#prWizPanel1'), backdrop.querySelector('#prWizPanel2'), backdrop.querySelector('#prWizPanel3')];
 
-    function renderSesiones() {
-      const bodyEl = backdrop.querySelector('#prSesBody');
-      if (sesiones.length === 0) {
-        bodyEl.innerHTML = '<p class="cq-desc-value">Ningún usuario en línea con la extensión activa ahora mismo.</p>';
-        confirmBtn.disabled = true;
-        return;
+    let step = 1;
+    let maxDone = 0; // hasta qué paso hay datos completos — habilita retroceder/navegar por los puntos
+    let targetId = null;
+    let targetNombre = '';
+    let contadorId = null;
+
+    // Solo se puede IR a un paso ya completado (o al actual) — nunca
+    // saltar adelante sin completar el de la izquierda.
+    function goToStep(n) {
+      if (n > maxDone + 1) return;
+      step = n;
+      // Corrimiento en píxeles medidos (nunca un % de CSS sobre el
+      // propio ancho del track, que quedaba mal resuelto acá y el
+      // panel vecino se veía "atrás", pisado por el anterior).
+      track.style.transform = `translateX(-${(n - 1) * wizViewport.clientWidth}px)`;
+      // El viewport tiene overflow:hidden pero sigue siendo scrolleable
+      // por foco/teclado — un input que recibe foco puede quedar
+      // "centrado" por el navegador vía scrollLeft, que se suma al
+      // translateX de arriba y descuadra todo. Nunca debería moverse
+      // por su cuenta: el slider es 100% el transform.
+      wizViewport.scrollLeft = 0;
+      for (let i = 1; i <= 3; i++) {
+        dots[i].classList.toggle('is-active', i === n);
+        dots[i].classList.toggle('is-done', i <= maxDone && i !== n);
+        dots[i].disabled = i > maxDone + 1;
       }
-      bodyEl.innerHTML = `
-        <div class="pr-session-list" id="prSessionList">
-          ${sesiones.map((s) => `
-            <div class="pr-session-row ${String(s.idEmpleado) === String(selectedId) ? 'selected' : ''}" data-id="${s.idEmpleado}">
-              <span class="pr-session-dot"></span>
-              <span class="pr-session-name">${escapeHtml(s.nombre)}</span>
-              ${icon('check', 18)}
-            </div>
-          `).join('')}
-        </div>
-      `;
-      bodyEl.querySelector('#prSessionList').addEventListener('click', (e) => {
+      conns[1]?.classList.toggle('is-done', maxDone >= 1);
+      conns[2]?.classList.toggle('is-done', maxDone >= 2);
+    }
+    for (let i = 1; i <= 3; i++) dots[i].addEventListener('click', () => goToStep(i));
+
+    // El corrimiento es en píxeles medidos del viewport, así que si su
+    // ancho cambia (rotar el celular, achicar la ventana) hay que
+    // volver a aplicarlo — sin esto, un resize a mitad de flujo dejaba
+    // el panel activo mal alineado, aunque los tres midieran bien.
+    const resizeObserver = new ResizeObserver(() => goToStep(step));
+    resizeObserver.observe(wizViewport);
+
+    // ---------- paso 1: Programar a (sesiones online) ----------
+    function renderPaso1(sesiones) {
+      panels[1].innerHTML = sesiones.length === 0
+        ? '<p class="cq-desc-value">Ningún usuario en línea con la extensión activa ahora mismo.</p>'
+        : `
+          <div class="pr-session-list" id="prSessionList">
+            ${sesiones.map((s) => `
+              <div class="pr-session-row ${String(s.idEmpleado) === String(targetId) ? 'selected' : ''}" data-id="${s.idEmpleado}" data-nombre="${escapeHtml(s.nombre)}">
+                <span class="pr-session-dot"></span>
+                <span class="pr-session-name">${escapeHtml(s.nombre)}</span>
+                ${icon('check', 18)}
+              </div>
+            `).join('')}
+          </div>
+        `;
+      panels[1].querySelector('#prSessionList')?.addEventListener('click', (e) => {
         const row = e.target.closest('.pr-session-row');
         if (!row) return;
-        selectedId = row.dataset.id;
-        renderSesiones();
+        targetId = row.dataset.id;
+        targetNombre = row.dataset.nombre;
+        maxDone = Math.max(maxDone, 1);
+        renderPaso1(sesiones); // repinta la selección
+        dots[2].disabled = false;
+        goToStep(2);
+        renderPaso2();
       });
-      confirmBtn.disabled = selectedId == null;
+    }
+    function fetchSesiones() {
+      store.listSesiones()
+        .then((res) => renderPaso1(res || []))
+        .catch(() => {
+          if (maxDone < 1) panels[1].innerHTML = '<p class="cq-desc-value">No se pudo consultar quién está en línea. Probá de nuevo.</p>';
+        });
+    }
+    fetchSesiones();
+    // Si Copérnico todavía no estaba abierto del lado del empleado, el
+    // paso 1 arranca vacío — sin esto había que cerrar y volver a abrir
+    // la hoja para que aparezca, una vez que se conecta. Se actualiza
+    // solo mientras el usuario sigue elegiendo (para de sondear apenas
+    // hay alguien elegido, así no le repinta la lista bajo el dedo).
+    sesionesPollTimer = setInterval(() => {
+      if (maxDone >= 1) { clearInterval(sesionesPollTimer); sesionesPollTimer = null; return; }
+      fetchSesiones();
+    }, 4000);
+
+    // ---------- paso 2: Contador (buscar por nombre en Copernico) ----------
+    // Elegir una sugerencia solo LLENA el campo — hace falta tocar
+    // "Generar conteo" a propósito, para que un tap de más en la lista
+    // de sugerencias nunca dispare un conteo con el contador equivocado.
+    let searchTimer = null;
+    function renderPaso2() {
+      panels[2].innerHTML = `
+        <p class="pr-wizard-hint">Programando a <b>${escapeHtml(targetNombre)}</b></p>
+        <div class="pr-combo">
+          <form class="scan-manual" id="prContadorForm">
+            <input type="text" id="prContadorInput" placeholder="Buscar contador por nombre…" autocomplete="off" />
+          </form>
+          <div class="pr-combo-menu" id="prContadorMenu" hidden></div>
+        </div>
+        <button type="button" class="btn btn-primary btn-block" id="prGenerarBtn" disabled>${iconSolid('zapSolid', 16)} Generar conteo</button>
+      `;
+      const input = panels[2].querySelector('#prContadorInput');
+      const menu = panels[2].querySelector('#prContadorMenu');
+      const generarBtn = panels[2].querySelector('#prGenerarBtn');
+      panels[2].querySelector('#prContadorForm').addEventListener('submit', (e) => e.preventDefault());
+
+      function invalidateSelection() {
+        contadorId = null;
+        generarBtn.disabled = true;
+      }
+      input.addEventListener('input', () => {
+        invalidateSelection();
+        clearTimeout(searchTimer);
+        const q = input.value.trim();
+        if (!q) { menu.hidden = true; menu.innerHTML = ''; return; }
+        searchTimer = setTimeout(async () => {
+          let empleados = [];
+          try { empleados = await store.buscarContadores(q); } catch { /* silencioso, ver placeholder abajo */ }
+          menu.hidden = false;
+          menu.innerHTML = empleados.length
+            ? empleados.map((e) => `<div class="pr-combo-option" data-id="${e.idEmpleado}" data-nombre="${escapeHtml(e.nombre)}">${escapeHtml(e.nombre)}</div>`).join('')
+            : '<p class="pr-combo-empty">Sin resultados.</p>';
+        }, 300);
+      });
+      menu.addEventListener('click', (e) => {
+        const opt = e.target.closest('.pr-combo-option');
+        if (!opt) return;
+        contadorId = opt.dataset.id;
+        input.value = opt.dataset.nombre;
+        menu.hidden = true;
+        generarBtn.disabled = false;
+      });
+      generarBtn.addEventListener('click', async () => {
+        if (!contadorId) return;
+        const contadorNombre = input.value.trim();
+        maxDone = Math.max(maxDone, 2);
+        dots[3].disabled = false;
+        goToStep(3);
+        await generarConteo(contadorNombre);
+      });
+      // preventScroll: sin esto, el foco automático hacía que el propio
+      // navegador scrollee ".pr-wizard-viewport" para "mostrar" el input
+      // recién creado — como ese contenedor es scrolleable aunque tenga
+      // overflow:hidden, ese scroll se sumaba al translateX del slider y
+      // dejaba todo el paso 2 corrido y tapado, sin volver atrás nunca.
+      input.focus({ preventScroll: true });
     }
 
-    store.listSesiones()
-      .then((res) => { sesiones = res || []; renderSesiones(); })
-      .catch(() => {
-        backdrop.querySelector('#prSesBody').innerHTML = '<p class="cq-desc-value">No se pudo consultar quién está en línea. Probá de nuevo.</p>';
-      });
-
-    confirmBtn.addEventListener('click', async () => {
-      if (selectedId == null) return;
-      confirmBtn.disabled = true;
+    // ---------- paso 3: generar y mostrar el N° de conteo ----------
+    async function generarConteo(contadorNombre) {
+      panels[3].innerHTML = `
+        <div class="pr-wizard-loading">
+          <span class="sync-status-icon is-spinning">${icon('refresh', 22)}</span>
+          <p class="cq-desc-value">Generando conteo para <b>${escapeHtml(contadorNombre)}</b>...</p>
+        </div>
+      `;
+      let originClientId;
       try {
-        await store.programarConteo(records.map((r) => ({ codigo: r.codigo, ubicacion: r.ubicacion })), selectedId);
-        records = [];
-        saveRecords();
-        renderChips();
-        // No cleanup() acá a propósito: la herramienta sigue abierta y
-        // lista para armar el próximo lote, sin volver a la cámara desde
-        // cero (antes cerraba todo el espacio de trabajo de golpe).
-        closeSheet();
-        showToast('Conteo programado');
+        originClientId = await store.programarConteo(
+          records.map((r) => ({ codigo: r.codigo, ubicacion: r.ubicacion })),
+          targetId,
+          contadorId,
+        );
       } catch {
-        showToast('No se pudo programar el conteo. Probá de nuevo.', { variant: 'warn' });
-        confirmBtn.disabled = false;
+        panels[3].innerHTML = `
+          <div class="pr-wizard-result is-error">
+            ${iconSolid('alertTriangleSolid', 40)}
+            <span class="pr-wizard-result-label">No se pudo enviar</span>
+            <p class="pr-wizard-result-hint">Revisá tu conexión y volvé a intentar.</p>
+            <button type="button" class="btn btn-primary btn-block" id="prWizRetry">Volver a intentar</button>
+          </div>
+        `;
+        panels[3].querySelector('#prWizRetry').addEventListener('click', () => goToStep(2));
+        return;
       }
-    });
+      // Los registros ya se mandaron: se limpia la lista de la herramienta
+      // (la cámara sigue lista para el próximo lote), sin cerrar esta hoja
+      // — el número de conteo se muestra hasta que el usuario lo cierre.
+      records = [];
+      saveRecords();
+      renderChips();
+
+      let elapsedMs = 0;
+      pollTimer = setInterval(async () => {
+        elapsedMs += 2000;
+        let resultado = null;
+        try { resultado = await store.obtenerResultado(originClientId); } catch { /* reintenta en el próximo tick */ }
+        if (!resultado) {
+          if (elapsedMs > 20000 && !panels[3].querySelector('.pr-wizard-hint')) {
+            panels[3].querySelector('.pr-wizard-loading').insertAdjacentHTML('beforeend',
+              '<p class="pr-wizard-hint">Está tardando más de lo esperado — podés cerrar esta ventana, el conteo sigue procesándose igual.</p>');
+          }
+          return;
+        }
+        clearInterval(pollTimer);
+        pollTimer = null;
+        // Sin botón "Cerrar" acá — la cruz del encabezado del modal ya
+        // cierra la hoja, un segundo botón para lo mismo era redundante.
+        if (resultado.ok) {
+          panels[3].innerHTML = `
+            <div class="pr-wizard-result">
+              <span class="pr-wizard-result-label">Conteo generado</span>
+              <span class="pr-wizard-result-number">${escapeHtml(resultado.idConteo || '-')}</span>
+            </div>
+          `;
+        } else {
+          // Flat y premium a propósito, nunca un toast: el motivo real
+          // más común es que Copernico no encontró stock en la
+          // ubicación elegida — se dice así, en criollo, en vez de
+          // mostrar el detalle técnico crudo que manda la extensión.
+          panels[3].innerHTML = `
+            <div class="pr-wizard-result is-error">
+              ${iconSolid('alertTriangleSolid', 40)}
+              <span class="pr-wizard-result-label">Conteo no creado</span>
+              <p class="pr-wizard-result-hint">Revisá que la ubicación seleccionada tenga stock disponible.</p>
+            </div>
+          `;
+        }
+      }, 2000);
+    }
+
+    goToStep(1);
   }
 
   scanner.start();

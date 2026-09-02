@@ -1,7 +1,7 @@
 // Service Worker: cache del app-shell, network-first con fallback a cache.
 // Subir CACHE invalida el cache anterior en 'activate'.
 
-const CACHE = 'gdapp-shell-v7';
+const CACHE = 'gdapp-shell-v8';
 
 const SHELL = [
   '/app',
@@ -54,8 +54,13 @@ self.addEventListener('fetch', (e) => {
   // La API nunca se cachea
   if (url.pathname.startsWith('/api/')) return;
 
+  // { cache: 'reload' } fuerza que ESTE fetch ignore la caché HTTP del
+  // navegador — sin esto, "network-first" es una mentira: el fetch de
+  // acá abajo puede resolverse contra el disco (Cache-Control max-age)
+  // sin tocar la red, y entonces ni un hard-refresh del usuario alcanza
+  // para ver un JS/CSS nuevo hasta que venza el max-age.
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'reload' })
       .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(e.request, copy));

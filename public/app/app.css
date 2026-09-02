@@ -2698,14 +2698,130 @@ html, body {
 .pr-ubicbox-meta { display: flex; gap: var(--sp-3); margin-top: 4px; font-size: 11.5px; color: var(--ink-3); }
 .pr-ubicbox-meta b { color: var(--ink-2); font-weight: 650; }
 
-/* Lista de empleados con la extensión activa, para elegir a quién
-   programarle el conteo — mismo patrón de fila seleccionable que
-   .pr-ubicbox, con un punto de estado en vez de datos de stock. */
-.pr-session-list { display: flex; flex-direction: column; gap: 6px; max-height: 44vh; overflow-y: auto; margin: var(--sp-3) 0; }
-.pr-session-row { display: flex; align-items: center; gap: var(--sp-3); padding: 12px; border-radius: var(--r-md); background: var(--surface-2); cursor: pointer; }
+/* Lista de sesiones online (paso "Programar a") — mismo patrón de fila
+   seleccionable que .pr-ubicbox, con un punto de estado en vez de
+   datos de stock. flex:1 dentro de un panel de alto fijo (ver
+   .pr-wizard-panel): con 3 filas o menos entran todas sin scroll, con
+   más aparece scroll propio en vez de estirar la hoja entera. */
+.pr-session-list { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; overflow-y: auto; margin-top: var(--sp-2); }
+.pr-session-row { display: flex; align-items: center; gap: var(--sp-3); padding: 12px; border-radius: var(--r-md); background: var(--surface-2); cursor: pointer; flex-shrink: 0; }
 .pr-session-row.selected { background: var(--accent-100); }
 .pr-session-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--ok); flex-shrink: 0; box-shadow: 0 0 0 3px rgba(58, 125, 68, 0.18); }
 .pr-session-name { flex: 1; min-width: 0; font-size: var(--text-sm); font-weight: 650; color: var(--ink); }
 .pr-session-row svg { color: var(--accent-500); visibility: hidden; flex-shrink: 0; }
 .pr-session-row.selected svg { visibility: visible; }
-.settings-source-progress-fill { height: 100%; width: 0%; background: var(--accent-500); }
+
+/* ============================================================
+   Wizard de "Programar conteo" (3 pasos: Programar a / Contador / N°
+   de conteo), dentro del mismo .reg-sheet de siempre. Los tres paneles
+   viven uno al lado del otro en una franja 300% de ancho que se
+   desliza con transform — de ahí "slider": nunca se desmonta el panel
+   anterior, solo se corre la franja (en píxeles medidos vía JS, ver
+   list-view.js — un % de CSS sobre el propio ancho del track quedaba
+   mal resuelto en este contenedor). Los puntos del encabezado son el
+   único control de navegación hacia atrás; hacia adelante solo avanza
+   la propia acción de cada paso (elegir sesión, tocar "Generar
+   conteo"). Alto FIJO (clamp según pantalla) en vez de uno que crece
+   con la cantidad de datos — cada paso adapta su propio contenido
+   adentro (scroll donde haga falta) en vez de deformar la hoja. */
+.pr-wizard { display: flex; flex-direction: column; gap: var(--sp-4); min-height: 0; }
+.pr-wizard-steps { display: flex; align-items: flex-start; flex-shrink: 0; }
+.pr-wizard-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.pr-wizard-step:disabled { cursor: default; }
+.pr-wizard-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--n-200);
+  color: var(--ink-3);
+  font-weight: 700;
+  font-size: 12.5px;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.pr-wizard-step.is-active .pr-wizard-dot { background: var(--accent-600); color: #fff; }
+.pr-wizard-step.is-done .pr-wizard-dot { background: var(--accent-100); color: var(--accent-700); }
+.pr-wizard-label { font-size: 10px; font-weight: 650; color: var(--ink-3); white-space: nowrap; }
+.pr-wizard-step.is-active .pr-wizard-label { color: var(--ink); }
+.pr-wizard-connector { flex: 1 1 auto; height: 2px; background: var(--n-200); margin: 12px 4px 0; transition: background var(--t-fast); }
+.pr-wizard-connector.is-done { background: var(--accent-500); }
+
+/* clamp: nunca menos de 190px (que 3 filas + texto entren cómodos en
+   pantallas chicas) ni más de 250px (pasos 2/3 tienen poco contenido —
+   más que esto era espacio vacío de sobra, no "alto fijo prolijo"). */
+.pr-wizard-viewport { overflow: hidden; height: clamp(190px, 32vh, 250px); }
+.pr-wizard-track { display: flex; width: 300%; height: 100%; transition: transform 240ms ease; }
+.pr-wizard-panel {
+  width: calc(100% / 3);
+  flex-shrink: 0;
+  min-width: 0;
+  height: 100%;
+  padding: 1px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: var(--sp-3);
+  overflow-y: auto;
+}
+/* Los paneles de carga y resultado (sin lista/formulario largo) sí se
+   centran — ahí el contenido corto centrado se ve intencional, no
+   "flotando" por falta de contenido como en un formulario. */
+.pr-wizard-panel:has(.pr-wizard-loading),
+.pr-wizard-panel:has(.pr-wizard-result) {
+  justify-content: center;
+}
+
+.pr-wizard-hint { font-size: 12.5px; color: var(--ink-3); flex-shrink: 0; }
+.pr-wizard-hint b { color: var(--ink-2); font-weight: 650; }
+
+.pr-wizard-loading { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); text-align: center; }
+.pr-wizard-loading .cq-desc-value { text-align: center; }
+
+.pr-wizard-result { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.pr-wizard-result svg { color: var(--danger); margin-bottom: 4px; }
+.pr-wizard-result-label { font-size: 15px; font-weight: 700; color: var(--ink); }
+.pr-wizard-result-number { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; color: var(--accent-700); margin: 2px 0 6px; }
+.pr-wizard-result-hint { font-size: 12.5px; color: var(--ink-3); line-height: 1.4; max-width: 280px; margin: 0; }
+.pr-wizard-result:not(.is-error) svg { color: var(--ok); }
+.pr-wizard-result .btn { width: 100%; margin-top: var(--sp-3); }
+
+/* Buscador de contador: desplegable minimalista, no tarjetas — una
+   franja EN EL FLUJO normal debajo del input (nunca position:absolute:
+   flotaba tapando el botón "Generar conteo" de abajo en vez de
+   empujarlo). Alto fijo (2-3 sugerencias) con scroll propio si hay más.
+   Elegir una opción solo llena el campo; el conteo se genera con el
+   botón de abajo, nunca al tocar la sugerencia (evita asignar el
+   contador equivocado por un tap de más). */
+.pr-combo { display: flex; flex-direction: column; flex-shrink: 0; }
+.pr-combo-menu {
+  margin-top: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--n-200);
+  border-radius: var(--r-md);
+  max-height: 104px; /* ~2-3 filas */
+  overflow-y: auto;
+}
+.pr-combo-option {
+  padding: 10px 14px;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pr-combo-option:active { background: var(--n-100); }
+.pr-combo-option + .pr-combo-option { border-top: 1px solid var(--line-soft); }
+.pr-combo-empty { padding: 10px 14px; font-size: var(--text-sm); color: var(--ink-3); margin: 0; }

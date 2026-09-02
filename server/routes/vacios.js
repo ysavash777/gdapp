@@ -35,17 +35,42 @@ router.get('/sesiones', async (_req, res) => {
   }
 });
 
-// POST /api/vacios/programar  { records: [{codigo, ubicacion}], targetIdEmpleado }
+// GET /api/vacios/empleados?q=... — directorio de Copernico por
+// nombre, para elegir el contador (no requiere sesión con la extensión).
+router.get('/empleados', async (req, res) => {
+  try {
+    const empleados = await store.buscarContadores(req.query.q);
+    res.json({ ok: true, empleados });
+  } catch (e) {
+    console.error('[routes/vacios] empleados falló:', e.message);
+    res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
+  }
+});
+
+// POST /api/vacios/programar  { records: [{codigo, ubicacion}], targetIdEmpleado, contadorIdEmpleado }
 router.post('/programar', async (req, res) => {
   try {
-    const { records, targetIdEmpleado } = req.body || {};
-    await store.programarConteo(records, targetIdEmpleado);
-    res.json({ ok: true });
+    const { records, targetIdEmpleado, contadorIdEmpleado } = req.body || {};
+    const { originClientId } = await store.programarConteo(records, targetIdEmpleado, contadorIdEmpleado);
+    res.json({ ok: true, originClientId });
   } catch (e) {
-    if (e.message === 'EMPTY_RECORDS' || e.message === 'MISSING_TARGET' || e.message === 'INVALID_TARGET') {
+    if (['EMPTY_RECORDS', 'MISSING_TARGET', 'INVALID_TARGET', 'MISSING_CONTADOR', 'INVALID_CONTADOR'].includes(e.message)) {
       return res.status(400).json({ ok: false, error: e.message });
     }
     console.error('[routes/vacios] programar falló:', e.message);
+    res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
+  }
+});
+
+// GET /api/vacios/resultado?originClientId=... — null mientras la
+// extensión todavía no procesó el job; el cliente reintenta a intervalos.
+router.get('/resultado', async (req, res) => {
+  try {
+    const resultado = await store.obtenerResultado(req.query.originClientId);
+    res.json({ ok: true, resultado });
+  } catch (e) {
+    if (e.message === 'MISSING_ORIGIN') return res.status(400).json({ ok: false, error: e.message });
+    console.error('[routes/vacios] resultado falló:', e.message);
     res.status(500).json({ ok: false, error: 'SERVER_ERROR' });
   }
 });

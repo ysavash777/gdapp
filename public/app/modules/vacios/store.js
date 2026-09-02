@@ -15,10 +15,26 @@ export async function listSesiones() {
   return sesiones;
 }
 
-// records: [{ codigo, ubicacion }]
-export async function programarConteo(records, targetIdEmpleado) {
-  await apiFetch('/api/vacios/programar', {
+// Directorio completo de Copernico por nombre — para elegir el
+// contador (no requiere que tenga la extensión abierta).
+export async function buscarContadores(q) {
+  const { empleados } = await apiFetch(`/api/vacios/empleados?q=${encodeURIComponent(q)}`);
+  return empleados;
+}
+
+// records: [{ codigo, ubicacion }]. Devuelve originClientId para
+// poder consultar el resultado (obtenerResultado) hasta que la
+// extensión termine de procesarlo.
+export async function programarConteo(records, targetIdEmpleado, contadorIdEmpleado) {
+  const { originClientId } = await apiFetch('/api/vacios/programar', {
     method: 'POST',
-    body: { records, targetIdEmpleado },
+    body: { records, targetIdEmpleado, contadorIdEmpleado },
   });
+  return originClientId;
+}
+
+// null mientras la extensión todavía no procesó el job.
+export async function obtenerResultado(originClientId) {
+  const { resultado } = await apiFetch(`/api/vacios/resultado?originClientId=${encodeURIComponent(originClientId)}`);
+  return resultado;
 }
