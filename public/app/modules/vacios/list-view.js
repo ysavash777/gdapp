@@ -36,7 +36,7 @@ let records = loadRecords(); // { codigo, ubicacion, descripcion, referencia, fv
 
 function formatQty(saldo) {
   if (saldo == null) return '-';
-  return Number.isInteger(saldo) ? String(saldo) : String(saldo);
+  return `${saldo} UN`;
 }
 
 export function renderHome(outlet) {
