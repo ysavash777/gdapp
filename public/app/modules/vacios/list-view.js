@@ -67,6 +67,7 @@ function openWorkspace() {
       <div class="scan-sheet-head">
         <span id="prSheetHead">Sin registros todavía</span>
         <div class="scan-sheet-tools">
+          <button type="button" class="btn-icon" id="prClear" title="Vaciar el listado" aria-label="Vaciar el listado" disabled>${icon('trash', 15)}</button>
           <button type="button" class="btn-icon" id="prSearchToggle" title="Buscar en los registros">${icon('search', 15)}</button>
           <button type="button" class="manual-toggle" id="prManualToggle" title="Ingresar código manualmente">${icon('plus', 13)} Manual</button>
         </div>
@@ -91,6 +92,7 @@ function openWorkspace() {
   const hintEl = overlay.querySelector('#prHint');
   const torchBtn = overlay.querySelector('#prTorch');
   const sheetHead = overlay.querySelector('#prSheetHead');
+  const clearBtn = overlay.querySelector('#prClear');
   const searchToggle = overlay.querySelector('#prSearchToggle');
   const searchForm = overlay.querySelector('#prSearch');
   const searchInput = overlay.querySelector('#prSearchInput');
@@ -135,8 +137,55 @@ function openWorkspace() {
       : 'Sin registros todavía';
     chipsEl.innerHTML = visible.map((r, i) => recordCardHTML(r, records.indexOf(visible[i]))).join('');
     programarBtn.disabled = records.length === 0;
+    clearBtn.disabled = records.length === 0;
   }
   renderChips();
+
+  // ---------- vaciar el listado (con confirmación) ----------
+  // El listado vive en localStorage y sobrevive a lanzar el conteo o a que
+  // la PWA se cierre/caiga: la única forma de vaciarlo es este botón.
+  let confirmClearOverlay = null;
+  function closeConfirmClear() {
+    if (!confirmClearOverlay) return;
+    confirmClearOverlay.remove();
+    confirmClearOverlay = null;
+    sheetOpen = false; // vuelve a permitir escanear
+  }
+  function openConfirmClear() {
+    // Sin registros, o ya hay una hoja/confirmación encima: no encimar
+    // (un doble tap abriría dos modales).
+    if (records.length === 0 || sheetOpen || confirmClearOverlay) return;
+    sheetOpen = true; // mientras confirma, un escaneo no debe abrir otra hoja debajo
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    // .modal-overlay (z-index 50) queda por debajo del overlay del escáner
+    // (60): sin esto el modal se abría invisible, detrás de la pantalla.
+    modal.style.zIndex = '80';
+    modal.setAttribute('role', 'alertdialog');
+    modal.setAttribute('aria-label', 'Vaciar listado');
+    modal.innerHTML = `
+      <div class="modal pr-confirm">
+        <span class="pr-confirm-icon">${icon('trash', 22)}</span>
+        <h3 class="pr-confirm-title">¿Estás seguro?</h3>
+        <div class="pr-confirm-actions">
+          <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+          <button type="button" class="btn btn-danger" id="prClearConfirm">Vaciar</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    confirmClearOverlay = modal;
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeConfirmClear(); });
+    modal.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', closeConfirmClear));
+    modal.querySelector('#prClearConfirm').addEventListener('click', () => {
+      records = [];
+      saveRecords();
+      closeSearch();
+      renderChips();
+      closeConfirmClear();
+    });
+  }
+  clearBtn.addEventListener('click', openConfirmClear);
 
   function closeSearch() {
     if (searchForm.hidden) return;
@@ -186,6 +235,11 @@ function openWorkspace() {
     if (activeBackdrop) {
       activeBackdrop.remove();
       activeBackdrop = null;
+    }
+    // Mismo caso para el modal de "Vaciar listado": también vive en body.
+    if (confirmClearOverlay) {
+      confirmClearOverlay.remove();
+      confirmClearOverlay = null;
     }
     scanner.destroy();
     window.removeEventListener('popstate', cleanup);
@@ -620,13 +674,12 @@ function openWorkspace() {
         panels[3].querySelector('#prWizRetry').addEventListener('click', () => goToStep(2));
         return;
       }
-      // Los registros ya se mandaron: se limpia la lista de la herramienta
-      // (la cámara sigue lista para el próximo lote), sin cerrar esta hoja
-      // — el número de conteo se muestra hasta que el usuario lo cierre.
+      // Los registros ya se mandaron, pero el listado NO se borra: queda
+      // guardado en el navegador para no tener que escanear todo de nuevo
+      // si hay que repetir o la app se cae. Se vacía solo con el botón del
+      // tacho. La hoja sigue abierta — el número de conteo se muestra
+      // hasta que el usuario la cierre.
       const itemCount = records.length;
-      records = [];
-      saveRecords();
-      renderChips();
 
       let elapsedMs = 0;
       pollTimer = setInterval(async () => {

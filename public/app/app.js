@@ -16,6 +16,7 @@ import * as vacios from '/app/modules/vacios/index.js';
 import * as consultas from '/app/modules/consultas/index.js';
 import * as settings from '/app/modules/settings.js';
 import { checkVencidos, markAlertSeen, notifMessageHTML } from '/app/notifications.js';
+import { checkDbStale } from '/app/db-stale.js';
 
 const TOOLS = {
   consultas: { ...consultas, icon: 'search' },
@@ -34,13 +35,28 @@ let lastRoute = 'home'; // 'home' | 'subpage'
 let exitArmed = false;
 let exitTimer = null;
 
+// La clave interna de una herramienta (TOOLS / permiso guardado en la base de
+// usuarios) no siempre coincide con el nombre que se ve en el link: "vacios" es
+// el permiso histórico de Programación remota y se mantiene así para no tocar
+// permisos ya otorgados — solo el link usa el nombre real de la herramienta.
+const ROUTE_SLUGS = { vacios: 'programacion-remota' };
+
+function slugForKey(key) {
+  return ROUTE_SLUGS[key] || key;
+}
+
+function keyForSlug(slug) {
+  const found = Object.entries(ROUTE_SLUGS).find(([, s]) => s === slug);
+  return found ? found[0] : slug;
+}
+
 function hashUrl(hash) {
   return location.pathname + location.search + (hash ? `#/${hash}` : '');
 }
 
 // pushState no dispara 'popstate', así que renderizamos a mano.
 function pushRoute(hash) {
-  history.pushState({ gdapp: true }, '', hashUrl(hash));
+  history.pushState({ gdapp: true }, '', hashUrl(slugForKey(hash)));
   renderRoute();
 }
 
@@ -105,7 +121,9 @@ function disabledTools() {
 }
 
 function currentToolKey() {
-  const key = location.hash.replace('#/', '');
+  const slug = location.hash.replace('#/', '');
+  // Un link viejo (#/vacios) sigue resolviendo a la misma herramienta.
+  const key = keyForSlug(slug);
   return enabledTools().some(([k]) => k === key) ? key : null;
 }
 
@@ -212,7 +230,10 @@ function renderHome() {
         </div>
       </div>
       <div class="hd-right">
-        <button class="btn-icon" id="settingsBtn" title="Configuración">${icon('settings', 20)}</button>
+        <button class="btn-icon" id="settingsBtn" title="Configuración">
+          ${icon('settings', 20)}
+          <span class="notif-badge" id="settingsBadge" hidden>!</span>
+        </button>
         <div class="hd-notif">
           <button class="btn-icon" id="notifBtn" title="Notificaciones">
             ${icon('bell', 20)}
@@ -266,7 +287,18 @@ function renderHome() {
       }).catch(() => { /* sin conexión: la campana se queda como estaba */ });
     }
 
-    document.getElementById('settingsBtn').addEventListener('click', () => pushRoute('settings'));
+    const settingsBtn = document.getElementById('settingsBtn');
+    settingsBtn.addEventListener('click', () => pushRoute('settings'));
+
+    // Solo quien puede actualizar las bases (permiso 'basesdatos', el mismo
+    // que exige /api/database/status) ve el aviso de "sin actualizar".
+    if (user.permissions?.includes('basesdatos')) {
+      checkDbStale().then((stale) => {
+        if (!stale || !settingsBtn.isConnected) return;
+        document.getElementById('settingsBadge').hidden = false;
+        settingsBtn.title = 'Configuración — las bases de datos llevan más de 1 hora sin actualizarse';
+      });
+    }
   } else {
     setHeader('');
   }

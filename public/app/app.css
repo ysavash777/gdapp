@@ -220,7 +220,10 @@ html, body {
 /* Badge de "no vistos" sobre la campana — pedido explícito: nada de
    toast flotante, solo esto. Cuenta vencidos reales (server/store/
    vencimientos.store.js, severity 'vencido'), no "próximos a vencer". */
-#notifBtn { position: relative; }
+#notifBtn, #settingsBtn { position: relative; }
+/* Mismo badge sobre la ruedita: "!" cuando las bases llevan más de 1 hora
+   sin actualizarse (ver app/db-stale.js). */
+#settingsBadge[hidden] { display: none; }
 .notif-badge {
   position: absolute;
   top: 2px;
@@ -691,6 +694,30 @@ html, body {
 .compact-modal .modal-body { padding: 0 var(--sp-4) var(--sp-4); gap: var(--sp-3); }
 .compact-modal .modal-foot { padding: 0 var(--sp-4) var(--sp-4); border-top: none; gap: var(--sp-2); }
 .compact-modal .modal-foot .btn { padding: 10px 16px; }
+
+/* Confirmación mínima de "Vaciar listado" (Programación remota): un
+   ícono, una pregunta y dos botones del mismo ancho — sin cabecera ni
+   texto de relleno, para que se lea y se resuelva de un vistazo. */
+.modal.pr-confirm {
+  max-width: 280px;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-5) var(--sp-4) var(--sp-4);
+  text-align: center;
+}
+.pr-confirm-icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-full);
+  background: rgba(239, 68, 68, 0.14);
+  color: var(--danger);
+}
+.pr-confirm-title { font-size: var(--text-base); font-weight: 700; color: var(--ink); margin: 0 0 var(--sp-1); }
+.pr-confirm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); width: 100%; }
+.pr-confirm-actions .btn { width: 100%; padding: 11px 12px; justify-content: center; }
 
 /* --- Botón primario: neutro (blanco/gris), el lila es solo de los iconos --- */
 .btn-primary {
