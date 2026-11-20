@@ -284,7 +284,7 @@ function openWorkspace() {
     }
     lastHandled = { key: codigo, at: now };
     if (isInList(codigo)) {
-      showToast(`${codigo} ya está en el listado`, { variant: 'warn' });
+      showToast('Ya está en el listado', { tone: 'warn', detail: codigo });
       return;
     }
     // Valida contra el catálogo local (Variables) ANTES de ir a buscar
@@ -294,7 +294,7 @@ function openWorkspace() {
     // Se salta solo si el catálogo local todavía está vacío (sin red
     // desde el primer uso), donde no hay forma de saber si existe.
     if (hasData() && !existsLocal(codigo)) {
-      showToast(`La referencia ${codigo} no existe en la DB`, { variant: 'warn' });
+      showToast('La referencia no existe en la DB', { tone: 'error', detail: codigo });
       return;
     }
 
@@ -309,7 +309,7 @@ function openWorkspace() {
     } catch {
       if (!closed) {
         sheetOpen = false;
-        showToast('No se pudo consultar la base. Probá de nuevo.', { variant: 'warn' });
+        showToast('No se pudo consultar la base', { tone: 'error', detail: 'Probá de nuevo' });
       }
       return;
     }
@@ -320,13 +320,13 @@ function openWorkspace() {
     // Se escaneó un EAN/DUN: recién ahora se sabe la referencia real, que
     // puede ya estar en el listado (se guarda por referencia).
     if (rows.length && isInList(rows[0].referencia, rows[0].ean)) {
-      showToast(`${rows[0].referencia || codigo} ya está en el listado`, { variant: 'warn' });
+      showToast('Ya está en el listado', { tone: 'warn', detail: rows[0].referencia || codigo });
       return;
     }
 
     const withStock = rows.filter((r) => (Number(r.saldo) || 0) > 0);
     if (!withStock.length) {
-      showToast(`Sin stock: ${codigo}`, { variant: 'warn' });
+      showToast('Sin stock', { tone: 'warn', detail: codigo });
       return;
     }
     // La elección automática ignora ubicaciones temporales/de zonificación
@@ -334,13 +334,13 @@ function openWorkspace() {
     // quiere cambiar a mano.
     const eligible = withStock.filter((r) => !/^(z|bin)/i.test(String(r.ubicacion || '').trim()));
     if (!eligible.length) {
-      showToast(`Sin stock disponible: ${codigo} (solo en BIN/Z)`, { variant: 'warn' });
+      showToast('Sin stock disponible', { tone: 'warn', detail: `${codigo} · solo en BIN/Z` });
       return;
     }
     if (navigator.vibrate) navigator.vibrate(35);
     const row = nearestExpiry(eligible);
     addRecordFromRow(row, codigo);
-    showToast(`Agregado en ${row.ubicacion}${row.fv ? ` · vence ${row.fv}` : ''}`);
+    showToast('Registro agregado', { tone: 'success', detail: `${row.ubicacion}${row.fv ? ` · vence ${row.fv}` : ''}` });
   }
 
   // Registra la fila elegida como un registro más (usado por el alta
@@ -415,7 +415,7 @@ function openWorkspace() {
         records.splice(editIndex, 1);
         saveRecords();
         renderChips();
-        showToast('Registro quitado');
+        showToast('Registro quitado', { tone: 'success' });
         closeSheet();
       });
     }
@@ -468,10 +468,10 @@ function openWorkspace() {
       const record = recordFromRow(row, codigo);
       if (editIndex != null) {
         records[editIndex] = record;
-        showToast('Ubicación actualizada');
+        showToast('Ubicación actualizada', { tone: 'success', detail: row.ubicacion });
       } else {
         records.push(record);
-        showToast('Registro agregado');
+        showToast('Registro agregado', { tone: 'success', detail: row.ubicacion });
       }
       saveRecords();
       renderChips();
