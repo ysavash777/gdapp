@@ -31,7 +31,6 @@ function mapeoCardHTML(m) {
         <div class="mapeo-menu" id="mapeoMenu-${m.id}" hidden>
           <button class="user-menu-item" data-action="rename" data-id="${m.id}">${icon('edit', 16)} Renombrar</button>
           <button class="user-menu-item" data-action="download" data-id="${m.id}">${icon('download', 16)} Descargar</button>
-          <button class="user-menu-item" data-action="share" data-id="${m.id}">${icon('share', 16)} Compartir</button>
           <button class="user-menu-item is-danger" data-action="delete" data-id="${m.id}">${icon('trash', 16)} Eliminar</button>
         </div>
       </div>
@@ -223,11 +222,6 @@ export async function renderList(outlet, { onNew }) {
       const wasHidden = menu.hidden;
       outlet.querySelectorAll('.mapeo-menu').forEach((m) => { m.hidden = true; });
       menu.hidden = !wasHidden;
-      // Se descarga el XLSX apenas se abre el menú: en iOS, navigator.share()
-      // solo funciona si se llama pegado al toque del usuario — si recién
-      // empezáramos a bajar el archivo al tocar "Compartir", el permiso se
-      // vence mientras espera y el sistema rechaza abrir el panel.
-      if (wasHidden && canShareFiles()) prefetchShare(Number(btn.dataset.id));
     });
   });
 
@@ -240,7 +234,6 @@ export async function renderList(outlet, { onNew }) {
       if (action === 'rename') openRenameModal(id);
       if (action === 'delete') openDeleteModal(id);
       if (action === 'download') downloadMapeo(id);
-      if (action === 'share') shareMapeo(id);
     });
   });
 }
@@ -262,58 +255,6 @@ function downloadMapeo(id) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-}
-
-// ---------- compartir el XLSX (panel nativo de Android/iOS) ----------
-// Web Share API con archivo: abre el panel de compartir del sistema, donde
-// el usuario elige WhatsApp. La web no puede forzar ni reordenar las apps
-// del panel (lo decide el sistema, que suele poner arriba las más usadas);
-// sí se manda como archivo adjunto, así WhatsApp lo recibe como documento.
-const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-const shareCache = new Map(); // id -> Promise<File> (se vuelve a pedir cada vez que se abre el menú)
-
-function canShareFiles() {
-  if (typeof navigator.share !== 'function' || typeof navigator.canShare !== 'function') return false;
-  try {
-    return navigator.canShare({ files: [new File([''], 'x.xlsx', { type: XLSX_MIME })] });
-  } catch {
-    return false;
-  }
-}
-
-async function fetchMapeoFile(id) {
-  const res = await fetch(`/api/mapeos/${id}/export`);
-  if (!res.ok) throw new Error('EXPORT_FAILED');
-  const disposition = res.headers.get('Content-Disposition') || '';
-  const name = (disposition.match(/filename="([^"]+)"/) || [])[1];
-  const blob = await res.blob();
-  return new File([blob], name || `mapeo-${id}.xlsx`, { type: XLSX_MIME });
-}
-
-function prefetchShare(id) {
-  const p = fetchMapeoFile(id);
-  p.catch(() => {}); // el error real se maneja al tocar "Compartir"
-  shareCache.set(id, p);
-}
-
-async function shareMapeo(id) {
-  // Sin soporte (escritorio, navegador viejo): cae a descargar el archivo.
-  if (!canShareFiles()) {
-    showToast('Este dispositivo no permite compartir archivos: se descarga.');
-    downloadMapeo(id);
-    return;
-  }
-  try {
-    const file = await (shareCache.get(id) || fetchMapeoFile(id));
-    shareCache.delete(id);
-    await navigator.share({ files: [file], title: file.name.replace(/\.xlsx$/i, '') });
-  } catch (err) {
-    shareCache.delete(id);
-    if (err?.name === 'AbortError') return; // cerró el panel sin compartir: no es un error
-    showToast(err?.message === 'EXPORT_FAILED' || err instanceof TypeError
-      ? 'No se pudo preparar el archivo. Revisá la conexión.'
-      : 'No se pudo abrir el panel de compartir.');
-  }
 }
 
 function showToast(text) {

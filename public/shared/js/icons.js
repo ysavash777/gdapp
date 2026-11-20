@@ -39,7 +39,6 @@ const PATHS = {
   zap: '<path d="M11 2 3 14h7l-1 8 9-12h-7l1-8Z"/>',
   moreVertical: '<circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.5" fill="currentColor" stroke="none"/>',
   download: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
-  share: '<path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
   calendar: '<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18"/><path d="M8 3v3"/><path d="M16 3v3"/>',
   calendarAlert: '<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18"/><path d="M8 3v3"/><path d="M16 3v3"/><path d="M12 13v3"/><circle cx="12" cy="18.3" r="0.4" fill="currentColor" stroke="none"/>',
   refresh: '<path d="M20.5 11A8.5 8.5 0 0 0 5.6 6.3L3 8.8"/><path d="M3 4v4.8h4.8"/><path d="M3.5 13A8.5 8.5 0 0 0 18.4 17.7L21 15.2"/><path d="M21 20v-4.8h-4.8"/>',
