@@ -259,10 +259,34 @@ function openWorkspace() {
   window.addEventListener('popstate', cleanup);
   overlay.querySelector('#prClose').addEventListener('click', () => history.back());
 
+  // La cámara sigue apuntando al producto y lo lee una y otra vez: el mismo
+  // código dentro de esta ventana se ignora en silencio (sin consulta ni
+  // toast repetido). La regla real de "no repetir" es isInList(), que no
+  // depende del tiempo.
+  const REPEAT_WINDOW_MS = 2500;
+  let lastHandled = { key: '', at: 0 };
+
+  const sameCode = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+  // ¿Ese producto ya está en el listado? Sea cual sea la ubicación elegida,
+  // no importa cuánto hace que se agregó: no se suma ni se actualiza.
+  function isInList(...codes) {
+    return records.some((r) => codes.some((c) => c && (sameCode(r.referencia, c) || sameCode(r.codigo, c))));
+  }
+
   async function handleCode(raw) {
     if (sheetOpen) return; // ya hay una hoja abierta, no encimar
     const codigo = raw.trim();
     if (!codigo) return;
+    const now = Date.now();
+    if (sameCode(lastHandled.key, codigo) && now - lastHandled.at < REPEAT_WINDOW_MS) {
+      lastHandled.at = now; // mientras la cámara siga en el producto, no se vuelve a procesar
+      return;
+    }
+    lastHandled = { key: codigo, at: now };
+    if (isInList(codigo)) {
+      showToast(`${codigo} ya está en el listado`, { variant: 'warn' });
+      return;
+    }
     // Valida contra el catálogo local (Variables) ANTES de ir a buscar
     // ubicación — mismo criterio que Mapear/Consultar grupo: si el
     // código ni siquiera es un SKU real, ir a buscarle ubicación en
@@ -291,6 +315,14 @@ function openWorkspace() {
     }
     if (closed) return; // salió de la herramienta mientras consultaba
     sheetOpen = false;
+    lastHandled.at = Date.now();
+
+    // Se escaneó un EAN/DUN: recién ahora se sabe la referencia real, que
+    // puede ya estar en el listado (se guarda por referencia).
+    if (rows.length && isInList(rows[0].referencia, rows[0].ean)) {
+      showToast(`${rows[0].referencia || codigo} ya está en el listado`, { variant: 'warn' });
+      return;
+    }
 
     const withStock = rows.filter((r) => (Number(r.saldo) || 0) > 0);
     if (!withStock.length) {
