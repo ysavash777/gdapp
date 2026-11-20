@@ -34,6 +34,17 @@ function saveRecords() {
 
 let records = loadRecords(); // { codigo, ubicacion, descripcion, referencia, fv, pedprov }
 
+// fv llega como DD/MM/AAAA. Sin fecha válida = última opción.
+function fvTime(fv) {
+  const m = String(fv || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return m ? new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getTime() : Infinity;
+}
+
+// La fila de vencimiento más próximo; en empate, la de más saldo.
+function nearestExpiry(rows) {
+  return [...rows].sort((a, b) => (fvTime(a.fv) - fvTime(b.fv)) || ((Number(b.saldo) || 0) - (Number(a.saldo) || 0)))[0];
+}
+
 function formatQty(saldo) {
   if (saldo == null) return '-';
   return `${saldo} UN`;
@@ -259,11 +270,63 @@ function openWorkspace() {
     // Se salta solo si el catálogo local todavía está vacío (sin red
     // desde el primer uso), donde no hay forma de saber si existe.
     if (hasData() && !existsLocal(codigo)) {
-      showToast(`Código no encontrado: ${codigo}`, { variant: 'warn' });
+      showToast(`La referencia ${codigo} no existe en la DB`, { variant: 'warn' });
+      return;
+    }
+
+    // Sin hoja ni espera manual: se busca en Referencia y, si hay stock,
+    // se registra solo la ubicación de vencimiento más próximo (el usuario
+    // la cambia tocando el registro). Sin stock = un toast, nada que cerrar.
+    // sheetOpen cubre la consulta en vuelo: otro escaneo no la pisa.
+    sheetOpen = true;
+    let rows;
+    try {
+      rows = (await store.buscarProducto(codigo)) || [];
+    } catch {
+      if (!closed) {
+        sheetOpen = false;
+        showToast('No se pudo consultar la base. Probá de nuevo.', { variant: 'warn' });
+      }
+      return;
+    }
+    if (closed) return; // salió de la herramienta mientras consultaba
+    sheetOpen = false;
+
+    const withStock = rows.filter((r) => (Number(r.saldo) || 0) > 0);
+    if (!withStock.length) {
+      showToast(`Sin stock: ${codigo}`, { variant: 'warn' });
+      return;
+    }
+    // La elección automática ignora ubicaciones temporales/de zonificación
+    // (empiezan con Z o BIN); siguen apareciendo en la hoja si el usuario
+    // quiere cambiar a mano.
+    const eligible = withStock.filter((r) => !/^(z|bin)/i.test(String(r.ubicacion || '').trim()));
+    if (!eligible.length) {
+      showToast(`Sin stock disponible: ${codigo} (solo en BIN/Z)`, { variant: 'warn' });
       return;
     }
     if (navigator.vibrate) navigator.vibrate(35);
-    openUbicacionSheet(codigo, null);
+    const row = nearestExpiry(eligible);
+    addRecordFromRow(row, codigo);
+    showToast(`Agregado en ${row.ubicacion}${row.fv ? ` · vence ${row.fv}` : ''}`);
+  }
+
+  // Registra la fila elegida como un registro más (usado por el alta
+  // automática al escanear y por la hoja manual de "cambiar ubicación").
+  function recordFromRow(row, codigo) {
+    return {
+      codigo: row.referencia || row.ean || codigo,
+      ubicacion: row.ubicacion,
+      descripcion: row.descripcion,
+      referencia: row.referencia || codigo,
+      fv: row.fv,
+      pedprov: row.pedprov,
+    };
+  }
+  function addRecordFromRow(row, codigo) {
+    records.push(recordFromRow(row, codigo));
+    saveRecords();
+    renderChips();
   }
 
   const scanner = createCameraScanner({
@@ -370,14 +433,7 @@ function openWorkspace() {
     function selectUbicacion(index) {
       const row = rows[index];
       if (!row) return;
-      const record = {
-        codigo: row.referencia || row.ean || codigo,
-        ubicacion: row.ubicacion,
-        descripcion: row.descripcion,
-        referencia: row.referencia || codigo,
-        fv: row.fv,
-        pedprov: row.pedprov,
-      };
+      const record = recordFromRow(row, codigo);
       if (editIndex != null) {
         records[editIndex] = record;
         showToast('Ubicación actualizada');
