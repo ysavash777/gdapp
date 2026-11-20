@@ -12,7 +12,7 @@
 
 const ExcelJS = require('exceljs');
 const inventoryStore = require('../store/inventory.store');
-const { pickUbicacion } = require('./ubicacion-picker');
+const { pickUbicacion, stockCajasDetalle } = require('./ubicacion-picker');
 
 const HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } };
 const HEADER_FONT = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -45,6 +45,14 @@ const UBICACION_COLUMN = {
   value: (c) => pickUbicacion(inventoryStore.findAllByReferencia(c.code)),
 };
 
+// Cajas en Recupero/Diferencias (cuentan como "sin stock" en la columna
+// Ubicación, pero se detallan acá con su número de caja). Vacía si no hay.
+const CAJAS_COLUMN = {
+  header: 'Recupero / Diferencias',
+  width: 34,
+  value: (c) => stockCajasDetalle(inventoryStore.findAllByReferencia(c.code)),
+};
+
 // Consolida códigos repetidos dentro de una misma hoja sumando cantidad.
 // Clave: código + el mismo dato extra de esa hoja (extraValue) — nunca
 // solo el código, para no mezclar filas con vencimiento/responsable
@@ -74,7 +82,7 @@ function styleHeaderRow(row) {
 
 function styleDataRow(row) {
   row.eachCell((cell) => {
-    cell.alignment = CENTER;
+    cell.alignment = { ...CENTER, wrapText: true }; // varias cajas = varias líneas en la misma celda
     cell.border = BORDERS;
   });
 }
@@ -84,7 +92,7 @@ function buildWorkbook(mapeo) {
   wb.creator = 'GStock';
   wb.created = new Date();
 
-  const baseColumns = [...BASE_COLUMNS, UBICACION_COLUMN];
+  const baseColumns = [...BASE_COLUMNS, UBICACION_COLUMN, CAJAS_COLUMN];
 
   for (const sheetDef of SHEETS) {
     const codes = mapeo.codes.filter((c) => (c.condition || null) === sheetDef.value);

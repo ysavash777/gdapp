@@ -70,4 +70,24 @@ function stockAlerts(referenciaRows) {
   return alerts;
 }
 
-module.exports = { pickUbicacion, stockAlerts, SIN_STOCK };
+// Detalle del XLSX: cada caja (una línea por caja, SIN consolidar — hace
+// falta el número de caja) que el código tiene en Recupero/Diferencias.
+// Esas ubicaciones siguen contando como "sin stock" para elegir la
+// ubicación (ver pickUbicacion), pero se listan acá para que no se pierdan.
+// Orden fijo: Recupero primero. Texto, ej.: "RECUPERO · Caja 1234 · 5 UN".
+function stockCajasDetalle(referenciaRows) {
+  const lines = [];
+  for (const name of ALERT_UBICACIONES) {
+    for (const r of referenciaRows) {
+      if (norm(r.ubicacion) !== name) continue;
+      const qty = parseFloat(r.saldo) || 0;
+      if (qty <= 0) continue;
+      const unit = String(r.unidadmedida ?? '').trim();
+      const caja = String(r.caja ?? '').trim();
+      lines.push(`${name.toUpperCase()} · Caja ${caja || 's/n'} · ${qty}${unit ? ` ${unit}` : ''}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+module.exports = { pickUbicacion, stockAlerts, stockCajasDetalle, SIN_STOCK };
