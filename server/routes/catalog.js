@@ -21,8 +21,10 @@ router.get('/lookup', (_req, res) => {
       if (!r.referencia) continue;
       const row = [r.referencia, r.descripcion || '', r.productoean || ''];
       items.push(row);
+      // 4º elemento (solo en filas de DUN): la referencia REAL del producto,
+      // para que el cliente muestre siempre la referencia y no el DUN escaneado.
       for (const dunCode of variablesStore.parseDunCodes(r.dun)) {
-        if (dunCode && dunCode !== r.referencia) items.push([dunCode, row[1], row[2]]);
+        if (dunCode && dunCode !== r.referencia) items.push([dunCode, row[1], row[2], r.referencia]);
       }
     }
     // 'no-cache' fuerza revalidar por ETag (no "no cachear"): 304 sin

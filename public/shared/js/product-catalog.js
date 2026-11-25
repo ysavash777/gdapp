@@ -4,6 +4,7 @@
 // Si nunca hubo conexión, existsLocal() da false para todo hasta la primera sincronización.
 
 import { apiFetch } from './api.js';
+import { loadBig, saveBig } from './idb-cache.js';
 
 const CACHE_KEY = 'gd.productCatalog.v1';
 
@@ -15,14 +16,20 @@ function normalize(code) {
 }
 
 function buildMap(rows) {
-  return new Map(rows.map(([referencia, descripcion, ean]) => [normalize(referencia), { descripcion, ean }]));
+  // `codigo` puede ser la referencia o un DUN; `ref` (solo en filas de DUN) es la
+  // referencia real — findLocal(code).referencia es SIEMPRE la referencia.
+  return new Map(rows.map(([codigo, descripcion, ean, ref]) => [normalize(codigo), { descripcion, ean, referencia: ref || codigo }]));
 }
 
-function loadFromStorage() {
+// Se lee de IndexedDB (ver idb-cache.js: localStorage ya no alcanza para este
+// tamaño). Es asíncrono: hasta que responde, el mapa está vacío y hasData() da
+// false, que es justo el caso "todavía no se sabe" que los llamadores ya
+// contemplan. Si la red ya trajo datos frescos antes, no se pisan con la caché.
+let fresh = false;
+async function loadFromStorage() {
   try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    if (!raw) return;
-    map = buildMap(JSON.parse(raw));
+    const rows = await loadBig(CACHE_KEY);
+    if (rows && !fresh) map = buildMap(rows);
   } catch (e) {
     console.error('[shared/product-catalog] No se pudo leer el catálogo cacheado:', e.message);
   }
@@ -34,13 +41,9 @@ export async function refresh() {
   refreshing = true;
   try {
     const { items } = await apiFetch('/api/catalog/lookup');
+    fresh = true;
     map = buildMap(items);
-    try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify(items));
-    } catch (e) {
-      // Cuota llena o storage deshabilitado: sigue en memoria, solo no sobrevive un reload.
-      console.error('[shared/product-catalog] No se pudo persistir el catálogo:', e.message);
-    }
+    await saveBig(CACHE_KEY, items);
   } catch (e) {
     // Sin red o falló el servidor: sigue con lo que ya había en caché, nunca bloquea el escaneo.
     console.error('[shared/product-catalog] No se pudo actualizar el catálogo:', e.message);

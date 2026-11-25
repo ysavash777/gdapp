@@ -12,6 +12,7 @@
 // refresque entera, mientras el producto siga en la misma caja.
 
 const inventoryStore = require('./inventory.store');
+const { compareRecorrido, isPiso } = require('../services/ubicacion-sort');
 const { requireClient } = require('../services/supabase-client');
 
 const WINDOW_DAYS = 15; // alcance del módulo: todo lo que venza dentro de esta ventana (o ya vencido)
@@ -263,8 +264,11 @@ async function buildCombinedItems() {
     });
   }
 
+  // isPiso (nivel 1) lo usa la lista para separar piso de altura; el orden
+  // es piso primero, después altura, cada una alfabética por ubicación.
+  for (const it of items) it.isPiso = isPiso(it.ubicacion);
   items.sort((a, b) => {
-    const cmp = String(a.ubicacion || '').localeCompare(String(b.ubicacion || ''), 'es');
+    const cmp = compareRecorrido(a.ubicacion, b.ubicacion);
     return cmp !== 0 ? cmp : (a.days ?? 0) - (b.days ?? 0);
   });
 

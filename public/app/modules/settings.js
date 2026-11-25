@@ -7,6 +7,7 @@ import { icon } from '/shared/js/icons.js';
 import { formatDateTime, escapeHtml } from '/shared/js/format.js';
 import { fetchStatus, triggerRefresh, estimateSourceMs, estimateTotalMs } from '/shared/js/db-refresh.js';
 import { changePassword } from '/shared/js/session.js';
+import { isHandheldMode, setHandheldMode } from '/shared/js/handheld-mode.js';
 
 const ERROR_MESSAGES = {
   LICENSE_LIMIT: 'No hay licencias disponibles en Copernico en este momento. Probá de nuevo más tarde.',
@@ -58,9 +59,36 @@ export async function render(root, user) {
     mountDatabases(dbBlock); // sin await: pinta esqueleto ya, completa en segundo plano
   }
 
+  // Cualquier usuario lo ve: es una preferencia del dispositivo, no un permiso.
+  const hhBlock = document.createElement('div');
+  container.appendChild(hhBlock);
+  container.appendChild(document.createElement('hr')).className = 'settings-separator';
+  mountHandheld(hhBlock);
+
   const pwBlock = document.createElement('div');
   container.appendChild(pwBlock);
   mountPassword(pwBlock);
+}
+
+// Modo Handheld: reemplaza la cámara por un campo para el escáner integrado
+// en todas las herramientas. Apagado por defecto; vale desde la próxima vez
+// que se abre una herramienta.
+function mountHandheld(root) {
+  root.innerHTML = `
+    <section class="settings-block">
+      <div class="settings-block-head">
+        <div>
+          <h2>Modo Handheld</h2>
+          <p class="settings-hint">Reemplaza la cámara por un campo para el escáner integrado del dispositivo.</p>
+        </div>
+        <label class="gd-switch" title="Modo Handheld">
+          <input type="checkbox" id="hhToggle" ${isHandheldMode() ? 'checked' : ''} aria-label="Modo Handheld" />
+          <span class="gd-switch-track"></span>
+        </label>
+      </div>
+    </section>
+  `;
+  root.querySelector('#hhToggle').addEventListener('change', (e) => setHandheldMode(e.target.checked));
 }
 
 async function mountDatabases(root) {

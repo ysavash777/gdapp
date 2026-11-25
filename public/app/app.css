@@ -221,6 +221,10 @@ html, body {
    toast flotante, solo esto. Cuenta vencidos reales (server/store/
    vencimientos.store.js, severity 'vencido'), no "próximos a vencer". */
 #notifBtn, #settingsBtn { position: relative; }
+/* Opción activa en el menú de orden de Vencimientos. */
+.mapeo-menu .user-menu-item.is-selected { color: var(--accent-500); font-weight: 650; }
+.venc-more-wrap .mapeo-menu { width: max-content; }
+.venc-more-wrap .mapeo-menu .user-menu-item { white-space: nowrap; }
 /* Mismo badge sobre la ruedita: "!" cuando las bases llevan más de 1 hora
    sin actualizarse (ver app/db-stale.js). */
 #settingsBadge[hidden] { display: none; }
@@ -739,6 +743,9 @@ html, body {
   padding: 0 2px;
 }
 .mapeo-date-heading:not(:first-child) { margin-top: var(--sp-1); }
+/* Separador "Altura" de Vencimientos (Pendiente): una línea fina para que se lea como corte. */
+.venc-level-heading { display: flex; align-items: center; gap: var(--sp-3); margin-top: var(--sp-3) !important; }
+.venc-level-heading::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 
 /* Loader mientras carga el listado — 4 barras planas que laten desde
    el centro (no un spinner circular ni el esqueleto de siempre): no
@@ -1858,6 +1865,52 @@ html, body {
    datos (caja/cantidad/vencimiento) se reparten el ancho disponible a
    partes iguales (flex:1) y cada uno achica su propio texto con
    elipsis si no entra, en vez de pasar a un segundo renglón. */
+/* Recuadro de datos del ítem (Referencia | EAN | PedProv / Caja | Saldo | FV):
+   más oscuro que la tarjeta y a TODO su ancho (la tarjeta pasa a 2 líneas:
+   encabezado arriba, recuadro abajo). Grilla de 3 columnas alineadas entre las
+   dos filas, con el contenido centrado. Cada valor va en una sola línea;
+   fitIdsRows() (list-view.js) agrega .is-tight / .is-tiny si no entra. */
+.venc-card { flex-wrap: wrap; row-gap: var(--sp-2); }
+.venc-card-ids {
+  flex: 0 0 100%;
+  display: grid;
+  grid-template-columns: auto 1px auto 1px auto;
+  justify-content: space-evenly;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 0;
+  min-width: 0;
+  padding: 0 6px;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  font-variant-numeric: tabular-nums;
+}
+.venc-card-id {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 6px 0;
+  overflow: hidden;
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+/* Línea entre las dos filas (celdas de la 2ª fila) */
+.venc-card-ids > :nth-child(n+6) { border-top: 1px solid var(--line-soft); }
+.venc-card-id svg { flex-shrink: 0; }
+.venc-card-id-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink); font-weight: 600; letter-spacing: 0.01em; }
+.venc-card-id-sep { align-self: stretch; background: var(--line-soft); }
+.venc-card-ids.is-tight { column-gap: 7px; padding: 0 5px; }
+.venc-card-ids.is-tight .venc-card-id { font-size: 10px; gap: 4px; }
+.venc-card-ids.is-tight .venc-card-id svg { width: 10px; height: 10px; }
+/* Último escalón: sin íconos y con la fuente más chica que sigue siendo legible. */
+.venc-card-ids.is-tiny { column-gap: 5px; padding: 0 4px; }
+.venc-card-ids.is-tiny .venc-card-id { font-size: 9px; }
+.venc-card-ids.is-tiny .venc-card-id svg { display: none; }
+.venc-card-ids.is-tiny .venc-card-id-value { letter-spacing: -0.01em; }
 .venc-card-sub { display: flex; flex-wrap: nowrap; gap: var(--sp-2); min-width: 0; }
 .venc-card-sub-item {
   display: flex;
@@ -2860,3 +2913,88 @@ html, body {
 .pr-combo-option:active { background: var(--n-100); }
 .pr-combo-option + .pr-combo-option { border-top: 1px solid var(--line-soft); }
 .pr-combo-empty { padding: 10px 14px; font-size: var(--text-sm); color: var(--ink-3); margin: 0; }
+
+
+/* ============================================================
+   Modo Handheld (Configuración): la cámara se reemplaza por un campo para el
+   escáner integrado del dispositivo (app/scanner/handheld.js). El recuadro
+   deja de ser un "visor" negro de 30% de alto y se achica al alto del campo.
+   El selector lleva html.handheld-mode para ganarle a las reglas de
+   .scan-camera de Vencimientos (alto propio) sin usar !important.
+   ============================================================ */
+.scan-camera.is-handheld { background: var(--surface); cursor: default; }
+.scan-camera.is-handheld video,
+.scan-camera.is-handheld .scan-line,
+.scan-camera.is-handheld .scan-camera-gradient { display: none; }
+html.handheld-mode .scan-camera.is-handheld { flex: none; height: auto; min-height: 0; max-height: none; }
+.hh-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-4);
+}
+.hh-field { position: relative; width: 100%; max-width: 420px; }
+.hh-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 52px 0 var(--sp-4);
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  caret-color: var(--accent-500);
+  outline: none;
+}
+.hh-input:focus { background: var(--n-100); }
+.hh-input::placeholder { color: var(--ink-3); font-weight: 500; }
+.hh-kbd {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--ink-3);
+}
+.hh-kbd:active, .hh-kbd.is-active { background: var(--n-100); color: var(--accent-500); }
+/* En Vencimientos el teclado manual del stage sobra: el campo ya trae el suyo. */
+html.handheld-mode .venc-camera-keyboard,
+html.handheld-mode .venc-camera-manual,
+html.handheld-mode .venc-camera-torch { display: none !important; }
+
+/* Interruptor (Configuración) */
+.gd-switch { position: relative; display: inline-flex; flex-shrink: 0; cursor: pointer; }
+.gd-switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.gd-switch-track {
+  width: 46px;
+  height: 28px;
+  border-radius: var(--r-full);
+  background: var(--n-200);
+  transition: background var(--t-fast);
+  position: relative;
+}
+.gd-switch-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform var(--t-fast);
+}
+.gd-switch input:checked + .gd-switch-track { background: var(--accent-600); }
+.gd-switch input:checked + .gd-switch-track::after { transform: translateX(18px); }
+.gd-switch input:focus-visible + .gd-switch-track { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-500) 35%, transparent); }

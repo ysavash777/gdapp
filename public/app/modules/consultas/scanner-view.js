@@ -114,7 +114,7 @@ export function openScanner() {
   }
 
   const scanner = createCameraScanner({
-    videoEl, cameraBox, torchBtn, hintEl,
+    videoEl, cameraBox, torchBtn, hintEl, rearmAfterResume: true,
     onCode: (code) => lookupCode(code),
   });
 
@@ -186,7 +186,7 @@ export function openScanner() {
             </div>
             <div class="reg-info-cell">
               <span class="reg-info-label">Referencia</span>
-              <span class="reg-info-value">${escapeHtml(code)}</span>
+              <span class="reg-info-value">${escapeHtml(local?.referencia || code)}</span>
             </div>
             <div class="reg-info-cell">
               <span class="reg-info-label">Grupo</span>

@@ -9,7 +9,7 @@
 import { icon, iconSolid } from '/shared/js/icons.js';
 import { escapeHtml } from '/shared/js/format.js';
 import { showToast } from '/shared/js/toast.js';
-import { matchesCode } from '/shared/js/product-catalog.js';
+import { matchesCode, findLocal } from '/shared/js/product-catalog.js';
 import { createCameraScanner } from '../../scanner/camera.js';
 import * as store from './store.js';
 import { currentUser } from '/shared/js/session.js';
@@ -245,7 +245,8 @@ function renderValidationFlow(overlay, initialItem, { pendingItems = [], onValid
   // Insignia flotante sobre la cámara (position:absolute): aparecer/
   // desaparecer nunca achica el espacio de la cámara ni mueve nada alrededor.
   function showMismatch(raw) {
-    mismatchTextEl.textContent = truncate(raw);
+    // Siempre la referencia: si se escaneó un DUN de otro producto, se muestra su referencia real.
+    mismatchTextEl.textContent = truncate(findLocal(raw)?.referencia || raw);
     mismatchEl.classList.add('is-visible');
     clearTimeout(mismatchTimer);
     mismatchTimer = setTimeout(() => mismatchEl.classList.remove('is-visible'), 2200);

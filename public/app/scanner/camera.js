@@ -8,9 +8,14 @@
 //   scanner.start(); scanner.setPaused(true); scanner.pauseView(); scanner.destroy();
 
 import { pickEngine } from './engines/index.js';
+import { isHandheldMode } from '/shared/js/handheld-mode.js';
+import { createHandheldScanner } from './handheld.js';
 
 const DETECT_INTERVAL_MS = 350;
 const SAME_CODE_DEBOUNCE_MS = 1200;
+// ~1 s sin ver código (3 lecturas de 350 ms) = el producto salió de cuadro. Más de
+// una lectura vacía porque el detector a veces falla un fotograma con el código a la vista.
+const EMPTY_TICKS_TO_REARM = 3;
 
 // En celulares con varias lentes traseras, "facingMode: environment" a veces elige la
 // gran angular (0.5x) en vez de la normal (visto en iPhone Pro/iOS reciente); esa lente
@@ -35,7 +40,14 @@ async function pickBetterBackCamera(currentDeviceId) {
   }
 }
 
-export function createCameraScanner({ videoEl, cameraBox, torchBtn, hintEl, onCode }) {
+// `rearmAfterResume` (opcional): al reanudar la detección tras cerrar una ventana,
+// NO se vuelve a leer el último código mientras siga a la vista. Ver setPaused().
+export function createCameraScanner({ videoEl, cameraBox, torchBtn, hintEl, onCode, rearmAfterResume = false }) {
+  // Modo Handheld (Configuración): en vez de la cámara, un campo para el escáner
+  // integrado del dispositivo (ver handheld.js). Mismo contrato, las
+  // herramientas no se enteran.
+  if (isHandheldMode()) return createHandheldScanner({ videoEl, cameraBox, torchBtn, hintEl, onCode });
+
   let stream = null;
   let track = null;
   let torchOn = false;
@@ -46,6 +58,15 @@ export function createCameraScanner({ videoEl, cameraBox, torchBtn, hintEl, onCo
   let lastAt = 0;
   let detectionPaused = false;
   let closed = false;
+  // Una lectura todavía en curso (detectFrame es asíncrono): sin esto, el timer
+  // lanzaba lecturas encimadas, y una que arrancó ANTES de abrirse una ventana
+  // podía terminar DESPUÉS y disparar onCode con la ventana ya abierta.
+  let detecting = false;
+  // Código que acaba de resolverse (ventana cerrada) y que sigue frente a la
+  // cámara: no se lee de nuevo hasta que salga de cuadro (EMPTY_TICKS_TO_REARM
+  // lecturas seguidas sin código). Ver setPaused().
+  let blockedCode = null;
+  let emptyTicks = 0;
 
   function showHint(text) {
     hintEl.textContent = text;
@@ -111,9 +132,28 @@ export function createCameraScanner({ videoEl, cameraBox, torchBtn, hintEl, onCo
     }
 
     detectTimer = setInterval(async () => {
-      if (closed || detectionPaused || !engine) return;
-      const code = await engine.detectFrame(videoEl);
-      if (!code) return;
+      if (closed || detectionPaused || !engine || detecting) return;
+      detecting = true;
+      let code;
+      try {
+        code = await engine.detectFrame(videoEl);
+      } finally {
+        detecting = false;
+      }
+      // Se abrió una ventana (o se cerró la herramienta) mientras leía: se descarta.
+      if (closed || detectionPaused) return;
+
+      if (!code) {
+        if (blockedCode && ++emptyTicks >= EMPTY_TICKS_TO_REARM) blockedCode = null;
+        return;
+      }
+      emptyTicks = 0;
+      // Tras cerrar la ventana el video sigue mostrando (o vuelve a mostrar) el mismo
+      // producto: no es un escaneo nuevo hasta que lo aparten de la cámara.
+      if (blockedCode) {
+        if (code === blockedCode) return;
+        blockedCode = null;
+      }
       const now = Date.now();
       if (code === lastCode && now - lastAt < SAME_CODE_DEBOUNCE_MS) return;
       lastCode = code;
@@ -158,7 +198,16 @@ export function createCameraScanner({ videoEl, cameraBox, torchBtn, hintEl, onCo
     if (cameraOn) videoEl.play().catch(() => {});
   }
 
+  // Al reanudar (cerrar la ventana de registro), el usuario casi siempre sigue
+  // apuntando al producto recién registrado — y el video pausado además queda con
+  // ese mismo fotograma congelado. Con solo el debounce de 1,2 s (que ya venció
+  // mientras la ventana estaba abierta) se leía OTRA VEZ el mismo código y se
+  // reabría la ventana como si se hubiera escaneado de nuevo.
   function setPaused(paused) {
+    if (!paused && detectionPaused && rearmAfterResume) {
+      blockedCode = lastCode;
+      emptyTicks = 0;
+    }
     detectionPaused = paused;
   }
 

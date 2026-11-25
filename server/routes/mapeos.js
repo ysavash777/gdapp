@@ -44,8 +44,10 @@ router.get('/lookup-catalog', (_req, res) => {
       if (!ref) continue;
       const row = [ref, r.descripcion || '', r.productoean || '', r.codgrupoprm || ''];
       items.push(row);
+      // 5º elemento (solo en filas de DUN): la referencia REAL del producto,
+      // para mostrar siempre la referencia y no el DUN escaneado.
       for (const dunCode of variablesStore.parseDunCodes(r.dun)) {
-        if (dunCode && dunCode !== ref) items.push([dunCode, row[1], row[2], row[3]]);
+        if (dunCode && dunCode !== ref) items.push([dunCode, row[1], row[2], row[3], ref]);
       }
     }
     // 'no-cache' fuerza revalidar por ETag (ver catalog.js): 304 sin

@@ -129,14 +129,24 @@ syncEngine.onEvent((evt) => {
     const entry = cache.codes.find((c) => c.id === evt.codeId);
     if (entry && entry.syncStatus !== 'synced') entry.syncStatus = 'syncing';
   } else if (evt.type === 'add-success') {
-    // El código nuevo es el único id real que todavía no conocíamos localmente.
+    // El código nuevo es un id real que todavía no conocíamos localmente. Si
+    // otro dispositivo agregó códigos al mismo mapeo, hay más de uno
+    // "desconocido": se elige el de ESTE código (mismo `code`) y el más
+    // reciente — tomar el primero cualquiera podía enlazar el alta con el
+    // código de otra persona, y las ediciones (cantidad/motivo) iban a parar
+    // a la fila equivocada.
     const knownIds = cache.codes.filter((c) => typeof c.id === 'number').map((c) => c.id);
-    const newRow = evt.mapeo.codes.find((c) => !knownIds.includes(c.id));
+    const mine = cache.codes.find((c) => c.id === evt.codeId);
+    const unknown = evt.mapeo.codes.filter((c) => !knownIds.includes(c.id));
+    const sameCode = mine ? unknown.filter((c) => String(c.code).toLowerCase() === String(mine.code).toLowerCase()) : [];
+    const pool = sameCode.length ? sameCode : unknown;
+    const newRow = pool.reduce((best, c) => (!best || c.id > best.id ? c : best), null);
     if (newRow) {
       syncEngine.remapId(evt.mapeoId, evt.codeId, newRow.id);
       const entry = cache.codes.find((c) => c.id === evt.codeId);
       if (entry) {
         entry.id = newRow.id;
+        entry.code = newRow.code; // referencia confirmada por el servidor (nunca el DUN escaneado)
         entry.description = newRow.description;
         entry.ean = newRow.ean;
         entry.grupo = newRow.grupo;
@@ -168,9 +178,26 @@ syncEngine.onEvent((evt) => {
 
 // ---- Mapeos (nivel mapeo — siempre red directa) ----
 
+// Cada mapeo abierto/listado deja su propia caché (gd.mapear.cache.<id>) y
+// nunca se borraba si el mapeo desaparecía del servidor (borrado desde el
+// escritorio, limpieza de mapeos viejos): se acumulaban para siempre y se
+// comían el almacenamiento. Se limpian acá, con la lista real del servidor.
+function pruneOrphanCaches(validIds) {
+  try {
+    const valid = new Set(validIds.map(String));
+    const stale = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(CACHE_PREFIX) && !valid.has(key.slice(CACHE_PREFIX.length))) stale.push(key);
+    }
+    stale.forEach((k) => localStorage.removeItem(k));
+  } catch { /* limpieza best-effort */ }
+}
+
 export async function list() {
   try {
     const { items } = await apiFetch('/api/mapeos');
+    pruneOrphanCaches(items.map((m) => m.id));
     const merged = items.map((m) => mergeAndCache(m.id, m));
     saveListCache(merged);
     return merged;
@@ -237,7 +264,11 @@ export async function addCode(mapeoId, rawCode, actor) {
   const entry = {
     id: localId,
     clientId: localId,
-    code,
+    // Lo que se muestra es SIEMPRE la referencia: si se escaneó un DUN
+    // (bulto), `code` es solo una facilidad de escaneo y se resuelve a la
+    // referencia real (catálogo local; el servidor lo confirma al sincronizar).
+    // El envío usa el código tal cual se escaneó: el servidor lo resuelve igual.
+    code: local?.referencia || code,
     description: local?.descripcion || '',
     ean: local?.ean || '',
     grupo: local?.grupo || '',

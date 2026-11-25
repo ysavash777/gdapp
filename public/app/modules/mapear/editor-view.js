@@ -313,7 +313,7 @@ export async function openEditor({ mapeoId, title, onClose }) {
   }
 
   const scanner = createCameraScanner({
-    videoEl, cameraBox, torchBtn, hintEl,
+    videoEl, cameraBox, torchBtn, hintEl, rearmAfterResume: true,
     onCode: (code) => registerCode(code),
   });
 

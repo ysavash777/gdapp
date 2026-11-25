@@ -16,6 +16,43 @@ const MOTIVO_LABEL = { ok: 'OK', faltante: 'Faltante', otro: 'Otro' };
 
 let outletRef = null;
 
+// Orden de las listas Pendiente/Validado (no afecta a "Sugerido", que usa el
+// orden alfabético). Se recuerda por dispositivo en el navegador.
+// "Alfabético" = por UBICACIÓN, en el orden en que lo arma el servidor
+// (server/services/ubicacion-sort.js: zona, módulo como NÚMERO, nivel,
+// posición) — el mismo que sigue Sugerido, así los tres coinciden.
+const SORT_KEY = 'gd.vencimientos.sort.v1';
+const SORT_OPTIONS = [
+  { value: 'alfabetico', label: 'Alfabético (ubicación)' },
+  { value: 'vida-util', label: 'Vida útil (menor a mayor)' },
+];
+
+function loadSort() {
+  try {
+    const saved = localStorage.getItem(SORT_KEY);
+    return SORT_OPTIONS.some((o) => o.value === saved) ? saved : 'alfabetico';
+  } catch {
+    return 'alfabetico';
+  }
+}
+
+function saveSort(value) {
+  try {
+    localStorage.setItem(SORT_KEY, value);
+  } catch (e) {
+    console.error('[vencimientos/list-view] No se pudo guardar el orden:', e.message);
+  }
+}
+
+// La lista ya llega en orden alfabético de ubicación; "vida útil" la reordena
+// por días hasta vencer (vencidos primero, sin fecha al final) y, como el sort
+// es estable, los empates quedan en orden de ubicación.
+function sortItems(items, sort) {
+  if (sort !== 'vida-util') return items;
+  const days = (i) => (typeof i.days === 'number' ? i.days : Infinity);
+  return [...items].sort((a, b) => (days(a) === days(b) ? 0 : days(a) - days(b)));
+}
+
 function daysLabel(days) {
   return days === 0 ? 'Hoy' : `${days}d`;
 }
@@ -60,12 +97,20 @@ function openPhotoLightbox(url) {
   box.querySelector('.venc-photo-lightbox-close').addEventListener('click', close);
 }
 
-function subChipsHTML(item) {
+// Recuadro más oscuro, a todo el ancho de la tarjeta, con TODOS los datos del
+// ítem en una grilla de 3 columnas alineadas y centradas: Referencia | EAN |
+// PedProv y, debajo, Caja | Saldo | FV. Cada valor es una sola línea (nunca
+// salta); fitIdsRows() achica la fuente un escalón si no entra.
+function idsBoxHTML(item) {
+  const cell = (iconHTML, title, value) =>
+    `<span class="venc-card-id" title="${title}">${iconHTML}<span class="venc-card-id-value">${escapeHtml(value || '-')}</span></span>`;
+  const sep = '<i class="venc-card-id-sep"></i>';
   const um = item.unidadmedida ? ` ${item.unidadmedida}` : '';
   return `
-    <span class="venc-card-sub-item">${iconSolid('caja', 13)} ${escapeHtml(item.caja || '-')}</span>
-    <span class="venc-card-sub-item">${iconSolid('archivo', 13)} ${formatQty(item.saldo)}${escapeHtml(um)}</span>
-    <span class="venc-card-sub-item">${iconSolid('calendario', 13)} ${escapeHtml(item.fv || '-')}</span>
+    <span class="venc-card-ids">
+      ${cell(iconSolid('hashSolid', 11), 'Referencia', item.referencia)}${sep}${cell(iconSolid('barcodeSolid', 11), 'EAN', item.ean)}${sep}${cell(iconSolid('tagSolid', 11), 'PedProv', item.pedprov)}
+      ${cell(iconSolid('caja', 11), 'Caja', item.caja)}${sep}${cell(iconSolid('archivo', 11), 'Saldo', item.saldo == null ? '' : `${formatQty(item.saldo)}${um}`)}${sep}${cell(iconSolid('calendario', 11), 'Vencimiento', item.fv)}
+    </span>
   `;
 }
 
@@ -91,6 +136,31 @@ function fitSubRows(container) {
     if (overflowing) tight.push(row);
   });
   tight.forEach((row) => row.classList.add('is-tight'));
+  fitIdsRows(container);
+}
+
+// Referencia | EAN | PedProv: los códigos (hasta 13+13 dígitos) tienen que
+// leerse COMPLETOS. Si no entran en una línea se achica en escalones —
+// is-tight (fuente y espacios más chicos) y is-tiny (además sin íconos) —
+// y la elipsis queda solo como último recurso.
+function fitIdsRows(container) {
+  const clipped = (box) => Array.from(box.querySelectorAll('.venc-card-id-value'))
+    .some((v) => v.scrollWidth > v.clientWidth + 0.5);
+  // Un solo escalón para TODA la lista (el que necesite la tarjeta más
+  // apretada): así no quedan tarjetas con íconos junto a otras sin ellos.
+  const boxes = Array.from(container.querySelectorAll('.venc-card-ids'));
+  let level = 0;
+  boxes.forEach((box) => {
+    box.classList.remove('is-tight', 'is-tiny');
+    if (!clipped(box)) return;
+    box.classList.add('is-tight');
+    let needed = 1;
+    if (clipped(box)) { box.classList.add('is-tiny'); needed = 2; }
+    box.classList.remove('is-tight', 'is-tiny');
+    level = Math.max(level, needed);
+  });
+  if (level >= 1) boxes.forEach((box) => box.classList.add('is-tight'));
+  if (level >= 2) boxes.forEach((box) => box.classList.add('is-tiny'));
 }
 
 // Jerarquía de lectura: ubicación (línea principal, sin ícono) > descripción
@@ -105,11 +175,12 @@ function itemCardHTML(item) {
       <div class="venc-card-main">
         <span class="venc-card-ubicacion">${escapeHtml(item.ubicacion || '-')}</span>
         <span class="venc-card-desc">${escapeHtml(desc)}</span>
-        <span class="venc-card-sub">${item.validated ? commentRowHTML(item) : subChipsHTML(item)}</span>
+        ${item.validated ? `<span class="venc-card-sub">${commentRowHTML(item)}</span>` : ''}
       </div>
       ${item.validated
         ? `<div class="venc-card-check" title="Validado">${icon('check', 16)}</div>`
         : `<div class="venc-card-arrow">${icon('chevronRight', 16)}</div>`}
+      ${idsBoxHTML(item)}
     </button>
   `;
 }
@@ -153,7 +224,7 @@ function suggestedSkeletonHTML() {
 export async function renderList(outlet) {
   outletRef = outlet;
 
-  const state = { view: 'sugerido', suggestedIndex: 0, items: [], loading: true, error: null, query: '' };
+  const state = { view: 'sugerido', suggestedIndex: 0, items: [], loading: true, error: null, query: '', sort: loadSort() };
   // Ficha de validación montada (cámara ya activa) mientras el modo
   // "Sugerido" está a la vista — se crea una sola vez al entrar (no en
   // cada draw()) y se destruye al salir de la pestaña, para no
@@ -196,6 +267,7 @@ export async function renderList(outlet) {
     const canSearch = state.view !== 'sugerido';
     return `
       ${canSearch ? `<button type="button" class="user-menu-item" data-action="search">${icon('search', 16)} Buscar</button>` : ''}
+      ${canSearch ? `<button type="button" class="user-menu-item" data-action="sort">${icon('sort', 16)} Ordenar</button>` : ''}
       <button type="button" class="user-menu-item" data-action="settings">${icon('settings', 16)} Ubicaciones excluidas</button>
       <button type="button" class="user-menu-item" data-action="download">${icon('download', 16)} Descargar detalle</button>
     `;
@@ -203,6 +275,19 @@ export async function renderList(outlet) {
 
   function closeMoreMenu() {
     moreMenu.hidden = true;
+  }
+
+  // "Ordenar" abre las opciones en el mismo menú (sin cerrarlo); elegir una
+  // aplica y recuerda el orden para la próxima vez.
+  function sortMenuHTML() {
+    return `
+      <button type="button" class="user-menu-item" data-action="sort-back">${icon('chevronLeft', 16)} Ordenar</button>
+      ${SORT_OPTIONS.map((o) => `
+        <button type="button" class="user-menu-item${o.value === state.sort ? ' is-selected' : ''}" data-sort="${o.value}">
+          ${o.value === state.sort ? icon('check', 16) : '<span style="width:16px;display:inline-block;"></span>'} ${o.label}
+        </button>
+      `).join('')}
+    `;
   }
 
   function downloadExport() {
@@ -233,8 +318,21 @@ export async function renderList(outlet) {
     moreMenu.hidden = !opening;
   });
   moreMenu.addEventListener('click', (e) => {
+    const sortBtn = e.target.closest('[data-sort]');
+    if (sortBtn) {
+      state.sort = sortBtn.dataset.sort;
+      saveSort(state.sort);
+      closeMoreMenu();
+      draw();
+      return;
+    }
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
+    // stopPropagation: al reemplazar el contenido del menú, el botón tocado ya no
+    // está en el DOM y el cierre "tocar afuera" (listener de documento) lo
+    // tomaba como un toque fuera del menú y lo cerraba.
+    if (btn.dataset.action === 'sort') { e.stopPropagation(); moreMenu.innerHTML = sortMenuHTML(); return; }
+    if (btn.dataset.action === 'sort-back') { e.stopPropagation(); moreMenu.innerHTML = moreMenuHTML(); return; }
     closeMoreMenu();
     if (btn.dataset.action === 'search') openSearchBar();
     else if (btn.dataset.action === 'settings') openSettingsModal();
@@ -318,9 +416,9 @@ export async function renderList(outlet) {
   }
 
   function visibleItems() {
-    return state.items
+    return sortItems(state.items
       .filter((i) => (state.view === 'validado' ? i.validated : !i.validated))
-      .filter(matchesQuery);
+      .filter(matchesQuery), state.sort);
   }
 
   function updateCounts() {
@@ -374,7 +472,19 @@ export async function renderList(outlet) {
       return;
     }
 
-    wrap.innerHTML = `<div class="mapeo-list venc-list cq-fade-in">${items.map(itemCardHTML).join('')}</div>`;
+    // Pendiente en orden alfabético: el piso (nivel 1) va primero y un encabezado
+    // separa la altura (el resto de los niveles). Con "Vida útil" no se agrupa:
+    // ahí el orden es por días, no por ubicación.
+    const grouped = state.view === 'pendiente' && state.sort === 'alfabetico' && items.some((i) => i.isPiso);
+    let heightHeadingDone = false;
+    const cardsHTML = items.map((item) => {
+      if (grouped && !item.isPiso && !heightHeadingDone) {
+        heightHeadingDone = true;
+        return `<div class="mapeo-date-heading venc-level-heading">Altura</div>${itemCardHTML(item)}`;
+      }
+      return itemCardHTML(item);
+    }).join('');
+    wrap.innerHTML = `<div class="mapeo-list venc-list cq-fade-in">${cardsHTML}</div>`;
     fitSubRows(wrap);
 
     wrap.querySelectorAll('.venc-card').forEach((card) => {

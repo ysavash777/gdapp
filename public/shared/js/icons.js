@@ -39,6 +39,7 @@ const PATHS = {
   zap: '<path d="M11 2 3 14h7l-1 8 9-12h-7l1-8Z"/>',
   moreVertical: '<circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.5" fill="currentColor" stroke="none"/>',
   download: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
+  sort: '<path d="M7 4v16"/><path d="m3 16 4 4 4-4"/><path d="M17 20V4"/><path d="m13 8 4-4 4 4"/>',
   calendar: '<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18"/><path d="M8 3v3"/><path d="M16 3v3"/>',
   calendarAlert: '<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18"/><path d="M8 3v3"/><path d="M16 3v3"/><path d="M12 13v3"/><circle cx="12" cy="18.3" r="0.4" fill="currentColor" stroke="none"/>',
   refresh: '<path d="M20.5 11A8.5 8.5 0 0 0 5.6 6.3L3 8.8"/><path d="M3 4v4.8h4.8"/><path d="M3.5 13A8.5 8.5 0 0 0 18.4 17.7L21 15.2"/><path d="M21 20v-4.8h-4.8"/>',
@@ -74,6 +75,8 @@ const SOLID_PATHS = {
   // No hay "barcode" en Heroicons: dibujado a mano en el mismo estilo sólido.
   barcodeSolid: '<path d="M2.25 4.5a.75.75 0 0 1 .75-.75h.75a.75.75 0 0 1 .75.75v15a.75.75 0 0 1-.75.75H3a.75.75 0 0 1-.75-.75v-15Zm4.5 0a.75.75 0 0 1 .75-.75h.375a.75.75 0 0 1 .75.75v15a.75.75 0 0 1-.75.75H7.5a.75.75 0 0 1-.75-.75v-15Zm3 0a.75.75 0 0 1 .75-.75h1.125a.75.75 0 0 1 .75.75v15a.75.75 0 0 1-.75.75H10.5a.75.75 0 0 1-.75-.75v-15Zm3.75 0a.75.75 0 0 1 .75-.75h.375a.75.75 0 0 1 .75.75v15a.75.75 0 0 1-.75.75h-.375a.75.75 0 0 1-.75-.75v-15Zm3 0a.75.75 0 0 1 .75-.75h1.125a.75.75 0 0 1 .75.75v15a.75.75 0 0 1-.75.75h-1.125a.75.75 0 0 1-.75-.75v-15Zm3.75 0a.75.75 0 0 1 .75-.75h.75a.75.75 0 0 1 .75.75v15a.75.75 0 0 1-.75.75h-.75a.75.75 0 0 1-.75-.75v-15Z"/>',
   // Heroicons solid "bolt" — botón "Programar Conteo" (vacios/list-view.js).
+  // Numeral "#" con trazo grueso redondeado (se ve sólido junto al resto del set) — Referencia en Vencimientos (vencimientos/list-view.js).
+  hashSolid: '<path d="M9.5 3.5 7.5 20.5M16.5 3.5l-2 17M4.5 9h16M3.5 15h16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>',
   zapSolid: '<path fill-rule="evenodd" d="M14.615 1.595a.75.75 0 0 1 .359.852L12.982 9.75h7.268a.75.75 0 0 1 .548 1.262l-10.5 11.25a.75.75 0 0 1-1.272-.71l1.992-7.302H3.75a.75.75 0 0 1-.548-1.262l10.5-11.25a.75.75 0 0 1 .913-.143Z" clip-rule="evenodd"/>',
   // Heroicons solid "tag" — EAN en la hoja de "elegir ubicación" (vacios/list-view.js).
   tagSolid: '<path fill-rule="evenodd" d="M5.25 2.25a3 3 0 0 0-3 3v4.318a3 3 0 0 0 .879 2.121l9.58 9.581c.92.92 2.39.94 3.348.048a19.352 19.352 0 0 0 5.783-6.756c.108-.221.108-.472 0-.693a19.353 19.353 0 0 0-5.783-6.756A3.75 3.75 0 0 0 13.42 2.25H5.25ZM6.375 7.5a1.125 1.125 0 1 0 0-2.25 1.125 1.125 0 0 0 0 2.25Z" clip-rule="evenodd"/>',

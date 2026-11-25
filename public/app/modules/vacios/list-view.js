@@ -8,7 +8,7 @@
 import { icon, iconSolid } from '/shared/js/icons.js';
 import { escapeHtml } from '/shared/js/format.js';
 import { showToast } from '/shared/js/toast.js';
-import { existsLocal, hasData } from '/shared/js/product-catalog.js';
+import { existsLocal, hasData, findLocal } from '/shared/js/product-catalog.js';
 import { createCameraScanner } from '../../scanner/camera.js';
 import * as store from './store.js';
 
@@ -283,8 +283,11 @@ function openWorkspace() {
       return;
     }
     lastHandled = { key: codigo, at: now };
-    if (isInList(codigo)) {
-      showToast('Ya está en el listado', { tone: 'warn', detail: codigo });
+    // Lo que se muestra es SIEMPRE la referencia: si se escaneó un DUN
+    // (bulto), `shown` es la referencia real del producto (catálogo local).
+    const shown = findLocal(codigo)?.referencia || codigo;
+    if (isInList(codigo, shown)) {
+      showToast('Ya está en el listado', { tone: 'warn', detail: shown });
       return;
     }
     // Valida contra el catálogo local (Variables) ANTES de ir a buscar
@@ -326,7 +329,7 @@ function openWorkspace() {
 
     const withStock = rows.filter((r) => (Number(r.saldo) || 0) > 0);
     if (!withStock.length) {
-      showToast('Sin stock', { tone: 'warn', detail: codigo });
+      showToast('Sin stock', { tone: 'warn', detail: shown });
       return;
     }
     // La elección automática ignora ubicaciones temporales/de zonificación
@@ -334,7 +337,7 @@ function openWorkspace() {
     // quiere cambiar a mano.
     const eligible = withStock.filter((r) => !/^(z|bin)/i.test(String(r.ubicacion || '').trim()));
     if (!eligible.length) {
-      showToast('Sin stock disponible', { tone: 'warn', detail: `${codigo} · solo en BIN/Z` });
+      showToast('Sin stock disponible', { tone: 'warn', detail: `${shown} · solo en BIN/Z` });
       return;
     }
     if (navigator.vibrate) navigator.vibrate(35);
@@ -362,7 +365,7 @@ function openWorkspace() {
   }
 
   const scanner = createCameraScanner({
-    videoEl, cameraBox, torchBtn, hintEl,
+    videoEl, cameraBox, torchBtn, hintEl, rearmAfterResume: true,
     onCode: (code) => handleCode(code),
   });
 
